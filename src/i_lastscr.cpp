@@ -21,6 +21,18 @@
 
 #include "rap.h"
 #include "i_lastscr.h"
+
+#ifdef __AMIGA__
+
+// Amiga: textscreen library not available – stub out the ENDOOM screen
+void I_LASTSCR(char* mem)
+{
+    (void)mem;
+    // No text-mode exit screen on Amiga
+}
+
+#else
+
 #include "textscreen.h"
 #include "i_video.h"
 #include "joyapi.h"
@@ -84,3 +96,5 @@ void I_LASTSCR(char* mem)
 
     TXT_Shutdown();
 }
+
+#endif // __AMIGA__

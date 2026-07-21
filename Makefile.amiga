@@ -1,0 +1,250 @@
+# =============================================================================
+# Makefile.amiga - Raptor for AmigaOS 3.x (68060 + RTG)
+# Cross-compilation using m68k-amigaos-gcc
+#
+# Usage:
+#   make -f Makefile.amiga              # Build the game
+#   make -f Makefile.amiga clean        # Clean build artifacts
+#   make -f Makefile.amiga VERBOSE=1    # Verbose build output
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Cross-compiler toolchain
+# -----------------------------------------------------------------------------
+PREFIX    = m68k-amigaos
+CC        = $(PREFIX)-gcc
+CXX       = $(PREFIX)-g++
+LD        = $(PREFIX)-g++
+STRIP     = $(PREFIX)-strip
+OBJDUMP   = $(PREFIX)-objdump
+
+# -----------------------------------------------------------------------------
+# Target
+# -----------------------------------------------------------------------------
+TARGET    = raptor
+BUILDDIR  = build.amiga
+
+# -----------------------------------------------------------------------------
+# CPU and FPU flags for Motorola 68060
+# -----------------------------------------------------------------------------
+CPU_FLAGS = -m68060 -m68881
+
+# -----------------------------------------------------------------------------
+# Compiler flags
+# -----------------------------------------------------------------------------
+WARNINGS  = -Wall -Wno-unused-variable -Wno-unused-but-set-variable \
+            -Wno-sign-compare -Wno-missing-braces
+
+CXXFLAGS  = $(CPU_FLAGS) \
+            -O2 \
+            -fomit-frame-pointer \
+            -fno-exceptions \
+            -fno-rtti \
+            -std=c++11 \
+            -noixemul \
+            $(WARNINGS) \
+            -DAMIGA \
+            -D__AMIGA__ \
+            -DNDEBUG
+
+CFLAGS    = $(CPU_FLAGS) \
+            -O2 \
+            -fomit-frame-pointer \
+            -std=c11 \
+            -noixemul \
+            $(WARNINGS) \
+            -DAMIGA \
+            -D__AMIGA__ \
+            -DNDEBUG
+
+# -----------------------------------------------------------------------------
+# Include paths
+# -----------------------------------------------------------------------------
+#
+# For the initial build we need SDL2 headers. Two strategies:
+#
+# Strategy A: Use an AmigaOS SDL2 port (e.g. from bebbo's amiga-gcc toolchain).
+#             Set SDL2_AMIGA_DIR to the SDL2 install prefix, e.g.:
+#             make -f Makefile.amiga SDL2_AMIGA_DIR=/opt/amiga/sdl2
+#
+# Strategy B: Use our own minimal SDL2 stubs (src/amiga/amiga_sdl_stubs.h).
+#             This file provides just enough SDL definitions (byte-swap macros,
+#             constants, type stubs) to allow compilation without a real SDL2.
+#             Set USE_SDL_STUBS=1.
+#
+# Default: Try Strategy A first; if SDL2_AMIGA_DIR is not set, fall back to stubs.
+# -----------------------------------------------------------------------------
+
+SDL2_AMIGA_DIR ?=
+USE_SDL_STUBS  ?= 0
+
+ifdef SDL2_AMIGA_DIR
+  SDL_INCDIR   = -I$(SDL2_AMIGA_DIR)/include -I$(SDL2_AMIGA_DIR)/include/SDL2
+  SDL_LIBDIR   = -L$(SDL2_AMIGA_DIR)/lib
+  SDL_LIBS     = -lSDL2
+else
+  # No SDL2 specified – use stubs for initial compilation testing
+  USE_SDL_STUBS = 1
+  SDL_INCDIR   = -Isrc/amiga
+  SDL_LIBDIR   =
+  SDL_LIBS     =
+endif
+
+INCLUDES  = -Isrc \
+            -Iinclude/TinySoundFont \
+            $(SDL_INCDIR)
+
+ifeq ($(USE_SDL_STUBS),1)
+  CXXFLAGS += -DUSE_SDL_STUBS
+  CFLAGS   += -DUSE_SDL_STUBS
+endif
+
+# -----------------------------------------------------------------------------
+# Linker flags
+# -----------------------------------------------------------------------------
+LDFLAGS   = $(CPU_FLAGS) \
+            -noixemul \
+            $(SDL_LIBDIR)
+
+LIBS      = $(SDL_LIBS) \
+            -lm \
+            -lstdc++
+
+# If linking against AmigaOS native APIs directly (Strategy B / future):
+# LIBS += -lamiga
+
+# -----------------------------------------------------------------------------
+# Source files - Game
+#
+# NOTE: Platform-specific MIDI backends excluded (Windows/Linux/macOS).
+# The TinySoundFont backend (mputsf.cpp) and OPL3 emulator are included.
+# Textscreen library (setup program) is NOT built in this Makefile.
+# -----------------------------------------------------------------------------
+SRCS_CXX  = \
+    src/anims.cpp \
+    src/bonus.cpp \
+    src/demo.cpp \
+    src/dspapi.cpp \
+    src/enemy.cpp \
+    src/eshot.cpp \
+    src/flame.cpp \
+    src/fx.cpp \
+    src/gfxapi.cpp \
+    src/gfxapi_a.cpp \
+    src/glbapi.cpp \
+    src/gssapi.cpp \
+    src/help.cpp \
+    src/i_lastscr.cpp \
+    src/i_oplmusic.cpp \
+    src/i_video.cpp \
+    src/imsapi.cpp \
+    src/input.cpp \
+    src/intro.cpp \
+    src/joyapi.cpp \
+    src/kbdapi.cpp \
+    src/loadsave.cpp \
+    src/m_misc.cpp \
+    src/movie.cpp \
+    src/movie_a.cpp \
+    src/mputsf.cpp \
+    src/musapi.cpp \
+    src/objects.cpp \
+    src/opl3.cpp \
+    src/prefapi.cpp \
+    src/ptrapi.cpp \
+    src/ptrapi_a.cpp \
+    src/rap.cpp \
+    src/shadow.cpp \
+    src/shots.cpp \
+    src/store.cpp \
+    src/swdapi.cpp \
+    src/tile.cpp \
+    src/tile_a.cpp \
+    src/vmemapi.cpp \
+    src/windows.cpp
+
+# Platform-specific files NOT included:
+#   src/mpuwinmm.cpp    (Windows WinMM MIDI)
+#   src/mpualsa.cpp     (Linux ALSA MIDI)
+#   src/mpucorea.cpp    (macOS CoreAudio)
+#   src/mpucorem.cpp    (macOS CoreMIDI)
+
+# Future: Amiga-specific implementation files
+# SRCS_CXX += \
+#     src/amiga/amiga_video.cpp \
+#     src/amiga/amiga_audio.cpp \
+#     src/amiga/amiga_input.cpp \
+#     src/amiga/amiga_timer.cpp \
+#     src/amiga/amiga_system.cpp
+
+# No separate C source files for now (textscreen excluded)
+SRCS_C    =
+
+# -----------------------------------------------------------------------------
+# Object files
+# -----------------------------------------------------------------------------
+OBJS_CXX  = $(SRCS_CXX:src/%.cpp=$(BUILDDIR)/%.o)
+OBJS_C    = $(SRCS_C:src/%.c=$(BUILDDIR)/%.o)
+OBJS      = $(OBJS_CXX) $(OBJS_C)
+
+# Dependencies
+DEPS      = $(OBJS:.o=.d)
+
+# -----------------------------------------------------------------------------
+# Verbosity control
+# -----------------------------------------------------------------------------
+VERBOSE   ?= 0
+ifeq ($(VERBOSE),0)
+  Q = @
+  ECHO = @echo
+else
+  Q =
+  ECHO = @echo
+endif
+
+# =============================================================================
+# Build rules
+# =============================================================================
+
+.PHONY: all clean dirs info
+
+all: dirs $(TARGET)
+	$(ECHO) "=== Build complete: $(TARGET) ==="
+
+$(TARGET): $(OBJS)
+	$(ECHO) "  LINK    $@"
+	$(Q)$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(ECHO) "  STRIP   $@"
+	$(Q)$(STRIP) --strip-all --strip-unneeded $@
+
+# Compile C++ sources
+$(BUILDDIR)/%.o: src/%.cpp
+	$(ECHO) "  CXX     $<"
+	$(Q)mkdir -p $(dir $@)
+	$(Q)$(CXX) $(CXXFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
+
+# Compile C sources
+$(BUILDDIR)/%.o: src/%.c
+	$(ECHO) "  CC      $<"
+	$(Q)mkdir -p $(dir $@)
+	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
+
+dirs:
+	$(Q)mkdir -p $(BUILDDIR)
+
+clean:
+	$(ECHO) "  CLEAN"
+	$(Q)rm -rf $(BUILDDIR)
+	$(Q)rm -f $(TARGET)
+
+info:
+	@echo "Target:       $(TARGET)"
+	@echo "Compiler:     $(CXX)"
+	@echo "CPU flags:    $(CPU_FLAGS)"
+	@echo "SDL2 dir:     $(SDL2_AMIGA_DIR)"
+	@echo "Use stubs:    $(USE_SDL_STUBS)"
+	@echo "Object files: $(words $(OBJS))"
+	@echo "Source files: $(words $(SRCS_CXX)) C++ + $(words $(SRCS_C)) C"
+
+# Include dependency files (generated by -MMD)
+-include $(DEPS)

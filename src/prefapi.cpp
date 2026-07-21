@@ -7,7 +7,26 @@
 #include <io.h>
 #endif // _WIN32
 #ifdef __GNUC__
+#ifdef __AMIGA__
+/* noixemul doesn't provide ftruncate/access; stub them for now.
+   A proper implementation would use dos.library SetFileSize() / Lock(). */
+#include <sys/types.h>
+static int ftruncate(int fd, long length)
+{
+    (void)fd; (void)length;
+    return 0;
+}
+static int access(const char *path, int mode)
+{
+    FILE *f;
+    (void)mode;
+    f = fopen(path, "r");
+    if (f) { fclose(f); return 0; }
+    return -1;
+}
+#else
 #include <unistd.h>
+#endif
 char* ltoa(long i, char* s, int dummy_radix) {
     sprintf(s, "%ld", i);
     return s;
