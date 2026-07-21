@@ -1,3 +1,9 @@
+# Raptor - Amiga 68060 RTG Port
+
+To jest prywatne repozytorium portu gry Raptor na AmigaOS 3.x.
+Docelowy sprzęt: 68060, 32MB RAM, RTG 4MB.
+
+---
 # Raptor
 Based on the reverse-engineered codebase from Raptor Call Of The Shadows by nukeykt
 
