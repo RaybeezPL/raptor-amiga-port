@@ -64,23 +64,29 @@ This project is as much about **learning** as it is about gaming:
 - [x] Windows build working (SDL2 + MSVC + CMake)
 - [x] m68k cross-compiler toolchain (AmigaPorts/m68k-amigaos-gcc, GCC 6.5.0)
 - [x] All C/C++ source files compile successfully for m68k target
-- [ ] Amiga backend – POSIX stubs (access, ftruncate, gettimeofday)
-- [ ] Graphics layer stub (SDL2 → Picasso96/P96 – basic implementation)
+- [x] Amiga backend – POSIX stubs (access, ftruncate, gettimeofday)
+- [x] Graphics layer stub (SDL2 → Picasso96/P96 – basic implementation)
 - [ ] Audio layer stub (SDL2 → AHI – basic implementation)
-- [ ] Input handling stub (SDL2 events → AmigaOS IDCMP)
+- [ ] Input handling stub (SDL2 events → AmigaOS IDCMP) ← **in progress**
 - [ ] Joystick stubs (SDL2 → AmigaOS gameport.device)
-- [ ] **First successful link of Amiga executable** ← 20 July 2026
-- [ ] Testing on WinUAE emulator (68060 + RTG + AHI)
-- [ ] First boot on WinUAE without crash
-- [ ] Graphics visible on screen (RTG output)
+- [x] **First successful link of Amiga executable** ← 20 July 2026
+- [x] Testing on WinUAE emulator (68060 + RTG + AHI)
+- [x] First boot on WinUAE without crash
+- [x] Graphics visible on screen (RTG output) – intro movies play correctly
 - [ ] Audio working (AHI playback)
-- [ ] Input working (keyboard + mouse)
+- [ ] Input working (keyboard + mouse) ← **currently being implemented, starting with the menu**
 - [ ] Testing on real hardware (A2000 RTG, A1200 + PiStorm)
 
 > **Milestone reached – 20 July 2026:**
 > Both `raptor` and `raptorsetup` successfully compile and link as
 > native **AmigaOS m68k executables** (loadseg()ble binary format).
 > This is believed to be the first ever Amiga build of Raptor: Call of the Shadows.
+
+> **Milestone reached – 22 July 2026:**
+> The game now boots successfully on WinUAE and the intro movies play
+> correctly on screen. Next step: implementing keyboard and mouse input
+> handling, starting with the main menu.
+
 
 ---
 
