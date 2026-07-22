@@ -3,10 +3,48 @@
  *
  * This header provides just enough SDL2 definitions to allow the Raptor
  * source code to compile without a real SDL2 library. Actual functionality
- * must be implemented via native AmigaOS APIs in the amiga_*.cpp files.
+ * is implemented natively here via AmigaOS/RTG (Picasso96) APIs.
  *
  * This file is only used when USE_SDL_STUBS is defined (i.e., when no
  * real SDL2 Amiga port is available).
+ *
+ * ---------------------------------------------------------------------------
+ * RTG (Picasso96) TARGETING NOTES
+ * ---------------------------------------------------------------------------
+ * This port strictly targets RTG (Picasso96) boards. The game does NOT use
+ * the standard Workbench screen: it always opens its own dedicated custom
+ * screen at the native game resolution (320x200, 8-bit chunky/CLUT).
+ *
+ * We deliberately do NOT #include <libraries/picasso96.h> or
+ * <proto/Picasso96API.h> anywhere in this file, because those headers are
+ * third-party (not part of the base AmigaOS 3.x NDK) and might simply be
+ * missing from a minimal cross-compiler environment. Instead:
+ *
+ *   - Picasso96API.library is opened by raw name via OpenLibrary() only to
+ *     detect whether an RTG board/driver is actually present at runtime.
+ *     We do not call any p96*() functions directly (no vector table, no
+ *     LVO offsets needed for that).
+ *   - The actual custom screen/window is opened with completely standard,
+ *     always-available graphics.library / intuition.library calls
+ *     (BestModeID(), OpenScreenTagList(), OpenWindowTagList()) - these are
+ *     part of the base NDK (proto/graphics.h, proto/intuition.h, already
+ *     included below) and Picasso96 transparently hooks/patches them for
+ *     its own RTG "friend" bitmaps. This gives full RTG support without any
+ *     Picasso96 SDK headers or raw LVO offsets.
+ *   - Pixel blit uses WriteChunkyPixels() - again a *standard*
+ *     graphics.library v50+ call, which on an RTG system writes directly
+ *     into the RTG bitmap's chunky buffer. A slow raw SetAPen()+WritePixel()
+ *     fallback is provided for older graphics.library versions.
+ *   - Palette is applied with LoadRGB32() - also a standard graphics.library
+ *     call, patched by Picasso96 to update the RTG board's CLUT/gamma
+ *     tables for 8-bit screens.
+ *
+ * If Picasso96API.library cannot be opened (no RTG board installed), we
+ * fall back to plain Intuition custom-screen creation using whatever
+ * default/best matching ModeID BestModeID() returns for the requested
+ * dimensions/depth - this still works on AGA machines, just without RTG
+ * acceleration.
+ * ---------------------------------------------------------------------------
  */
 
 #ifndef AMIGA_SDL_STUBS_H
@@ -20,7 +58,7 @@
 #include <stdio.h>
 
 /* ========================================================================= */
-/* AmigaOS Intuition / Graphics for real window support                      */
+/* AmigaOS Intuition / Graphics for real screen+window support               */
 /* ========================================================================= */
 
 #ifdef __AMIGA__
@@ -30,11 +68,268 @@
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
 
-/* Library bases needed by proto header inline stubs.                         */
-/* __attribute__((weak)): safe if this header is included from multiple TUs.  */
+/* Library bases needed by proto header inline stubs.                        */
+/* __attribute__((weak)): safe if this header is included from multiple TUs. */
 __attribute__((weak)) struct IntuitionBase *IntuitionBase = NULL;
 __attribute__((weak)) struct GfxBase *GfxBase = NULL;
+
+/* ------------------------------------------------------------------------- */
+/* Picasso96API.library - RTG detection only (see file header comment for    */
+/* the full rationale). We only need the pointer to know it opened OK; we    */
+/* never call through it directly.                                          */
+/* ------------------------------------------------------------------------- */
+__attribute__((weak)) struct Library *P96Base = NULL;
+__attribute__((weak)) int AmigaUsingP96 = 0;
+
+/* ------------------------------------------------------------------------- */
+/* Raw/inline BestModeID() tag values (normally in <graphics/displayinfo.h>, */
+/* a standard AmigaOS 3.x NDK header, stable since Kickstart 2.04/           */
+/* graphics.library v39). Defined raw/inline here so we don't depend on     */
+/* that header being present either.                                        */
+/* ------------------------------------------------------------------------- */
+#ifndef BIDTAG_DesiredWidth
+#define BIDTAG_DesiredWidth     (TAG_USER + 0x0000UL)
+#endif
+#ifndef BIDTAG_DesiredHeight
+#define BIDTAG_DesiredHeight    (TAG_USER + 0x0001UL)
+#endif
+#ifndef BIDTAG_SourceID
+#define BIDTAG_SourceID         (TAG_USER + 0x0002UL)
+#endif
+#ifndef BIDTAG_Depth
+#define BIDTAG_Depth            (TAG_USER + 0x0004UL)
+#endif
+#ifndef BIDTAG_MonitorID
+#define BIDTAG_MonitorID        (TAG_USER + 0x000AUL)
+#endif
+#ifndef INVALID_ID
+#define INVALID_ID              0xFFFFFFFFUL
+#endif
+
+/* Game's fixed native resolution/depth. Always 320x200x8 - RTG target. */
+#define AMIGA_GAME_WIDTH   320
+#define AMIGA_GAME_HEIGHT  200
+#define AMIGA_GAME_DEPTH   8
+
+/* ------------------------------------------------------------------------- */
+/* RTG screen/window state - the single dedicated custom screen we open for  */
+/* the game. Declared weak at header scope so every TU that includes SDL.h   */
+/* shares the same instance via the linker (same trick as IntuitionBase/     */
+/* GfxBase above).                                                          */
+/* ------------------------------------------------------------------------- */
+__attribute__((weak)) struct Screen *AmigaGameScreen = NULL;
+
+/* Cached "pending" chunky pixel buffer + dimensions, set by SDL_LowerBlit()
+ * each frame and consumed by SDL_RenderPresent() to perform the actual
+ * hardware blit. This mirrors the real SDL2 flow (LowerBlit fills a
+ * surface, RenderPresent flips it to the screen) while letting us do the
+ * real Amiga blit at the correct "present" point in the frame. */
+__attribute__((weak)) const uint8_t *AmigaPendingChunky = NULL;
+__attribute__((weak)) int AmigaPendingW = 0;
+__attribute__((weak)) int AmigaPendingH = 0;
+
+
+/*
+ * Amiga_OpenP96: try to open Picasso96API.library, purely to detect whether
+ * an RTG board/driver is present on this system. Returns 1 if RTG is
+ * available, 0 otherwise (base AGA/ECS Intuition custom screen will be used
+ * as a fallback in that case).
+ */
+static inline int Amiga_OpenP96(void)
+{
+    if (P96Base != NULL) {
+        return 1;
+    }
+
+    printf("[AMIGA] Attempting to open Picasso96API.library (RTG detection)...\n");
+    fflush(stdout);
+
+    /* Raw OpenLibrary() call by name/version - no SDK header dependency. */
+    P96Base = OpenLibrary((CONST_STRPTR)"Picasso96API.library", 0);
+
+    if (P96Base) {
+        printf("[AMIGA] Picasso96API.library opened OK - RTG board detected.\n");
+        fflush(stdout);
+        AmigaUsingP96 = 1;
+        return 1;
+    }
+
+    printf("[AMIGA] Picasso96API.library NOT found - falling back to standard "
+           "Intuition custom screen (no RTG acceleration).\n");
+    fflush(stdout);
+    AmigaUsingP96 = 0;
+    return 0;
+}
+
+static inline void Amiga_CloseP96(void)
+{
+    if (P96Base) {
+        printf("[AMIGA] Closing Picasso96API.library\n"); fflush(stdout);
+        CloseLibrary(P96Base);
+        P96Base = NULL;
+    }
+    AmigaUsingP96 = 0;
+}
+
+/*
+ * Amiga_FindBestModeID: locate the best matching display ModeID for our
+ * fixed 320x200x8 game resolution. On an RTG system with Picasso96 active,
+ * BestModeID() will happily return one of the RTG board's own chunky
+ * ModeIDs (Picasso96 registers these with graphics.library); on a plain
+ * AGA/ECS system it returns a standard chipset ModeID instead.
+ */
+static inline ULONG Amiga_FindBestModeID(int w, int h, int depth)
+{
+    ULONG modeid = BestModeID(
+        BIDTAG_DesiredWidth,  (ULONG)w,
+        BIDTAG_DesiredHeight, (ULONG)h,
+        BIDTAG_Depth,         (ULONG)depth,
+        TAG_DONE);
+
+    printf("[AMIGA] BestModeID(%dx%dx%d) -> 0x%08lx\n", w, h, depth,
+           (unsigned long)modeid);
+    fflush(stdout);
+
+    return modeid;
+}
+
+/*
+ * Amiga_OpenGameScreen: opens our dedicated custom 320x200x8-bit screen
+ * (RTG-backed if Picasso96 is present, otherwise plain AGA/ECS chipset
+ * screen at the closest matching mode). This screen is never Workbench -
+ * we always create our own custom screen for the game.
+ */
+static inline struct Screen* Amiga_OpenGameScreen(int w, int h, int depth)
+{
+    ULONG modeid;
+
+    if (AmigaGameScreen) {
+        return AmigaGameScreen;
+    }
+
+    Amiga_OpenP96();
+
+    modeid = Amiga_FindBestModeID(w, h, depth);
+    if (modeid == INVALID_ID) {
+        printf("[AMIGA] BestModeID() failed to find a matching mode! "
+               "Trying INVALID_ID anyway (Intuition may pick a default).\n");
+        fflush(stdout);
+    }
+
+    printf("[AMIGA] Opening custom %dx%dx%d game screen (ModeID=0x%08lx, "
+           "RTG=%d)...\n", w, h, depth, (unsigned long)modeid, AmigaUsingP96);
+    fflush(stdout);
+
+    AmigaGameScreen = OpenScreenTags(NULL,
+        SA_Width,      (ULONG)w,
+        SA_Height,     (ULONG)h,
+        SA_Depth,      (ULONG)depth,
+        SA_DisplayID,  modeid,
+        SA_Quiet,      TRUE,
+        SA_ShowTitle,  FALSE,
+        SA_Draggable,  FALSE,
+        SA_Exclusive,  TRUE,
+        SA_Type,       CUSTOMSCREEN,
+        TAG_DONE);
+
+    if (!AmigaGameScreen) {
+        printf("[AMIGA] Amiga_OpenGameScreen: OpenScreenTags FAILED!\n");
+        fflush(stdout);
+        return NULL;
+    }
+
+    printf("[AMIGA] Custom game screen opened at %p\n", (void*)AmigaGameScreen);
+    fflush(stdout);
+
+    return AmigaGameScreen;
+}
+
+static inline void Amiga_CloseGameScreen(void)
+{
+    if (AmigaGameScreen) {
+        printf("[AMIGA] Closing custom game screen %p\n", (void*)AmigaGameScreen);
+        fflush(stdout);
+        CloseScreen(AmigaGameScreen);
+        AmigaGameScreen = NULL;
+    }
+}
+
+/*
+ * Amiga_BlitScreen: raw chunky pixel blit of an 8-bit paletted buffer
+ * (I_VideoBuffer, 320x200) directly onto the game window's RastPort.
+ *
+ * Preferred path: WriteChunkyPixels() - a *standard* graphics.library call
+ * (v50+, present whenever RTG software such as Picasso96/CyberGraphX has
+ * patched graphics.library, which is always true on an RTG system). It
+ * writes an 8-bit-per-pixel chunky array straight into the bitmap, exactly
+ * matching our 320x200x8 chunky screen buffer - no palette conversion, no
+ * intermediate ARGB surface required.
+ *
+ * Fallback path (graphics.library < v50 / WriteChunkyPixels unavailable):
+ * a raw per-pixel copy via SetAPen()+WritePixel(). Slow, but keeps the game
+ * functionally working on any system (e.g. plain AGA fallback).
+ */
+static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky, int w, int h)
+{
+    if (!win || !win->RPort || !chunky) return;
+
+    if (GfxBase && GfxBase->LibNode.lib_Version >= 50)
+    {
+        WriteChunkyPixels(win->RPort,
+                           win->BorderLeft, win->BorderTop,
+                           win->BorderLeft + w - 1, win->BorderTop + h - 1,
+                           (UBYTE *)chunky, w);
+    }
+    else
+    {
+        int x, y;
+        const uint8_t *row = chunky;
+        for (y = 0; y < h; y++)
+        {
+            for (x = 0; x < w; x++)
+            {
+                SetAPen(win->RPort, row[x]);
+                WritePixel(win->RPort, win->BorderLeft + x, win->BorderTop + y);
+            }
+            row += w;
+        }
+    }
+}
+
+/*
+ * Amiga_ApplyPalette: pushes an SDL_Color[] palette (0-255 range per
+ * channel) to the hardware/RTG screen using the standard graphics.library
+ * LoadRGB32() call. Works correctly for both AGA and RTG (Picasso96)
+ * screens - Picasso96 patches LoadRGB32() to update its own CLUT when the
+ * ViewPort belongs to an RTG screen.
+ */
+static inline void Amiga_ApplyPalette(struct Screen *scr, const void *sdlcolors, int first, int n)
+{
+    /* sdlcolors points at an array of {r,g,b,a} uint8_t structs (SDL_Color),
+     * but SDL_Color isn't declared yet at this point in the header, so we
+     * take a void* and reinterpret via a local byte-compatible struct. */
+    struct RawColor { uint8_t r, g, b, a; };
+    const struct RawColor *colors = (const struct RawColor *)sdlcolors;
+    static ULONG table[1 + 256 * 3 + 1];
+    int i;
+
+    if (!scr || !colors || n <= 0) return;
+    if (n > 256) n = 256;
+
+    table[0] = ((ULONG)n << 16) | (ULONG)(first & 0xFFFF);
+    for (i = 0; i < n; i++)
+    {
+        table[1 + i * 3 + 0] = (ULONG)colors[i].r << 24;
+        table[1 + i * 3 + 1] = (ULONG)colors[i].g << 24;
+        table[1 + i * 3 + 2] = (ULONG)colors[i].b << 24;
+    }
+    table[1 + n * 3] = 0; /* terminator */
+
+    LoadRGB32(&scr->ViewPort, table);
+}
+
 #endif /* __AMIGA__ */
+
 
 /* ========================================================================= */
 /* Byte order / Endianness                                                   */
@@ -129,13 +424,14 @@ typedef struct SDL_AudioSpec {
 
 /* ========================================================================= */
 /* Video structures                                                          */
-/* Now with real struct bodies so we can hold Amiga window pointers.          */
+/* Now with real struct bodies so we can hold Amiga window/screen pointers.   */
 /* ========================================================================= */
 
 typedef struct SDL_Window {
     int w, h;
 #ifdef __AMIGA__
     struct Window *amiga_window;   /* Real Intuition window pointer */
+    struct Screen *amiga_screen;   /* Dedicated custom RTG screen this window is on */
 #endif
 } SDL_Window;
 
@@ -423,6 +719,8 @@ static inline void   SDL_QuitSubSystem(uint32_t flags) { (void)flags; }
 static inline void SDL_Quit(void) {
 #ifdef __AMIGA__
     printf("[AMIGA] SDL_Quit: closing libraries\n"); fflush(stdout);
+    Amiga_CloseGameScreen();
+    Amiga_CloseP96();
     if (IntuitionBase) {
         CloseLibrary((struct Library *)IntuitionBase);
         IntuitionBase = NULL;
@@ -503,14 +801,19 @@ static inline int    SDL_GetCurrentDisplayMode(int idx, SDL_DisplayMode *mode) {
 }
 
 /* ========================================================================= */
-/* --- Window --- Real Amiga Intuition window implementation               */
+/* --- Window --- RTG (Picasso96) custom screen + borderless window          */
+/*                                                                           */
+/* Strictly targets RTG: opens a dedicated, custom 320x200x8 screen (never   */
+/* Workbench) via Picasso96-if-present / plain Intuition-if-not, then a      */
+/* borderless GimmeZeroZero window filling that screen for the game to draw  */
+/* into. See file header comment for the full inline/raw Picasso96 rationale.*/
 /* ========================================================================= */
 
 static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
                                            int w, int h, uint32_t flags) {
     (void)x; (void)y; (void)flags;
 
-    printf("[AMIGA] SDL_CreateWindow: title='%s' size=%dx%d flags=0x%x\n",
+    printf("[AMIGA] SDL_CreateWindow: title='%s' requested size=%dx%d flags=0x%x\n",
            title ? title : "(null)", w, h, flags);
     fflush(stdout);
 
@@ -519,8 +822,12 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
         printf("[AMIGA] SDL_CreateWindow: calloc FAILED!\n"); fflush(stdout);
         return NULL;
     }
-    win->w = w > 0 ? w : 320;
-    win->h = h > 0 ? h : 200;
+
+    /* This port strictly targets our own 320x200 8-bit RTG screen,
+     * regardless of what window size the generic i_video.cpp layer asked
+     * for - the game's native resolution is fixed. */
+    win->w = AMIGA_GAME_WIDTH;
+    win->h = AMIGA_GAME_HEIGHT;
 
 #ifdef __AMIGA__
     /* Open intuition.library v39+ if not already open */
@@ -536,22 +843,50 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
         printf("[AMIGA] Opened intuition.library v39 OK\n"); fflush(stdout);
     }
 
-    printf("[AMIGA] Opening Intuition window %dx%d on Workbench...\n",
+    /* graphics.library is needed for BestModeID()/WriteChunkyPixels()/LoadRGB32() */
+    if (!GfxBase) {
+        GfxBase = (struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library", 39);
+        if (!GfxBase) {
+            printf("[AMIGA] SDL_CreateWindow: Cannot open graphics.library v39!\n");
+            fflush(stdout);
+            free(win);
+            return NULL;
+        }
+        printf("[AMIGA] Opened graphics.library v39 OK (version=%u)\n",
+               (unsigned)GfxBase->LibNode.lib_Version);
+        fflush(stdout);
+    }
+
+    /* Force our own dedicated custom RTG screen - NEVER Workbench. */
+    struct Screen *scr = Amiga_OpenGameScreen(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
+    if (!scr) {
+        printf("[AMIGA] SDL_CreateWindow: Amiga_OpenGameScreen FAILED!\n");
+        fflush(stdout);
+        free(win);
+        return NULL;
+    }
+    win->amiga_screen = scr;
+
+    printf("[AMIGA] Opening borderless %dx%d window on custom game screen...\n",
            win->w, win->h);
     fflush(stdout);
 
     win->amiga_window = OpenWindowTags(NULL,
         WA_Left,          0,
-        WA_Top,           20,
+        WA_Top,           0,
+        WA_Width,         (ULONG)win->w,
+        WA_Height,        (ULONG)win->h,
         WA_InnerWidth,    (ULONG)win->w,
         WA_InnerHeight,   (ULONG)win->h,
-        WA_Title,         (ULONG)(title ? title : "Raptor"),
-        WA_DragBar,       TRUE,
-        WA_DepthGadget,   TRUE,
-        WA_CloseGadget,   TRUE,
+        WA_CustomScreen,  (ULONG)scr,
+        WA_Borderless,    TRUE,
+        WA_Backdrop,      TRUE,
+        WA_DragBar,       FALSE,
+        WA_DepthGadget,   FALSE,
+        WA_CloseGadget,   FALSE,
         WA_Activate,      TRUE,
-        WA_ReportMouse,   TRUE,
         WA_RMBTrap,       TRUE,
+        WA_ReportMouse,   TRUE,
         WA_GimmeZeroZero, TRUE,
         WA_IDCMP,         IDCMP_CLOSEWINDOW | IDCMP_RAWKEY |
                           IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE,
@@ -560,12 +895,13 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
     if (!win->amiga_window) {
         printf("[AMIGA] SDL_CreateWindow: OpenWindowTags FAILED!\n");
         fflush(stdout);
+        Amiga_CloseGameScreen();
         free(win);
         return NULL;
     }
 
-    printf("[AMIGA] Intuition window opened at %p (%dx%d inner)\n",
-           (void*)win->amiga_window, win->w, win->h);
+    printf("[AMIGA] Borderless game window opened at %p (%dx%d inner) on RTG=%d screen\n",
+           (void*)win->amiga_window, win->w, win->h, AmigaUsingP96);
     fflush(stdout);
 #endif /* __AMIGA__ */
 
@@ -579,8 +915,10 @@ static inline void SDL_DestroyWindow(SDL_Window *w) {
     if (w->amiga_window) {
         CloseWindow(w->amiga_window);
         w->amiga_window = NULL;
-        printf("[AMIGA] Intuition window closed\n"); fflush(stdout);
+        printf("[AMIGA] Game window closed\n"); fflush(stdout);
     }
+    Amiga_CloseGameScreen();
+    w->amiga_screen = NULL;
 #endif
     free(w);
 }
@@ -588,7 +926,8 @@ static inline void SDL_DestroyWindow(SDL_Window *w) {
 static inline uint32_t SDL_GetWindowID(SDL_Window *w) { (void)w; return 1; }
 static inline uint32_t SDL_GetWindowFlags(SDL_Window *w) { (void)w; return 0; }
 static inline int    SDL_GetWindowDisplayIndex(SDL_Window *w) { (void)w; return 0; }
-static inline uint32_t SDL_GetWindowPixelFormat(SDL_Window *w) { (void)w; return SDL_PIXELFORMAT_ARGB8888; }
+/* Our window is always an 8-bit chunky/CLUT surface - report INDEX8. */
+static inline uint32_t SDL_GetWindowPixelFormat(SDL_Window *w) { (void)w; return SDL_PIXELFORMAT_INDEX8; }
 
 static inline void SDL_GetWindowSize(SDL_Window *w, int *pw, int *ph) {
     if (w) { if(pw) *pw = w->w; if(ph) *ph = w->h; }
@@ -596,8 +935,9 @@ static inline void SDL_GetWindowSize(SDL_Window *w, int *pw, int *ph) {
 }
 
 static inline void SDL_SetWindowSize(SDL_Window *w, int ww, int hh) {
-    if (w) { w->w = ww; w->h = hh; }
-    /* TODO: ChangeWindowBox() to resize Amiga window */
+    (void)ww; (void)hh;
+    /* Fixed 320x200 RTG game screen - resizing is a no-op by design. */
+    if (w) { w->w = AMIGA_GAME_WIDTH; w->h = AMIGA_GAME_HEIGHT; }
 }
 
 static inline void SDL_SetWindowMinimumSize(SDL_Window *w, int mw, int mh) {
@@ -617,7 +957,7 @@ static inline void SDL_SetWindowTitle(SDL_Window *w, const char *t) {
 
 static inline void SDL_SetWindowFullscreen(SDL_Window *w, uint32_t f) {
     (void)w; (void)f;
-    /* TODO: Fullscreen toggle via screen mode change */
+    /* Already exclusive fullscreen on our own custom screen - no-op. */
 }
 
 /* ========================================================================= */
@@ -643,7 +983,7 @@ static inline void SDL_DestroyRenderer(SDL_Renderer *r) {
 static inline int SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info) {
     (void)r;
     if (info) {
-        info->name = "amiga_stub";
+        info->name = "amiga_rtg";
         info->flags = 0;
         info->max_texture_width = 2048;
         info->max_texture_height = 2048;
@@ -666,7 +1006,36 @@ static inline int    SDL_RenderSetLogicalSize(SDL_Renderer *r, int w, int h) { (
 static inline int    SDL_RenderSetIntegerScale(SDL_Renderer *r, SDL_bool e) { (void)r; (void)e; return 0; }
 static inline void   SDL_RenderClear(SDL_Renderer *r) { (void)r; }
 static inline int    SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *t, const SDL_Rect *s, const SDL_Rect *d) { (void)r; (void)t; (void)s; (void)d; return 0; }
-static inline void   SDL_RenderPresent(SDL_Renderer *r) { (void)r; }
+
+/*
+ * SDL_RenderPresent: this is the per-frame "flip" call. On our RTG backend
+ * there is no separate texture/renderer pipeline - the 8-bit chunky
+ * screenbuffer (I_VideoBuffer, wrapped by the 8-bit SDL_Surface) is what
+ * actually gets blitted onto the game window's RastPort, using either
+ * WriteChunkyPixels() (preferred, standard graphics.library v50+ call, RTG
+ * accelerated when Picasso96 is active) or the slow per-pixel fallback.
+ *
+ * SDL_LowerBlit() (called earlier this frame by I_FinishUpdate() in
+ * i_video.cpp) has already cached a pointer to the source 8-bit chunky
+ * buffer + dimensions in AmigaPendingChunky/W/H; here at "present" time we
+ * actually push those pixels to the screen. This mirrors real SDL2
+ * semantics (LowerBlit fills an intermediate surface, RenderPresent flips
+ * it to the display) while doing the genuinely visible hardware blit at
+ * the correct point in the frame.
+ */
+static inline void SDL_RenderPresent(SDL_Renderer *r) {
+    (void)r;
+#ifdef __AMIGA__
+    if (AmigaGameScreen && AmigaGameScreen->FirstWindow &&
+        AmigaPendingChunky && AmigaPendingW > 0 && AmigaPendingH > 0)
+    {
+        Amiga_BlitScreen(AmigaGameScreen->FirstWindow, AmigaPendingChunky,
+                         AmigaPendingW, AmigaPendingH);
+    }
+#endif
+}
+
+
 static inline int    SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) { (void)r; (void)t; return 0; }
 static inline int    SDL_SetRenderDrawColor(SDL_Renderer *r, uint8_t rr, uint8_t g, uint8_t b, uint8_t a) { (void)r; (void)rr; (void)g; (void)b; (void)a; return 0; }
 static inline int    SDL_RenderGetViewport(SDL_Renderer *r, SDL_Rect *rect) {
@@ -741,18 +1110,30 @@ static inline int SDL_FillRect(SDL_Surface *s, const SDL_Rect *r, uint32_t color
     return 0;
 }
 
+/*
+ * SDL_SetPaletteColors: stores the palette into the SDL_Palette struct (as
+ * before, for internal consistency with the rest of i_video.cpp), AND - on
+ * Amiga - immediately pushes it to the real hardware/RTG screen via
+ * Amiga_ApplyPalette()/LoadRGB32() so the 256-color palette is actually
+ * applied on screen.
+ */
 static inline int SDL_SetPaletteColors(SDL_Palette *p, const SDL_Color *c, int first, int n) {
     if (p && p->colors && c) {
         int i;
         for (i = 0; i < n && (first + i) < p->ncolors; ++i)
             p->colors[first + i] = c[i];
     }
+#ifdef __AMIGA__
+    if (AmigaGameScreen && c) {
+        Amiga_ApplyPalette(AmigaGameScreen, c, first, n);
+    }
+#endif
     return 0;
 }
 
 static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst, SDL_Rect *dr) {
     /*
-     * Palette-indexed 8-bit surface → 32-bit ARGB surface conversion.
+     * Palette-indexed 8-bit surface â†’ 32-bit ARGB surface conversion.
      * This is the critical blit path used by I_FinishUpdate() every frame.
      * src = 8-bit paletted screenbuffer, dst = 32-bit argbbuffer.
      */
@@ -784,6 +1165,21 @@ static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst
             dp[x] = (0xFFu << 24) | ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | (uint32_t)c.b;
         }
     }
+
+#ifdef __AMIGA__
+    /*
+     * Cache the source 8-bit chunky buffer pointer + dimensions for the
+     * actual RTG screen blit, which happens later at SDL_RenderPresent()
+     * time (the real "flip" point in the frame). The ARGB conversion above
+     * is kept only so the rest of the generic i_video.cpp code path
+     * continues to work unmodified; the genuinely visible on-screen update
+     * is the raw chunky blit performed in SDL_RenderPresent().
+     */
+    AmigaPendingChunky = srcpix + y0 * srcpitch + x0;
+    AmigaPendingW = w;
+    AmigaPendingH = h;
+#endif
+
     return 0;
 }
 
