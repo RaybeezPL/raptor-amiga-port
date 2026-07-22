@@ -1610,6 +1610,7 @@ void I_SetMousePos(int x, int y)
 void closewindow(void)
 {
     SDL_DestroyWindow(screen);
+    screen = NULL;
 }
 
 bool I_GetNeedResize(bool setonlypos)

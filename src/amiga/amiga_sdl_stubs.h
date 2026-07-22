@@ -17,6 +17,24 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+
+/* ========================================================================= */
+/* AmigaOS Intuition / Graphics for real window support                      */
+/* ========================================================================= */
+
+#ifdef __AMIGA__
+#include <proto/exec.h>
+#include <proto/intuition.h>
+#include <proto/graphics.h>
+#include <intuition/intuition.h>
+#include <intuition/screens.h>
+
+/* Library bases needed by proto header inline stubs.                         */
+/* __attribute__((weak)): safe if this header is included from multiple TUs.  */
+__attribute__((weak)) struct IntuitionBase *IntuitionBase = NULL;
+__attribute__((weak)) struct GfxBase *GfxBase = NULL;
+#endif /* __AMIGA__ */
 
 /* ========================================================================= */
 /* Byte order / Endianness                                                   */
@@ -110,12 +128,24 @@ typedef struct SDL_AudioSpec {
 } SDL_AudioSpec;
 
 /* ========================================================================= */
-/* Video structures (stubs - to be replaced by RTG implementation)           */
+/* Video structures                                                          */
+/* Now with real struct bodies so we can hold Amiga window pointers.          */
 /* ========================================================================= */
 
-typedef struct SDL_Window SDL_Window;
-typedef struct SDL_Renderer SDL_Renderer;
-typedef struct SDL_Texture SDL_Texture;
+typedef struct SDL_Window {
+    int w, h;
+#ifdef __AMIGA__
+    struct Window *amiga_window;   /* Real Intuition window pointer */
+#endif
+} SDL_Window;
+
+typedef struct SDL_Renderer {
+    SDL_Window *window;            /* Back-pointer to owning window */
+} SDL_Renderer;
+
+typedef struct SDL_Texture {
+    int w, h;
+} SDL_Texture;
 
 typedef struct SDL_Color {
     uint8_t r, g, b, a;
@@ -389,7 +419,20 @@ extern "C" {
 /* --- Init / Quit --- */
 static inline int    SDL_Init(uint32_t flags) { (void)flags; return 0; }
 static inline void   SDL_QuitSubSystem(uint32_t flags) { (void)flags; }
-static inline void   SDL_Quit(void) {}
+
+static inline void SDL_Quit(void) {
+#ifdef __AMIGA__
+    printf("[AMIGA] SDL_Quit: closing libraries\n"); fflush(stdout);
+    if (IntuitionBase) {
+        CloseLibrary((struct Library *)IntuitionBase);
+        IntuitionBase = NULL;
+    }
+    if (GfxBase) {
+        CloseLibrary((struct Library *)GfxBase);
+        GfxBase = NULL;
+    }
+#endif
+}
 
 /* --- Error --- */
 static inline const char* SDL_GetError(void) { return "SDL stubs - not implemented"; }
@@ -459,29 +502,145 @@ static inline int    SDL_GetCurrentDisplayMode(int idx, SDL_DisplayMode *mode) {
     return 0;
 }
 
-/* --- Window --- */
-static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y, int w, int h, uint32_t flags) {
-    (void)title; (void)x; (void)y; (void)w; (void)h; (void)flags;
-    return (SDL_Window*)1; /* Non-null stub pointer */
+/* ========================================================================= */
+/* --- Window --- Real Amiga Intuition window implementation               */
+/* ========================================================================= */
+
+static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
+                                           int w, int h, uint32_t flags) {
+    (void)x; (void)y; (void)flags;
+
+    printf("[AMIGA] SDL_CreateWindow: title='%s' size=%dx%d flags=0x%x\n",
+           title ? title : "(null)", w, h, flags);
+    fflush(stdout);
+
+    SDL_Window *win = (SDL_Window*)calloc(1, sizeof(SDL_Window));
+    if (!win) {
+        printf("[AMIGA] SDL_CreateWindow: calloc FAILED!\n"); fflush(stdout);
+        return NULL;
+    }
+    win->w = w > 0 ? w : 320;
+    win->h = h > 0 ? h : 200;
+
+#ifdef __AMIGA__
+    /* Open intuition.library v39+ if not already open */
+    if (!IntuitionBase) {
+        IntuitionBase = (struct IntuitionBase *)OpenLibrary(
+            (CONST_STRPTR)"intuition.library", 39);
+        if (!IntuitionBase) {
+            printf("[AMIGA] SDL_CreateWindow: Cannot open intuition.library v39!\n");
+            fflush(stdout);
+            free(win);
+            return NULL;
+        }
+        printf("[AMIGA] Opened intuition.library v39 OK\n"); fflush(stdout);
+    }
+
+    printf("[AMIGA] Opening Intuition window %dx%d on Workbench...\n",
+           win->w, win->h);
+    fflush(stdout);
+
+    win->amiga_window = OpenWindowTags(NULL,
+        WA_Left,          0,
+        WA_Top,           20,
+        WA_InnerWidth,    (ULONG)win->w,
+        WA_InnerHeight,   (ULONG)win->h,
+        WA_Title,         (ULONG)(title ? title : "Raptor"),
+        WA_DragBar,       TRUE,
+        WA_DepthGadget,   TRUE,
+        WA_CloseGadget,   TRUE,
+        WA_Activate,      TRUE,
+        WA_ReportMouse,   TRUE,
+        WA_RMBTrap,       TRUE,
+        WA_GimmeZeroZero, TRUE,
+        WA_IDCMP,         IDCMP_CLOSEWINDOW | IDCMP_RAWKEY |
+                          IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE,
+        TAG_DONE);
+
+    if (!win->amiga_window) {
+        printf("[AMIGA] SDL_CreateWindow: OpenWindowTags FAILED!\n");
+        fflush(stdout);
+        free(win);
+        return NULL;
+    }
+
+    printf("[AMIGA] Intuition window opened at %p (%dx%d inner)\n",
+           (void*)win->amiga_window, win->w, win->h);
+    fflush(stdout);
+#endif /* __AMIGA__ */
+
+    return win;
 }
-static inline void   SDL_DestroyWindow(SDL_Window *w) { (void)w; }
+
+static inline void SDL_DestroyWindow(SDL_Window *w) {
+    if (!w) return;
+    printf("[AMIGA] SDL_DestroyWindow: %p\n", (void*)w); fflush(stdout);
+#ifdef __AMIGA__
+    if (w->amiga_window) {
+        CloseWindow(w->amiga_window);
+        w->amiga_window = NULL;
+        printf("[AMIGA] Intuition window closed\n"); fflush(stdout);
+    }
+#endif
+    free(w);
+}
+
 static inline uint32_t SDL_GetWindowID(SDL_Window *w) { (void)w; return 1; }
 static inline uint32_t SDL_GetWindowFlags(SDL_Window *w) { (void)w; return 0; }
 static inline int    SDL_GetWindowDisplayIndex(SDL_Window *w) { (void)w; return 0; }
 static inline uint32_t SDL_GetWindowPixelFormat(SDL_Window *w) { (void)w; return SDL_PIXELFORMAT_ARGB8888; }
-static inline void   SDL_GetWindowSize(SDL_Window *w, int *pw, int *ph) { (void)w; if(pw)*pw=320; if(ph)*ph=200; }
-static inline void   SDL_SetWindowSize(SDL_Window *w, int ww, int hh) { (void)w; (void)ww; (void)hh; }
-static inline void   SDL_SetWindowMinimumSize(SDL_Window *w, int mw, int mh) { (void)w; (void)mw; (void)mh; }
-static inline void   SDL_SetWindowTitle(SDL_Window *w, const char *t) { (void)w; (void)t; }
-static inline void   SDL_SetWindowFullscreen(SDL_Window *w, uint32_t f) { (void)w; (void)f; }
 
-/* --- Renderer --- */
-static inline SDL_Renderer* SDL_CreateRenderer(SDL_Window *w, int idx, uint32_t flags) {
-    (void)w; (void)idx; (void)flags;
-    return (SDL_Renderer*)1; /* Non-null stub pointer */
+static inline void SDL_GetWindowSize(SDL_Window *w, int *pw, int *ph) {
+    if (w) { if(pw) *pw = w->w; if(ph) *ph = w->h; }
+    else   { if(pw) *pw = 320;  if(ph) *ph = 200;   }
 }
-static inline void   SDL_DestroyRenderer(SDL_Renderer *r) { (void)r; }
-static inline int    SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info) {
+
+static inline void SDL_SetWindowSize(SDL_Window *w, int ww, int hh) {
+    if (w) { w->w = ww; w->h = hh; }
+    /* TODO: ChangeWindowBox() to resize Amiga window */
+}
+
+static inline void SDL_SetWindowMinimumSize(SDL_Window *w, int mw, int mh) {
+    (void)w; (void)mw; (void)mh;
+}
+
+static inline void SDL_SetWindowTitle(SDL_Window *w, const char *t) {
+    if (!w || !t) return;
+#ifdef __AMIGA__
+    if (w->amiga_window) {
+        /* (CONST_STRPTR)~0 = AmigaOS sentinel "don't change screen title" */
+        SetWindowTitles(w->amiga_window, (CONST_STRPTR)t, (CONST_STRPTR)~0);
+        printf("[AMIGA] SDL_SetWindowTitle: '%s'\n", t); fflush(stdout);
+    }
+#endif
+}
+
+static inline void SDL_SetWindowFullscreen(SDL_Window *w, uint32_t f) {
+    (void)w; (void)f;
+    /* TODO: Fullscreen toggle via screen mode change */
+}
+
+/* ========================================================================= */
+/* --- Renderer --- Allocates real struct, links back to window             */
+/* ========================================================================= */
+
+static inline SDL_Renderer* SDL_CreateRenderer(SDL_Window *w, int idx, uint32_t flags) {
+    (void)idx; (void)flags;
+    printf("[AMIGA] SDL_CreateRenderer: window=%p idx=%d flags=0x%x\n",
+           (void*)w, idx, flags);
+    fflush(stdout);
+
+    SDL_Renderer *r = (SDL_Renderer*)calloc(1, sizeof(SDL_Renderer));
+    if (r) r->window = w;
+    return r;
+}
+
+static inline void SDL_DestroyRenderer(SDL_Renderer *r) {
+    printf("[AMIGA] SDL_DestroyRenderer: %p\n", (void*)r); fflush(stdout);
+    free(r);
+}
+
+static inline int SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info) {
     (void)r;
     if (info) {
         info->name = "amiga_stub";
@@ -491,9 +650,18 @@ static inline int    SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info
     }
     return 0;
 }
-static inline int    SDL_GetRendererOutputSize(SDL_Renderer *r, int *w, int *h) {
-    (void)r; if(w)*w=320; if(h)*h=200; return 0;
+
+static inline int SDL_GetRendererOutputSize(SDL_Renderer *r, int *w, int *h) {
+    if (r && r->window) {
+        if(w) *w = r->window->w;
+        if(h) *h = r->window->h;
+    } else {
+        if(w) *w = 320;
+        if(h) *h = 200;
+    }
+    return 0;
 }
+
 static inline int    SDL_RenderSetLogicalSize(SDL_Renderer *r, int w, int h) { (void)r; (void)w; (void)h; return 0; }
 static inline int    SDL_RenderSetIntegerScale(SDL_Renderer *r, SDL_bool e) { (void)r; (void)e; return 0; }
 static inline void   SDL_RenderClear(SDL_Renderer *r) { (void)r; }
@@ -510,9 +678,19 @@ static inline int    SDL_RenderGetScale(SDL_Renderer *r, float *sx, float *sy) {
     (void)r; if(sx)*sx=1.0f; if(sy)*sy=1.0f; return 0;
 }
 
-/* --- Texture --- */
-static inline SDL_Texture* SDL_CreateTexture(SDL_Renderer *r, uint32_t f, int a, int w, int h) { (void)r; (void)f; (void)a; (void)w; (void)h; return (SDL_Texture*)1; }
-static inline void   SDL_DestroyTexture(SDL_Texture *t) { (void)t; }
+/* ========================================================================= */
+/* --- Texture --- Allocates real struct with dimensions                    */
+/* ========================================================================= */
+
+static inline SDL_Texture* SDL_CreateTexture(SDL_Renderer *r, uint32_t f, int a, int w, int h) {
+    (void)r; (void)f; (void)a;
+    SDL_Texture *t = (SDL_Texture*)calloc(1, sizeof(SDL_Texture));
+    if (t) { t->w = w; t->h = h; }
+    return t;
+}
+
+static inline void SDL_DestroyTexture(SDL_Texture *t) { free(t); }
+
 static inline int    SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *r, const void *p, int pi) { (void)t; (void)r; (void)p; (void)pi; return 0; }
 
 /* --- Surface --- */

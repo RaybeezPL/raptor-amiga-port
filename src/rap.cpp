@@ -1510,6 +1510,7 @@ main(
     fprintf(stderr, "[INIT] RAP_InitMem() done, g_highmem=%p\n", (void*)g_highmem); fflush(stderr);
     
     printf("Loading Graphics\n");
+    fflush(stdout);
     fprintf(stderr, "[INIT] Loading Graphics...\n"); fflush(stderr);
     
     fprintf(stderr, "[INIT] GLB_LockItem(palette)...\n"); fflush(stderr);
