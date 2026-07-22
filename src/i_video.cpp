@@ -1206,6 +1206,8 @@ static void SetVideoMode(void)
     int window_flags = 0, renderer_flags = 0;
     SDL_DisplayMode mode;
 
+    fprintf(stderr, "[VIDEO] SetVideoMode() enter\n"); fflush(stderr);
+
     w = window_width;
     h = window_height;
 
@@ -1254,7 +1256,9 @@ static void SetVideoMode(void)
 
     if (screen == NULL)
     {
+        fprintf(stderr, "[VIDEO]   SDL_CreateWindow(%dx%d, flags=0x%x)...\n", w, h, window_flags); fflush(stderr);
         screen = SDL_CreateWindow(NULL, x, y, w, h, window_flags);
+        fprintf(stderr, "[VIDEO]   SDL_CreateWindow -> %p\n", (void*)screen); fflush(stderr);
 
         if (screen == NULL)
         {
@@ -1263,6 +1267,7 @@ static void SetVideoMode(void)
         }
 
         pixel_format = SDL_GetWindowPixelFormat(screen);
+        fprintf(stderr, "[VIDEO]   pixel_format = 0x%08x\n", pixel_format); fflush(stderr);
 
         SDL_SetWindowMinimumSize(screen, SCREENWIDTH, actualheight);
 
@@ -1300,7 +1305,9 @@ static void SetVideoMode(void)
         texture_upscaled = NULL;
     }
 
+    fprintf(stderr, "[VIDEO]   SDL_CreateRenderer(flags=0x%x)...\n", renderer_flags); fflush(stderr);
     renderer = SDL_CreateRenderer(screen, -1, renderer_flags);
+    fprintf(stderr, "[VIDEO]   SDL_CreateRenderer -> %p\n", (void*)renderer); fflush(stderr);
 
     // If we could not find a matching render driver,
     // try again without hardware acceleration.
@@ -1310,7 +1317,9 @@ static void SetVideoMode(void)
         renderer_flags |= SDL_RENDERER_SOFTWARE;
         renderer_flags &= ~SDL_RENDERER_PRESENTVSYNC;
 
+        fprintf(stderr, "[VIDEO]   Retry SDL_CreateRenderer(SOFTWARE)...\n"); fflush(stderr);
         renderer = SDL_CreateRenderer(screen, -1, renderer_flags);
+        fprintf(stderr, "[VIDEO]   Retry -> %p\n", (void*)renderer); fflush(stderr);
 
         // If this helped, save the setting for later.
         if (renderer != NULL)
@@ -1359,9 +1368,14 @@ static void SetVideoMode(void)
 
     if (screenbuffer == NULL)
     {
+        fprintf(stderr, "[VIDEO]   SDL_CreateRGBSurface(8bit, %dx%d)...\n", SCREENWIDTH, SCREENHEIGHT); fflush(stderr);
         screenbuffer = SDL_CreateRGBSurface(0,
                                             SCREENWIDTH, SCREENHEIGHT, 8,
                                             0, 0, 0, 0);
+        fprintf(stderr, "[VIDEO]   screenbuffer=%p pixels=%p\n", (void*)screenbuffer,
+                screenbuffer ? screenbuffer->pixels : NULL); fflush(stderr);
+        if (!screenbuffer || !screenbuffer->pixels)
+            EXIT_Error("Failed to allocate 8-bit screenbuffer!");
         SDL_FillRect(screenbuffer, NULL, 0);
     }
 
@@ -1378,9 +1392,14 @@ static void SetVideoMode(void)
     {
         SDL_PixelFormatEnumToMasks(pixel_format, &bpp,
                                    &rmask, &gmask, &bmask, &amask);
+        fprintf(stderr, "[VIDEO]   SDL_CreateRGBSurface(%dbit, %dx%d)...\n", bpp, SCREENWIDTH, SCREENHEIGHT); fflush(stderr);
         argbbuffer = SDL_CreateRGBSurface(0,
                                           SCREENWIDTH, SCREENHEIGHT, bpp,
                                           rmask, gmask, bmask, amask);
+        fprintf(stderr, "[VIDEO]   argbbuffer=%p pixels=%p\n", (void*)argbbuffer,
+                argbbuffer ? argbbuffer->pixels : NULL); fflush(stderr);
+        if (!argbbuffer || !argbbuffer->pixels)
+            EXIT_Error("Failed to allocate ARGB buffer!");
         SDL_FillRect(argbbuffer, NULL, 0);
     }
 
@@ -1432,12 +1451,16 @@ void I_InitGraphics(uint8_t *pal)
         putenv(winenv);
     }
 
+    fprintf(stderr, "[VIDEO] I_InitGraphics() enter, pal=%p\n", (void*)pal); fflush(stderr);
+
     SetSDLVideoDriver();
 
+    fprintf(stderr, "[VIDEO]   SDL_Init(VIDEO)...\n"); fflush(stderr);
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
         EXIT_Error("Failed to initialize video: %s", SDL_GetError());
     }
+    fprintf(stderr, "[VIDEO]   SDL_Init(VIDEO) OK\n"); fflush(stderr);
 
     // When in screensaver mode, run full screen and auto detect
     // screen dimensions (don't change video mode)
@@ -1513,6 +1536,9 @@ void I_InitGraphics(uint8_t *pal)
     {
         screencoordpoint = 1;
     }
+
+    fprintf(stderr, "[VIDEO] I_InitGraphics() done! I_VideoBuffer=%p, initialized=%d\n",
+            (void*)I_VideoBuffer, (int)initialized); fflush(stderr);
 }
 
 // Bind all variables controlling video options into the configuration

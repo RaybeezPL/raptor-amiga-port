@@ -395,13 +395,53 @@ static inline void   SDL_Quit(void) {}
 static inline const char* SDL_GetError(void) { return "SDL stubs - not implemented"; }
 
 /* --- Timer --- */
-/* TODO: Implement properly via timer.device / ReadEClock() in amiga_timer.cpp */
+/*
+ * SDL_GetTicks: returns milliseconds since first call.
+ * Uses AmigaOS DateStamp() for a working (50Hz resolution) timer.
+ * For production, replace with ReadEClock() for higher precision.
+ */
+#ifdef __AMIGA__
+#include <proto/dos.h>
+#include <proto/exec.h>
+#include <dos/dos.h>
+#endif
+
 static inline uint32_t SDL_GetTicks(void) {
-    /* Stub: returns 0 – must be replaced with real timer for gameplay */
+#ifdef __AMIGA__
+    static int first_call = 1;
+    static uint32_t base_ticks = 0;
+    struct DateStamp ds;
+    uint32_t now;
+
+    DateStamp(&ds);
+    /* ds.ds_Days * 86400000 would overflow, but we only need relative time */
+    /* ds.ds_Minute is minutes since midnight, ds.ds_Tick is 1/50s ticks */
+    now = (uint32_t)ds.ds_Minute * 60000u + (uint32_t)ds.ds_Tick * 20u;
+
+    if (first_call) {
+        base_ticks = now;
+        first_call = 0;
+    }
+    return now - base_ticks;
+#else
+    /* Fallback for non-Amiga compilation testing */
     static uint32_t fake_ticks = 0;
     return fake_ticks++;
+#endif
 }
-static inline void   SDL_Delay(uint32_t ms) { (void)ms; /* TODO: Implement */ }
+
+static inline void SDL_Delay(uint32_t ms) {
+#ifdef __AMIGA__
+    if (ms > 0) {
+        /* Delay() takes ticks (1/50s = 20ms units) */
+        uint32_t ticks = (ms + 19) / 20;
+        if (ticks < 1) ticks = 1;
+        Delay(ticks);
+    }
+#else
+    (void)ms;
+#endif
+}
 
 /* --- Hints --- */
 static inline int    SDL_SetHint(const char *n, const char *v) { (void)n; (void)v; return 0; }
@@ -533,8 +573,39 @@ static inline int SDL_SetPaletteColors(SDL_Palette *p, const SDL_Color *c, int f
 }
 
 static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst, SDL_Rect *dr) {
-    (void)src; (void)sr; (void)dst; (void)dr;
-    /* TODO: implement palette->ARGB conversion */
+    /*
+     * Palette-indexed 8-bit surface → 32-bit ARGB surface conversion.
+     * This is the critical blit path used by I_FinishUpdate() every frame.
+     * src = 8-bit paletted screenbuffer, dst = 32-bit argbbuffer.
+     */
+    (void)dr; /* destination rect same as source rect for our usage */
+    if (!src || !dst || !src->pixels || !dst->pixels) return -1;
+    if (!src->format || !src->format->palette || !src->format->palette->colors) return -1;
+
+    int x0 = 0, y0 = 0, w = src->w, h = src->h;
+    if (sr) { x0 = sr->x; y0 = sr->y; w = sr->w; h = sr->h; }
+    if (w > src->w) w = src->w;
+    if (h > src->h) h = src->h;
+    if (w > dst->w) w = dst->w;
+    if (h > dst->h) h = dst->h;
+
+    SDL_Color *colors = src->format->palette->colors;
+    uint8_t *srcpix = (uint8_t*)src->pixels;
+    uint32_t *dstpix = (uint32_t*)dst->pixels;
+    int srcpitch = src->pitch;
+    int dstpitch = dst->pitch / 4; /* pitch in uint32_t units */
+    int x, y;
+
+    for (y = 0; y < h; y++) {
+        uint8_t  *sp = srcpix + (y0 + y) * srcpitch + x0;
+        uint32_t *dp = dstpix + y * dstpitch;
+        for (x = 0; x < w; x++) {
+            uint8_t idx = sp[x];
+            SDL_Color c = colors[idx];
+            /* ARGB8888 layout: 0xAARRGGBB */
+            dp[x] = (0xFFu << 24) | ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | (uint32_t)c.b;
+        }
+    }
     return 0;
 }
 

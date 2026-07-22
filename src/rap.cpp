@@ -50,6 +50,9 @@ struct bday_t {
     const char *name;
 };
 
+/* Global shutdown function pointer - used by common.h EXIT_Error/EXIT_Clean */
+exit_shutdown_func_t g_exit_shutdown_func = NULL;
+
 int wRandSeed = 1;
 
 int wrand(void)
@@ -1248,9 +1251,27 @@ RAP_InitMem(
     void
 )
 {
-    unsigned int heapsize = 0x495FF0;                       
+#ifdef __AMIGA__
+    /* Reduced heap for 68k Amiga - 2MB instead of 4.8MB */
+    unsigned int heapsize = 0x200000;
+#else
+    unsigned int heapsize = 0x495FF0;
+#endif
+    
+    fprintf(stderr, "[INIT] RAP_InitMem: requesting %u bytes (0x%X)...\n", heapsize, heapsize);
+    fflush(stderr);
     
     g_highmem = (char*)calloc(heapsize, 1);
+    
+    if (!g_highmem) {
+        fprintf(stderr, "[INIT] RAP_InitMem: calloc FAILED for %u bytes!\n", heapsize);
+        fflush(stderr);
+        EXIT_Error("RAP_InitMem: Out of memory! Need %u bytes", heapsize);
+        return;
+    }
+    
+    fprintf(stderr, "[INIT] RAP_InitMem: allocated at %p\n", (void*)g_highmem);
+    fflush(stderr);
     
     VM_InitMemory(g_highmem, heapsize);
     GLB_UseVM();
@@ -1420,11 +1441,16 @@ main(
         EXIT_Error("SETUP Error");
 
     fflush(stdout);
+    fprintf(stderr, "[INIT] KBD_Install()...\n"); fflush(stderr);
     KBD_Install();
+    fprintf(stderr, "[INIT] GFX_InitSystem()...\n"); fflush(stderr);
     GFX_InitSystem();
+    fprintf(stderr, "[INIT] SWD_Install()...\n"); fflush(stderr);
     SWD_Install(0);
     
+    fprintf(stderr, "[INIT] VIDEO_LoadPrefs()...\n"); fflush(stderr);
     VIDEO_LoadPrefs();
+    fprintf(stderr, "[INIT] IPT_LoadPrefs()...\n"); fflush(stderr);
     IPT_LoadPrefs();
     
     switch (control)
@@ -1473,13 +1499,20 @@ main(
         GLB_FreeItem(FILE000_ATENTION_TXT);
     }
     
+    fprintf(stderr, "[INIT] SND_InitSound()...\n"); fflush(stderr);
     SND_InitSound();
+    fprintf(stderr, "[INIT] IPT_Init()...\n"); fflush(stderr);
     IPT_Init();
+    fprintf(stderr, "[INIT] GLB_FreeAll()...\n"); fflush(stderr);
     GLB_FreeAll();
+    fprintf(stderr, "[INIT] RAP_InitMem()...\n"); fflush(stderr);
     RAP_InitMem();
+    fprintf(stderr, "[INIT] RAP_InitMem() done, g_highmem=%p\n", (void*)g_highmem); fflush(stderr);
     
     printf("Loading Graphics\n");
+    fprintf(stderr, "[INIT] Loading Graphics...\n"); fflush(stderr);
     
+    fprintf(stderr, "[INIT] GLB_LockItem(palette)...\n"); fflush(stderr);
     pal = GLB_LockItem(FILE100_PALETTE_DAT);
     memset(pal, 0, 3);
     palette = pal;
@@ -1537,17 +1570,29 @@ main(
     ANIMS_Init();
     SND_Setup();
     
+    fprintf(stderr, "[INIT] GFX_SetPalRange()...\n"); fflush(stderr);
     GFX_SetPalRange(0, ROTPAL_START - 1);
+    fprintf(stderr, "[INIT] GFX_InitVideo(palette)... (calls I_InitGraphics)\n"); fflush(stderr);
     GFX_InitVideo(palette);
+    fprintf(stderr, "[INIT] GFX_InitVideo() done!\n"); fflush(stderr);
+    fprintf(stderr, "[INIT] SHADOW_MakeShades()...\n"); fflush(stderr);
     SHADOW_MakeShades();
+    fprintf(stderr, "[INIT] SHADOW_MakeShades() done!\n"); fflush(stderr);
     
     RAP_ClearPlayer();
     
+    fprintf(stderr, "[INIT] === Video init complete, entering game logic ===\n"); fflush(stderr);
+    
     if (!godmode)
+    {
+        fprintf(stderr, "[INIT] INTRO_Credits()...\n"); fflush(stderr);
         INTRO_Credits();
+        fprintf(stderr, "[INIT] INTRO_Credits() done!\n"); fflush(stderr);
+    }
     
     if (demo_flag != DEMO_PLAYBACK)
     {
+        fprintf(stderr, "[INIT] SND_PlaySong + INTRO_PlayMain...\n"); fflush(stderr);
         SND_PlaySong(FILE056_RINTRO_MUS, 1, 1);
         INTRO_PlayMain();
         SND_PlaySong(FILE057_MAINMENU_MUS, 1, 1);
