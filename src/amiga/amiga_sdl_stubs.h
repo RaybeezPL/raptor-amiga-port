@@ -336,7 +336,44 @@ static inline void Amiga_ApplyPalette(struct Screen *scr, const void *sdlcolors,
     LoadRGB32(&scr->ViewPort, table);
 }
 
+/*
+ * Amiga_HideSystemPointer / Amiga_ShowSystemPointer: hide or restore the
+ * native Amiga hardware sprite mouse pointer on our game window.
+ *
+ * AmigaOS/Intuition has no direct "hide cursor" call (unlike modern OSes).
+ * The standard, well-known trick (used by countless native Amiga programs)
+ * is to install a completely blank 1x1 two-bitplane sprite image via
+ * SetPointer() - this makes the hardware pointer sprite effectively
+ * invisible while it's still technically "present" (so the game's own
+ * software-drawn crosshair/cursor, blitted into the chunky screen buffer
+ * by ptrapi.cpp, is the only cursor actually visible - fixing the reported
+ * "two cursors visible at the same time" bug). ClearPointer() restores the
+ * default system arrow pointer.
+ *
+ * The image data layout follows the classic Intuition sprite format: 2
+ * reserved zero words, then (height) rows of 2 words each (one per
+ * bitplane - both zero, i.e. fully transparent), then a mandatory
+ * terminating zero word pair. All-zero data of the right size is all
+ * that's needed for a blank/invisible pointer.
+ */
+static UWORD AmigaBlankPointerData[2 + 1 * 2 + 2] = { 0 };
+
+static inline void Amiga_HideSystemPointer(void)
+{
+    if (AmigaGameWindow) {
+        SetPointer(AmigaGameWindow, AmigaBlankPointerData, 1, 1, 0, 0);
+    }
+}
+
+static inline void Amiga_ShowSystemPointer(void)
+{
+    if (AmigaGameWindow) {
+        ClearPointer(AmigaGameWindow);
+    }
+}
+
 #endif /* __AMIGA__ */
+
 
 
 /* ========================================================================= */
@@ -445,6 +482,8 @@ typedef struct SDL_Window {
 
 typedef struct SDL_Renderer {
     SDL_Window *window;            /* Back-pointer to owning window */
+    int logical_w, logical_h;      /* Set via SDL_RenderSetLogicalSize(); 0 = unset
+                                     * (falls back to the real window/output size). */
 } SDL_Renderer;
 
 typedef struct SDL_Texture {
@@ -1119,7 +1158,26 @@ static inline int SDL_GetRendererOutputSize(SDL_Renderer *r, int *w, int *h) {
     return 0;
 }
 
-static inline int    SDL_RenderSetLogicalSize(SDL_Renderer *r, int w, int h) { (void)r; (void)w; (void)h; return 0; }
+/*
+ * SDL_RenderSetLogicalSize: remembers the "logical" (game-space) render
+ * resolution requested by i_video.cpp (SCREENWIDTH x actualheight, i.e.
+ * 320x200 or 320x240 depending on aspect_ratio_correct). This is exactly
+ * what real SDL2 does internally, and is essential for I_GetMousePos()/
+ * I_SetMousePos() (src/i_video.cpp) to correctly translate between real
+ * window pixel coordinates and the game's native 320x200 coordinate space
+ * via SDL_RenderGetScale()/SDL_RenderGetViewport() below - previously
+ * those two stubs ignored this entirely and always reported a hardcoded
+ * scale of 1.0 / a fixed 320x200 viewport, which silently broke the
+ * mouse-position math whenever logical_h != real window height (e.g. the
+ * default aspect_ratio_correct=1 case, where logical height is 240 but
+ * our fixed Amiga game window/screen is always the real native 200px
+ * tall) - causing the reported mouse Y to be compressed/offset.
+ */
+static inline int    SDL_RenderSetLogicalSize(SDL_Renderer *r, int w, int h) {
+    if (r) { r->logical_w = w; r->logical_h = h; }
+    return 0;
+}
+
 static inline int    SDL_RenderSetIntegerScale(SDL_Renderer *r, SDL_bool e) { (void)r; (void)e; return 0; }
 static inline void   SDL_RenderClear(SDL_Renderer *r) { (void)r; }
 static inline int    SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *t, const SDL_Rect *s, const SDL_Rect *d) { (void)r; (void)t; (void)s; (void)d; return 0; }
@@ -1155,14 +1213,60 @@ static inline void SDL_RenderPresent(SDL_Renderer *r) {
 
 static inline int    SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) { (void)r; (void)t; return 0; }
 static inline int    SDL_SetRenderDrawColor(SDL_Renderer *r, uint8_t rr, uint8_t g, uint8_t b, uint8_t a) { (void)r; (void)rr; (void)g; (void)b; (void)a; return 0; }
+
+/*
+ * SDL_RenderGetViewport / SDL_RenderGetScale
+ *
+ * THE FIX for the reported mouse coordinate offset/misalignment bug:
+ *
+ * Previously these two stubs unconditionally returned a hardcoded
+ * viewport of {0,0,320,200} and scale of {1.0,1.0}, completely ignoring
+ * the "logical size" requested via SDL_RenderSetLogicalSize(renderer,
+ * SCREENWIDTH, actualheight) in src/i_video.cpp's SetVideoMode(). Whenever
+ * aspect_ratio_correct=1 (the DEFAULT setting, see VIDEO_LoadPrefs()),
+ * actualheight is 240 instead of 200 (SCREENHEIGHT_4_3), so
+ * I_GetMousePos()/I_SetMousePos() - which explicitly divide/multiply by
+ * these scale values to translate between real window pixels and the
+ * game's native 320x200 coordinate space - silently applied the WRONG
+ * conversion (an implicit x1.2 Y stretch with no matching viewport
+ * offset), producing exactly the vertical mouse-cursor drift/offset
+ * described in the bug report.
+ *
+ * On real desktop SDL2 targets, the renderer actually letterboxes/scales
+ * the drawn content to fit an arbitrarily-resizable window, so a nonzero
+ * viewport offset + non-unity scale legitimately matter there. On this
+ * Amiga RTG port however, the physical output is always a FIXED, NATIVE
+ * 320x200 chunky screen (AMIGA_GAME_WIDTH/HEIGHT) that we blit into 1:1,
+ * pixel-for-pixel, with no scaling or letterboxing step at all (see
+ * Amiga_BlitScreen() above - it just calls WriteChunkyPixels() directly on
+ * the exact source dimensions). So the correct/consistent viewport for us
+ * is simply the *entire* fixed output (no pillarbox/letterbox offset),
+ * and the correct per-axis scale is real-output-size / logical-size --
+ * which correctly reduces to sx=1.0 (SCREENWIDTH==logical width always)
+ * and sy=SCREENHEIGHT/actualheight (canceling out the *actualheight*
+ * factor i_video.cpp's math re-applies), giving an exact identity mapping
+ * back onto the native 0-319 / 0-199 pixel space regardless of the
+ * aspect_ratio_correct setting - fixing the offset.
+ */
 static inline int    SDL_RenderGetViewport(SDL_Renderer *r, SDL_Rect *rect) {
     (void)r;
-    if (rect) { rect->x = 0; rect->y = 0; rect->w = 320; rect->h = 200; }
+    int outw = 320, outh = 200;
+    SDL_GetRendererOutputSize(r, &outw, &outh);
+    if (rect) { rect->x = 0; rect->y = 0; rect->w = outw; rect->h = outh; }
     return 0;
 }
 static inline int    SDL_RenderGetScale(SDL_Renderer *r, float *sx, float *sy) {
-    (void)r; if(sx)*sx=1.0f; if(sy)*sy=1.0f; return 0;
+    int outw = 320, outh = 200;
+    SDL_GetRendererOutputSize(r, &outw, &outh);
+    if (sx) {
+        *sx = (r && r->logical_w > 0) ? ((float)outw / (float)r->logical_w) : 1.0f;
+    }
+    if (sy) {
+        *sy = (r && r->logical_h > 0) ? ((float)outh / (float)r->logical_h) : 1.0f;
+    }
+    return 0;
 }
+
 
 /* ========================================================================= */
 /* --- Texture --- Allocates real struct with dimensions                    */
@@ -1332,6 +1436,12 @@ static inline void   SDL_UnlockAudioDevice(SDL_AudioDeviceID d) { (void)d; }
 #define SDL_BUTTON_LEFT     1
 #define SDL_BUTTON_MIDDLE   2
 #define SDL_BUTTON_RIGHT    3
+
+/* SDL_ShowCursor() argument/return values (real SDL2 numbering). */
+#define SDL_DISABLE 0
+#define SDL_ENABLE  1
+#define SDL_QUERY   -1
+
 
 /* ========================================================================= */
 /* --- Native Amiga IDCMP event pump --- feeds the SDL_Event queue          */
@@ -1689,7 +1799,26 @@ static inline int    SDL_GetNumTouchFingers(int64_t touchId) { (void)touchId; re
  * MouseX/MouseY fields and IDCMP_MOUSEBUTTONS codes), instead of always
  * reporting (0,0)/no buttons.
  */
-static inline int    SDL_SetRelativeMouseMode(SDL_bool e) { (void)e; return 0; }
+/*
+ * SDL_SetRelativeMouseMode: i_video.cpp's SetShowCursor() calls this with
+ * !show to hide the cursor (relative mode implicitly hides the pointer on
+ * every other SDL2 backend). On Amiga we don't have a real relative/warp
+ * mouse mode, but we DO need the hide/show side effect - this is one of
+ * the two places (along with SDL_ShowCursor() below) that must hide the
+ * native Amiga hardware sprite pointer, or else it stays visible on top
+ * of the game's own software-drawn crosshair (the reported "two cursors"
+ * bug). SDL_TRUE (relative/hidden) -> hide; SDL_FALSE -> show.
+ */
+static inline int    SDL_SetRelativeMouseMode(SDL_bool e) {
+#ifdef __AMIGA__
+    if (e) Amiga_HideSystemPointer();
+    else   Amiga_ShowSystemPointer();
+#else
+    (void)e;
+#endif
+    return 0;
+}
+
 
 static inline uint32_t SDL_GetRelativeMouseState(int *x, int *y) {
     static int last_x = 0, last_y = 0;
@@ -1708,7 +1837,32 @@ static inline uint32_t SDL_GetMouseState(int *x, int *y) {
     return (uint32_t)AmigaMouseButtons;
 }
 
-static inline void   SDL_ShowCursor(int t) { (void)t; }
+/*
+ * SDL_ShowCursor: the other call site (i_video.cpp's I_ShutdownGraphics()
+ * calls SetShowCursor(true) directly, and the #else branch of
+ * SetShowCursor() - kept for parity with upstream desktop ports - calls
+ * this directly with the raw show/hide flag) that must actually hide/show
+ * the real Amiga hardware sprite pointer. Accepts real SDL2 semantics:
+ * SDL_DISABLE (0) hides, SDL_ENABLE (1) shows, SDL_QUERY (-1) just queries
+ * current state without changing it. Returns the previous (or current, for
+ * SDL_QUERY) shown state, exactly like real SDL2.
+ */
+static inline int    SDL_ShowCursor(int t) {
+    static int shown = 1; /* SDL2 default: cursor visible until told otherwise */
+    int prev = shown;
+
+    if (t == SDL_QUERY)
+        return prev;
+
+#ifdef __AMIGA__
+    if (t == SDL_DISABLE) Amiga_HideSystemPointer();
+    else                  Amiga_ShowSystemPointer();
+#endif
+
+    shown = (t != SDL_DISABLE);
+    return prev;
+}
+
 
 static inline void   SDL_WarpMouseInWindow(SDL_Window *w, int x, int y) {
     (void)w;
