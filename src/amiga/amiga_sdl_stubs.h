@@ -119,6 +119,14 @@ __attribute__((weak)) int AmigaUsingP96 = 0;
 /* ------------------------------------------------------------------------- */
 __attribute__((weak)) struct Screen *AmigaGameScreen = NULL;
 
+/* The single dedicated game window (matches AmigaGameScreen's only window).
+ * Declared weak/shared here (same trick as IntuitionBase/GfxBase above) so
+ * the native IDCMP event pump (Amiga_PumpWindowEvents(), further down this
+ * file) can find the window's IDCMP message port from anywhere, without
+ * having to thread an SDL_Window* through the generic SDL_PumpEvents(void)
+ * call signature used by i_video.cpp's I_GetEvent(). */
+__attribute__((weak)) struct Window *AmigaGameWindow = NULL;
+
 /* Cached "pending" chunky pixel buffer + dimensions, set by SDL_LowerBlit()
  * each frame and consumed by SDL_RenderPresent() to perform the actual
  * hardware blit. This mirrors the real SDL2 flow (LowerBlit fills a
@@ -550,16 +558,115 @@ typedef struct SDL_RendererInfo {
 #define SDL_WINDOWEVENT_FOCUS_GAINED 12
 #define SDL_WINDOWEVENT_FOCUS_LOST   13
 
-/* Keysym / Scancode */
+/* Keysym / Scancode
+ *
+ * These follow the standard SDL2 USB-HID-based scancode numbering (i.e. the
+ * exact values real SDL2's SDL_SCANCODE_* enum uses). This matters because
+ * src/kbdapi.cpp's I_HandleKeyboardEvent() / ScanCodeMap[] table indexes
+ * directly into these numeric values (e.g. ScanCodeMap[4] == 'A' key), so
+ * whatever produces SDL_Event key.keysym.scancode values (see the native
+ * Amiga IDCMP raw-key translation further below) MUST emit these same
+ * numbers for the existing keyboard code to work correctly.
+ */
+#define SDL_SCANCODE_A          4
+#define SDL_SCANCODE_B          5
+#define SDL_SCANCODE_C          6
+#define SDL_SCANCODE_D          7
+#define SDL_SCANCODE_E          8
+#define SDL_SCANCODE_F          9
+#define SDL_SCANCODE_G          10
+#define SDL_SCANCODE_H          11
+#define SDL_SCANCODE_I          12
+#define SDL_SCANCODE_J          13
+#define SDL_SCANCODE_K          14
+#define SDL_SCANCODE_L          15
+#define SDL_SCANCODE_M          16
+#define SDL_SCANCODE_N          17
+#define SDL_SCANCODE_O          18
+#define SDL_SCANCODE_P          19
+#define SDL_SCANCODE_Q          20
+#define SDL_SCANCODE_R          21
+#define SDL_SCANCODE_S          22
+#define SDL_SCANCODE_T          23
+#define SDL_SCANCODE_U          24
+#define SDL_SCANCODE_V          25
+#define SDL_SCANCODE_W          26
+#define SDL_SCANCODE_X          27
+#define SDL_SCANCODE_Y          28
+#define SDL_SCANCODE_Z          29
+#define SDL_SCANCODE_1          30
+#define SDL_SCANCODE_2          31
+#define SDL_SCANCODE_3          32
+#define SDL_SCANCODE_4          33
+#define SDL_SCANCODE_5          34
+#define SDL_SCANCODE_6          35
+#define SDL_SCANCODE_7          36
+#define SDL_SCANCODE_8          37
+#define SDL_SCANCODE_9          38
+#define SDL_SCANCODE_0          39
 #define SDL_SCANCODE_RETURN     40
+#define SDL_SCANCODE_ESCAPE     41
+#define SDL_SCANCODE_BACKSPACE  42
+#define SDL_SCANCODE_TAB        43
+#define SDL_SCANCODE_SPACE      44
+#define SDL_SCANCODE_MINUS      45
+#define SDL_SCANCODE_EQUALS     46
+#define SDL_SCANCODE_LEFTBRACKET  47
+#define SDL_SCANCODE_RIGHTBRACKET 48
+#define SDL_SCANCODE_BACKSLASH  49
+#define SDL_SCANCODE_SEMICOLON  51
+#define SDL_SCANCODE_APOSTROPHE 52
+#define SDL_SCANCODE_GRAVE      53
+#define SDL_SCANCODE_COMMA      54
+#define SDL_SCANCODE_PERIOD     55
+#define SDL_SCANCODE_SLASH      56
+#define SDL_SCANCODE_CAPSLOCK   57
+#define SDL_SCANCODE_F1         58
+#define SDL_SCANCODE_F2         59
+#define SDL_SCANCODE_F3         60
+#define SDL_SCANCODE_F4         61
+#define SDL_SCANCODE_F5         62
+#define SDL_SCANCODE_F6         63
+#define SDL_SCANCODE_F7         64
+#define SDL_SCANCODE_F8         65
+#define SDL_SCANCODE_F9         66
+#define SDL_SCANCODE_F10        67
+#define SDL_SCANCODE_F11        68
+#define SDL_SCANCODE_F12        69
+#define SDL_SCANCODE_INSERT     73
+#define SDL_SCANCODE_HOME       74
+#define SDL_SCANCODE_PAGEUP     75
+#define SDL_SCANCODE_DELETE     76
+#define SDL_SCANCODE_END        77
+#define SDL_SCANCODE_PAGEDOWN   78
+#define SDL_SCANCODE_RIGHT      79
+#define SDL_SCANCODE_LEFT       80
+#define SDL_SCANCODE_DOWN       81
+#define SDL_SCANCODE_UP         82
+#define SDL_SCANCODE_KP_DIVIDE   84
+#define SDL_SCANCODE_KP_MULTIPLY 85
+#define SDL_SCANCODE_KP_MINUS   86
+#define SDL_SCANCODE_KP_PLUS    87
 #define SDL_SCANCODE_KP_ENTER   88
+#define SDL_SCANCODE_KP_1       89
+#define SDL_SCANCODE_KP_2       90
+#define SDL_SCANCODE_KP_3       91
+#define SDL_SCANCODE_KP_4       92
+#define SDL_SCANCODE_KP_5       93
+#define SDL_SCANCODE_KP_6       94
+#define SDL_SCANCODE_KP_7       95
+#define SDL_SCANCODE_KP_8       96
+#define SDL_SCANCODE_KP_9       97
+#define SDL_SCANCODE_KP_0       98
+#define SDL_SCANCODE_KP_PERIOD  99
 #define SDL_SCANCODE_LCTRL      224
-#define SDL_SCANCODE_RCTRL      228
 #define SDL_SCANCODE_LSHIFT     225
-#define SDL_SCANCODE_RSHIFT     229
 #define SDL_SCANCODE_LALT       226
+#define SDL_SCANCODE_RCTRL      228
+#define SDL_SCANCODE_RSHIFT     229
 #define SDL_SCANCODE_RALT       230
 #define SDL_SCANCODE_AC_BACK    270
+
 
 #define KMOD_LALT   0x0100
 #define KMOD_RALT   0x0200
@@ -903,6 +1010,12 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
     printf("[AMIGA] Borderless game window opened at %p (%dx%d inner) on RTG=%d screen\n",
            (void*)win->amiga_window, win->w, win->h, AmigaUsingP96);
     fflush(stdout);
+
+    /* Remember this window at header scope so the native IDCMP event pump
+     * (Amiga_PumpWindowEvents(), see the --- Events --- section below) can
+     * find its IDCMP UserPort message port and MouseX/MouseY fields without
+     * needing an SDL_Window* argument (SDL_PumpEvents() takes none). */
+    AmigaGameWindow = win->amiga_window;
 #endif /* __AMIGA__ */
 
     return win;
@@ -913,6 +1026,9 @@ static inline void SDL_DestroyWindow(SDL_Window *w) {
     printf("[AMIGA] SDL_DestroyWindow: %p\n", (void*)w); fflush(stdout);
 #ifdef __AMIGA__
     if (w->amiga_window) {
+        if (AmigaGameWindow == w->amiga_window) {
+            AmigaGameWindow = NULL;
+        }
         CloseWindow(w->amiga_window);
         w->amiga_window = NULL;
         printf("[AMIGA] Game window closed\n"); fflush(stdout);
@@ -922,6 +1038,7 @@ static inline void SDL_DestroyWindow(SDL_Window *w) {
 #endif
     free(w);
 }
+
 
 static inline uint32_t SDL_GetWindowID(SDL_Window *w) { (void)w; return 1; }
 static inline uint32_t SDL_GetWindowFlags(SDL_Window *w) { (void)w; return 0; }
@@ -1209,24 +1326,401 @@ static inline int    SDL_OpenAudio(const SDL_AudioSpec *d, SDL_AudioSpec *o) { (
 static inline void   SDL_LockAudioDevice(SDL_AudioDeviceID d) { (void)d; }
 static inline void   SDL_UnlockAudioDevice(SDL_AudioDeviceID d) { (void)d; }
 
-/* --- Events --- */
-static inline void   SDL_PumpEvents(void) {}
-static inline int    SDL_PollEvent(SDL_Event *e) { (void)e; return 0; }
-
-/* --- Touch --- */
-static inline int    SDL_GetNumTouchFingers(int64_t touchId) { (void)touchId; return 0; }
-
-/* --- Mouse button constants --- */
+/* --- Mouse button constants ---
+ * (Moved above the native event pump below, since Amiga_PumpWindowEvents()
+ * needs these already defined when translating IDCMP_MOUSEBUTTONS codes.) */
 #define SDL_BUTTON_LEFT     1
 #define SDL_BUTTON_MIDDLE   2
 #define SDL_BUTTON_RIGHT    3
 
-/* --- Mouse --- */
+/* ========================================================================= */
+/* --- Native Amiga IDCMP event pump --- feeds the SDL_Event queue          */
+/*                                                                           */
+/* This is the piece that was completely missing before: SDL_PumpEvents()   */
+/* and SDL_PollEvent() were both no-op stubs that never touched             */
+/* AmigaGameWindow->UserPort at all, so no keyboard, mouse or window event   */
+/* ever reached the game loop (I_GetEvent() in i_video.cpp), even though     */
+/* the window itself was correctly asking for IDCMP_RAWKEY |                */
+/* IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE | IDCMP_CLOSEWINDOW in               */
+/* SDL_CreateWindow() above.                                                 */
+/*                                                                           */
+/* Amiga_PumpWindowEvents() drains the window's IDCMP message port with the  */
+/* standard GetMsg()/ReplyMsg() Intuition event loop pattern and translates  */
+/* each IntuiMessage into an equivalent SDL_Event, pushed onto a small ring  */
+/* buffer. SDL_PollEvent() then just pops events back out of that buffer,   */
+/* exactly mirroring how real SDL2 works internally.                        */
+/* ========================================================================= */
+
+#define AMIGA_SDL_EVENT_QUEUE_SIZE 64
+
+__attribute__((weak)) SDL_Event AmigaEventQueue[AMIGA_SDL_EVENT_QUEUE_SIZE];
+__attribute__((weak)) int AmigaEventQueueHead = 0;
+__attribute__((weak)) int AmigaEventQueueTail = 0;
+
+/* Current mouse position (window-relative) + button bitmask (bit0=left,
+ * bit1=right, bit2=middle), updated live by Amiga_PumpWindowEvents() and
+ * read back by SDL_GetMouseState()/SDL_GetRelativeMouseState() below. */
+__attribute__((weak)) int AmigaMouseX = 0;
+__attribute__((weak)) int AmigaMouseY = 0;
+__attribute__((weak)) int AmigaMouseButtons = 0;
+
+static inline void Amiga_PushEvent(const SDL_Event *ev)
+{
+    int next = (AmigaEventQueueTail + 1) % AMIGA_SDL_EVENT_QUEUE_SIZE;
+    if (next == AmigaEventQueueHead) {
+        /* Queue full: drop the oldest event to make room for the newest
+         * (most relevant/current) input rather than losing new input. */
+        AmigaEventQueueHead = (AmigaEventQueueHead + 1) % AMIGA_SDL_EVENT_QUEUE_SIZE;
+    }
+    AmigaEventQueue[AmigaEventQueueTail] = *ev;
+    AmigaEventQueueTail = next;
+}
+
+static inline int Amiga_PopEvent(SDL_Event *out)
+{
+    if (AmigaEventQueueHead == AmigaEventQueueTail)
+        return 0;
+    if (out) *out = AmigaEventQueue[AmigaEventQueueHead];
+    AmigaEventQueueHead = (AmigaEventQueueHead + 1) % AMIGA_SDL_EVENT_QUEUE_SIZE;
+    return 1;
+}
+
+#ifdef __AMIGA__
+
+#ifndef IECODE_UP_PREFIX
+#define IECODE_UP_PREFIX 0x80
+#endif
+
+/* Qualifier bits (normally in devices/inputevent.h). Defined raw/inline here
+ * for the same reason as the BIDTAG_* values near the top of this file: we
+ * don't want to depend on that header necessarily being present. */
+#ifndef IEQUALIFIER_LALT
+#define IEQUALIFIER_LSHIFT   0x0001
+#define IEQUALIFIER_RSHIFT   0x0002
+#define IEQUALIFIER_CAPSLOCK 0x0004
+#define IEQUALIFIER_CONTROL  0x0008
+#define IEQUALIFIER_LALT     0x0010
+#define IEQUALIFIER_RALT     0x0020
+#define IEQUALIFIER_LCOMMAND 0x0040
+#define IEQUALIFIER_RCOMMAND 0x0080
+#endif
+
+/* Mouse button IDCMP codes (normally in intuition/intuition.h - defined
+ * here as a fallback in case they aren't pulled in transitively). These
+ * are the standard, stable Amiga raw mouse button codes. */
+#ifndef SELECTDOWN
+#define SELECTDOWN   (0x68)
+#define SELECTUP     (0x68 | IECODE_UP_PREFIX)
+#define MENUDOWN     (0x69)
+#define MENUUP       (0x69 | IECODE_UP_PREFIX)
+#define MIDDLEDOWN   (0x6A)
+#define MIDDLEUP     (0x6A | IECODE_UP_PREFIX)
+#endif
+
+/*
+ * Amiga raw keycode -> SDL USB-HID SDL_SCANCODE_* translation table.
+ *
+ * Index = raw key code (devices/rawkeycodes.h layout, standard Amiga 500/
+ * 2000/3000 keyboard) with the IECODE_UP_PREFIX (0x80) release bit already
+ * stripped off, so the whole keyboard fits in 0x00-0x67. A value of 0 means
+ * "no mapping" (unused/reserved Amiga raw code, or a key with no sensible
+ * PC-style equivalent, e.g. Amiga/Help keys).
+ *
+ * The resulting scancodes are consumed unmodified by the existing
+ * src/kbdapi.cpp I_HandleKeyboardEvent()/ScanCodeMap[] logic, which is why
+ * the SDL_SCANCODE_* values defined earlier in this file must (and do)
+ * match real SDL2's numbering exactly.
+ */
+static const uint8_t AmigaRawKeyToScancode[0x68] = {
+    /* 0x00 */ SDL_SCANCODE_GRAVE,
+    /* 0x01 */ SDL_SCANCODE_1,
+    /* 0x02 */ SDL_SCANCODE_2,
+    /* 0x03 */ SDL_SCANCODE_3,
+    /* 0x04 */ SDL_SCANCODE_4,
+    /* 0x05 */ SDL_SCANCODE_5,
+    /* 0x06 */ SDL_SCANCODE_6,
+    /* 0x07 */ SDL_SCANCODE_7,
+    /* 0x08 */ SDL_SCANCODE_8,
+    /* 0x09 */ SDL_SCANCODE_9,
+    /* 0x0A */ SDL_SCANCODE_0,
+    /* 0x0B */ SDL_SCANCODE_MINUS,
+    /* 0x0C */ SDL_SCANCODE_EQUALS,
+    /* 0x0D */ SDL_SCANCODE_BACKSLASH,
+    /* 0x0E */ 0,
+    /* 0x0F */ SDL_SCANCODE_KP_0,
+    /* 0x10 */ SDL_SCANCODE_Q,
+    /* 0x11 */ SDL_SCANCODE_W,
+    /* 0x12 */ SDL_SCANCODE_E,
+    /* 0x13 */ SDL_SCANCODE_R,
+    /* 0x14 */ SDL_SCANCODE_T,
+    /* 0x15 */ SDL_SCANCODE_Y,
+    /* 0x16 */ SDL_SCANCODE_U,
+    /* 0x17 */ SDL_SCANCODE_I,
+    /* 0x18 */ SDL_SCANCODE_O,
+    /* 0x19 */ SDL_SCANCODE_P,
+    /* 0x1A */ SDL_SCANCODE_LEFTBRACKET,
+    /* 0x1B */ SDL_SCANCODE_RIGHTBRACKET,
+    /* 0x1C */ 0,
+    /* 0x1D */ SDL_SCANCODE_KP_1,
+    /* 0x1E */ SDL_SCANCODE_KP_2,
+    /* 0x1F */ SDL_SCANCODE_KP_3,
+    /* 0x20 */ SDL_SCANCODE_A,
+    /* 0x21 */ SDL_SCANCODE_S,
+    /* 0x22 */ SDL_SCANCODE_D,
+    /* 0x23 */ SDL_SCANCODE_F,
+    /* 0x24 */ SDL_SCANCODE_G,
+    /* 0x25 */ SDL_SCANCODE_H,
+    /* 0x26 */ SDL_SCANCODE_J,
+    /* 0x27 */ SDL_SCANCODE_K,
+    /* 0x28 */ SDL_SCANCODE_L,
+    /* 0x29 */ SDL_SCANCODE_SEMICOLON,
+    /* 0x2A */ SDL_SCANCODE_APOSTROPHE,
+    /* 0x2B */ 0,
+    /* 0x2C */ 0,
+    /* 0x2D */ SDL_SCANCODE_KP_4,
+    /* 0x2E */ SDL_SCANCODE_KP_5,
+    /* 0x2F */ SDL_SCANCODE_KP_6,
+    /* 0x30 */ 0,
+    /* 0x31 */ SDL_SCANCODE_Z,
+    /* 0x32 */ SDL_SCANCODE_X,
+    /* 0x33 */ SDL_SCANCODE_C,
+    /* 0x34 */ SDL_SCANCODE_V,
+    /* 0x35 */ SDL_SCANCODE_B,
+    /* 0x36 */ SDL_SCANCODE_N,
+    /* 0x37 */ SDL_SCANCODE_M,
+    /* 0x38 */ SDL_SCANCODE_COMMA,
+    /* 0x39 */ SDL_SCANCODE_PERIOD,
+    /* 0x3A */ SDL_SCANCODE_SLASH,
+    /* 0x3B */ 0,
+    /* 0x3C */ SDL_SCANCODE_KP_PERIOD,
+    /* 0x3D */ SDL_SCANCODE_KP_7,
+    /* 0x3E */ SDL_SCANCODE_KP_8,
+    /* 0x3F */ SDL_SCANCODE_KP_9,
+    /* 0x40 */ SDL_SCANCODE_SPACE,
+    /* 0x41 */ SDL_SCANCODE_BACKSPACE,
+    /* 0x42 */ SDL_SCANCODE_TAB,
+    /* 0x43 */ SDL_SCANCODE_KP_ENTER,
+    /* 0x44 */ SDL_SCANCODE_RETURN,
+    /* 0x45 */ SDL_SCANCODE_ESCAPE,
+    /* 0x46 */ SDL_SCANCODE_DELETE,
+    /* 0x47 */ 0,
+    /* 0x48 */ 0,
+    /* 0x49 */ 0,
+    /* 0x4A */ SDL_SCANCODE_KP_MINUS,
+    /* 0x4B */ 0,
+    /* 0x4C */ SDL_SCANCODE_UP,
+    /* 0x4D */ SDL_SCANCODE_DOWN,
+    /* 0x4E */ SDL_SCANCODE_RIGHT,
+    /* 0x4F */ SDL_SCANCODE_LEFT,
+    /* 0x50 */ SDL_SCANCODE_F1,
+    /* 0x51 */ SDL_SCANCODE_F2,
+    /* 0x52 */ SDL_SCANCODE_F3,
+    /* 0x53 */ SDL_SCANCODE_F4,
+    /* 0x54 */ SDL_SCANCODE_F5,
+    /* 0x55 */ SDL_SCANCODE_F6,
+    /* 0x56 */ SDL_SCANCODE_F7,
+    /* 0x57 */ SDL_SCANCODE_F8,
+    /* 0x58 */ SDL_SCANCODE_F9,
+    /* 0x59 */ SDL_SCANCODE_F10,
+    /* 0x5A */ 0,
+    /* 0x5B */ 0,
+    /* 0x5C */ SDL_SCANCODE_KP_DIVIDE,
+    /* 0x5D */ SDL_SCANCODE_KP_MULTIPLY,
+    /* 0x5E */ SDL_SCANCODE_KP_PLUS,
+    /* 0x5F */ 0,
+    /* 0x60 */ SDL_SCANCODE_LSHIFT,
+    /* 0x61 */ SDL_SCANCODE_RSHIFT,
+    /* 0x62 */ SDL_SCANCODE_CAPSLOCK,
+    /* 0x63 */ SDL_SCANCODE_LCTRL,
+    /* 0x64 */ SDL_SCANCODE_LALT,
+    /* 0x65 */ SDL_SCANCODE_RALT,
+    /* 0x66 */ 0,
+    /* 0x67 */ 0,
+};
+
+/*
+ * Amiga_PumpWindowEvents() - drains the game window's IDCMP message port
+ * (GetMsg/ReplyMsg, the standard AmigaOS Intuition event loop pattern) and
+ * translates each IntuiMessage into an equivalent SDL_Event pushed onto
+ * our ring buffer for SDL_PollEvent() to hand out.
+ */
+static inline void Amiga_PumpWindowEvents(void)
+{
+    struct IntuiMessage *imsg;
+
+    if (!AmigaGameWindow || !AmigaGameWindow->UserPort)
+        return;
+
+    while ((imsg = (struct IntuiMessage *)GetMsg(AmigaGameWindow->UserPort)) != NULL)
+    {
+        ULONG mclass = imsg->Class;
+        UWORD mcode  = imsg->Code;
+        UWORD mqual  = imsg->Qualifier;
+        WORD  mx     = imsg->MouseX;
+        WORD  my     = imsg->MouseY;
+
+        /* Copy out everything we need BEFORE ReplyMsg(): Intuition is free
+         * to recycle/reuse the message the instant it has been replied. */
+        ReplyMsg((struct Message *)imsg);
+
+        /* MouseX/MouseY are valid on every single IntuiMessage regardless
+         * of class, so we get an up-to-date pointer position for free on
+         * every event, not just IDCMP_MOUSEMOVE ones. */
+        AmigaMouseX = mx;
+        AmigaMouseY = my;
+
+        switch (mclass)
+        {
+        case IDCMP_CLOSEWINDOW:
+        {
+            SDL_Event ev;
+            memset(&ev, 0, sizeof(ev));
+            ev.type = SDL_QUIT;
+            printf("[AMIGA] IDCMP_CLOSEWINDOW received -> SDL_QUIT\n"); fflush(stdout);
+            Amiga_PushEvent(&ev);
+            break;
+        }
+
+        case IDCMP_RAWKEY:
+        {
+            int up  = (mcode & IECODE_UP_PREFIX) ? 1 : 0;
+            int raw = mcode & ~IECODE_UP_PREFIX;
+            int scancode = 0;
+
+            if (raw >= 0 && raw < (int)(sizeof(AmigaRawKeyToScancode) / sizeof(AmigaRawKeyToScancode[0])))
+                scancode = AmigaRawKeyToScancode[raw];
+
+            if (scancode != 0)
+            {
+                SDL_Event ev;
+                memset(&ev, 0, sizeof(ev));
+                ev.type = up ? SDL_KEYUP : SDL_KEYDOWN;
+                ev.key.type = ev.type;
+                ev.key.keysym.scancode = scancode;
+                ev.key.keysym.sym = scancode;
+                ev.key.keysym.mod = 0;
+                if (mqual & IEQUALIFIER_LALT) ev.key.keysym.mod |= KMOD_LALT;
+                if (mqual & IEQUALIFIER_RALT) ev.key.keysym.mod |= KMOD_RALT;
+                Amiga_PushEvent(&ev);
+            }
+            else
+            {
+                printf("[AMIGA] IDCMP_RAWKEY: unmapped raw code 0x%02x (%s)\n",
+                       raw, up ? "up" : "down");
+                fflush(stdout);
+            }
+            break;
+        }
+
+        case IDCMP_MOUSEBUTTONS:
+        {
+            int button = 0, down = 0;
+
+            switch (mcode)
+            {
+            case SELECTDOWN: button = SDL_BUTTON_LEFT;   down = 1; break;
+            case SELECTUP:   button = SDL_BUTTON_LEFT;   down = 0; break;
+            case MENUDOWN:   button = SDL_BUTTON_RIGHT;  down = 1; break;
+            case MENUUP:     button = SDL_BUTTON_RIGHT;  down = 0; break;
+            case MIDDLEDOWN: button = SDL_BUTTON_MIDDLE; down = 1; break;
+            case MIDDLEUP:   button = SDL_BUTTON_MIDDLE; down = 0; break;
+            default: break;
+            }
+
+            if (button)
+            {
+                SDL_Event ev;
+                memset(&ev, 0, sizeof(ev));
+                ev.type = down ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
+                ev.button.type = ev.type;
+                ev.button.button = (uint8_t)button;
+                ev.button.state = (uint8_t)down;
+                ev.button.x = mx;
+                ev.button.y = my;
+
+                if (button == SDL_BUTTON_LEFT)   { if (down) AmigaMouseButtons |= 1; else AmigaMouseButtons &= ~1; }
+                if (button == SDL_BUTTON_RIGHT)  { if (down) AmigaMouseButtons |= 2; else AmigaMouseButtons &= ~2; }
+                if (button == SDL_BUTTON_MIDDLE) { if (down) AmigaMouseButtons |= 4; else AmigaMouseButtons &= ~4; }
+
+                Amiga_PushEvent(&ev);
+            }
+            break;
+        }
+
+        case IDCMP_MOUSEMOVE:
+            /* Position already latched into AmigaMouseX/Y above; the game
+             * polls the mouse position on demand every frame via
+             * I_GetMousePos() -> SDL_GetMouseState() rather than needing a
+             * discrete SDL_MOUSEMOTION event pushed here. */
+            break;
+
+        default:
+            break;
+        }
+    }
+}
+
+#else /* !__AMIGA__ */
+
+static inline void Amiga_PumpWindowEvents(void) { }
+
+#endif /* __AMIGA__ */
+
+/* --- Events ---
+ *
+ * SDL_PumpEvents() drains the real Amiga IDCMP message port (via
+ * Amiga_PumpWindowEvents() above) into our internal SDL_Event ring buffer;
+ * SDL_PollEvent() then just pops events back out of that buffer, exactly
+ * like real SDL2 does internally. This is what makes I_GetEvent()'s
+ * SDL_PumpEvents() + while(SDL_PollEvent()) loop in i_video.cpp actually
+ * see real keyboard/mouse/window-close events instead of nothing.
+ */
+static inline void   SDL_PumpEvents(void) { Amiga_PumpWindowEvents(); }
+static inline int    SDL_PollEvent(SDL_Event *e) { return Amiga_PopEvent(e); }
+
+/* --- Touch --- */
+static inline int    SDL_GetNumTouchFingers(int64_t touchId) { (void)touchId; return 0; }
+
+/* --- Mouse ---
+ *
+ * SDL_GetMouseState()/SDL_GetRelativeMouseState() now report the real,
+ * live mouse position + button bitmask kept up to date by
+ * Amiga_PumpWindowEvents() above (fed by every IDCMP message's
+ * MouseX/MouseY fields and IDCMP_MOUSEBUTTONS codes), instead of always
+ * reporting (0,0)/no buttons.
+ */
 static inline int    SDL_SetRelativeMouseMode(SDL_bool e) { (void)e; return 0; }
-static inline uint32_t SDL_GetRelativeMouseState(int *x, int *y) { if(x)*x=0; if(y)*y=0; return 0; }
-static inline uint32_t SDL_GetMouseState(int *x, int *y) { if(x)*x=0; if(y)*y=0; return 0; }
+
+static inline uint32_t SDL_GetRelativeMouseState(int *x, int *y) {
+    static int last_x = 0, last_y = 0;
+    int dx = AmigaMouseX - last_x;
+    int dy = AmigaMouseY - last_y;
+    last_x = AmigaMouseX;
+    last_y = AmigaMouseY;
+    if (x) *x = dx;
+    if (y) *y = dy;
+    return (uint32_t)AmigaMouseButtons;
+}
+
+static inline uint32_t SDL_GetMouseState(int *x, int *y) {
+    if (x) *x = AmigaMouseX;
+    if (y) *y = AmigaMouseY;
+    return (uint32_t)AmigaMouseButtons;
+}
+
 static inline void   SDL_ShowCursor(int t) { (void)t; }
-static inline void   SDL_WarpMouseInWindow(SDL_Window *w, int x, int y) { (void)w; (void)x; (void)y; }
+
+static inline void   SDL_WarpMouseInWindow(SDL_Window *w, int x, int y) {
+    (void)w;
+    /* Keep our tracked mouse position consistent with an explicit warp
+     * (e.g. I_SetMousePos() clamping the cursor to the screen edges),
+     * since on Amiga there's no hardware call to actually move the real
+     * pointer sprite position under program control the way SDL's
+     * relative-mode warp does on other platforms. */
+    AmigaMouseX = x;
+    AmigaMouseY = y;
+}
+
 
 /* --- MessageBox --- */
 static inline int    SDL_ShowSimpleMessageBox(uint32_t f, const char *t, const char *m, SDL_Window *w)
