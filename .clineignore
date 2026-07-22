@@ -1,0 +1,31 @@
+# ==========================================
+# CLINE IGNORE – PORT RAPTOR NA AMIGĘ 68K
+# ==========================================
+
+# 1. Ignoruj całe platformy mobilne i inne systemy (poza Amigą i PC bazowym)
+/android/
+/pkg/
+osxbuild.sh
+
+# 2. Ignoruj pliki i konfiguracje kompilatorów dla Windows / nowoczesnego Linuxa
+/msvc/
+win32build.bat
+CMakeLists.txt
+
+# 3. Ignoruj pliki binarne, skompilowane obiekty oraz buildy
+/build.amiga/
+*.exe
+*.o
+*.a
+*.dll
+/curl
+
+# 4. Ignoruj pliki konfiguracyjne i instalacyjne oryginalnej gry PC
+SETUP(ADLIB).INI
+SETUP(MIDI).INI
+/rsrc/
+
+# 5. Ignoruj ciężkie, zewnętrzne biblioteki wewnątrz /include/
+# Pozwalamy Claude widzieć tylko nagłówki samej gry, odcinamy zewnętrzne SDK dla PC/Androida
+/include/SDL2*
+/include/android/
