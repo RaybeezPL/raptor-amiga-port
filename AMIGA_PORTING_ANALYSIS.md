@@ -1,46 +1,46 @@
-# Raptor – Analiza Portowania na AmigaOS 3.x (68060 + RTG)
+# Raptor - AmigaOS 3.x Porting Analysis (68060 + RTG)
 
-## Sprzęt docelowy
-- **Procesor:** Motorola 68060
-- **Pamięć:** 32 MB Fast RAM
-- **Grafika:** Karta RTG (Picasso96/CyberGraphX) z 4 MB VRAM
-- **Kompilator:** m68k-amigaos-gcc (cross-compiler)
+## Target Hardware
+- **Processor:** Motorola 68060
+- **Memory:** 32 MB Fast RAM
+- **Graphics:** RTG card (Picasso96/CyberGraphX) with 4 MB VRAM
+- **Compiler:** m68k-amigaos-gcc (cross-compiler)
 
 ---
 
-## 1. Struktura repozytorium – przegląd
+## 1. Repository Structure - Overview
 
-Gra Raptor to klasyczna strzelanka top-down (shoot'em'up), oryginalnie napisana pod DOS,
-przeportowana na nowoczesne systemy za pomocą SDL2. Kod to C/C++ (C++11).
+Raptor is a classic top-down shoot'em'up, originally written for DOS,
+and ported to modern systems using SDL2. The code is C/C++ (C++11).
 
-### Główne moduły kodu źródłowego (`src/`):
+### Main source code modules (`src/`):
 
-| Moduł | Pliki | Opis |
+| Module | Files | Description |
 |-------|-------|------|
-| **Silnik graficzny** | `gfxapi.cpp/h`, `gfxapi_a.cpp` | Software renderer 320×200×8bit (chunky pixels) |
-| **Warstwa wideo** | `i_video.cpp/h` | Inicjalizacja SDL2 Window/Renderer/Texture, wyświetlanie |
-| **System plików GLB** | `glbapi.cpp/h` | Własny format zasobów (.GLB), szyfrowanie, cache |
-| **Pamięć wirtualna** | `vmemapi.cpp/h` | Własny menedżer pamięci z LRU eviction |
-| **Dźwięk** | `fx.cpp/h`, `dspapi.cpp/h` | Software mixer, 8-kanałowy DSP, callbacki SDL Audio |
-| **Muzyka** | `musapi.cpp/h`, `i_oplmusic.cpp`, `opl3.cpp` | Format MUS, emulacja OPL3/Adlib |
-| **MIDI (TinySoundFont)** | `mputsf.cpp` | Syntezator SF2 (header-only lib) |
-| **MIDI (platformy)** | `mpuwinmm.cpp`, `mpualsa.cpp`, `mpucorea/m.cpp` | WinMM, ALSA, CoreAudio – **nie dotyczy Amigi** |
-| **Wejście** | `kbdapi.cpp`, `joyapi.cpp`, `ptrapi.cpp`, `input.cpp` | Klawiatura, joystick, mysz – SDL2 Events |
-| **System okien/GUI** | `swdapi.cpp`, `windows.cpp` | In-game dialogi i UI z danymi z GLB |
-| **Logika gry** | `rap.cpp`, `enemy.cpp`, `shots.cpp`, `tile.cpp`, `bonus.cpp`, itp. | Czysta logika, minimalne zależności od platformy |
-| **Zapis/odczyt** | `loadsave.cpp/h` | Serializacja z explicit byte-order |
-| **Demo** | `demo.cpp/h` | Nagrywanie/odtwarzanie gameplay |
-| **Ustawienia** | `prefapi.cpp/h` | Odczyt/zapis plików INI (czyste C, bez SDL) |
-| **Animacje intro** | `intro.cpp`, `movie.cpp/h`, `movie_a.cpp` | Animowane sekwencje cutscene |
-| **Textscreen (setup)** | `include/textscreen/` | Osobna biblioteka UI setupu – SDL2-based |
+| **Graphics engine** | `gfxapi.cpp/h`, `gfxapi_a.cpp` | 320x200x8bit software renderer (chunky pixels) |
+| **Video layer** | `i_video.cpp/h` | SDL2 Window/Renderer/Texture initialization, display |
+| **GLB file system** | `glbapi.cpp/h` | Custom asset format (.GLB), encryption, cache |
+| **Virtual memory** | `vmemapi.cpp/h` | Custom memory manager with LRU eviction |
+| **Sound** | `fx.cpp/h`, `dspapi.cpp/h` | Software mixer, 8-channel DSP, SDL Audio callbacks |
+| **Music** | `musapi.cpp/h`, `i_oplmusic.cpp`, `opl3.cpp` | MUS format, OPL3/Adlib emulation |
+| **MIDI (TinySoundFont)** | `mputsf.cpp` | SF2 synthesizer (header-only lib) |
+| **MIDI (platforms)** | `mpuwinmm.cpp`, `mpualsa.cpp`, `mpucorea/m.cpp` | WinMM, ALSA, CoreAudio - **not relevant to Amiga** |
+| **Input** | `kbdapi.cpp`, `joyapi.cpp`, `ptrapi.cpp`, `input.cpp` | Keyboard, joystick, mouse - SDL2 Events |
+| **Window/GUI system** | `swdapi.cpp`, `windows.cpp` | In-game dialogs and UI with data from GLB |
+| **Game logic** | `rap.cpp`, `enemy.cpp`, `shots.cpp`, `tile.cpp`, `bonus.cpp`, etc. | Pure logic, minimal platform dependencies |
+| **Save/load** | `loadsave.cpp/h` | Serialization with explicit byte-order |
+| **Demo** | `demo.cpp/h` | Gameplay recording/playback |
+| **Settings** | `prefapi.cpp/h` | Reading/writing INI files (pure C, no SDL) |
+| **Intro animations** | `intro.cpp`, `movie.cpp/h`, `movie_a.cpp` | Animated cutscene sequences |
+| **Textscreen (setup)** | `include/textscreen/` | Separate setup UI library - SDL2-based |
 
 ---
 
-## 2. Endianness (Little Endian → Big Endian)
+## 2. Endianness (Little Endian -> Big Endian)
 
-### 2.1 Aktualny stan – DOBRA WIADOMOŚĆ
+### 2.1 Current State - GOOD NEWS
 
-Kod **już posiada rozbudowaną obsługę endianness**. W pliku `src/entypes.h`:
+The code **already has extensive endianness handling**. In the file `src/entypes.h`:
 
 ```c
 #include "SDL_endian.h"
@@ -50,29 +50,29 @@ Kod **już posiada rozbudowaną obsługę endianness**. W pliku `src/entypes.h`:
 #define LE_LONG(x)   (signed int) SDL_SwapLE32(x)
 ```
 
-Na systemach Big Endian (Amiga 68k), `SDL_SwapLE16/32` automatycznie wykonują byte-swap.
-Na Little Endian (PC) są no-op.
+On Big Endian systems (Amiga 68k), `SDL_SwapLE16/32` automatically perform a byte-swap.
+On Little Endian (PC) they are no-ops.
 
-### 2.2 Gdzie są używane makra LE_*
+### 2.2 Where the LE_* Macros Are Used
 
-Makra `LE_LONG`, `LE_SHORT`, itp. są używane **wszędzie** gdzie kod odczytuje dane binarne
-z plików `.GLB` (zasoby gry w formacie Little Endian DOS):
+The `LE_LONG`, `LE_SHORT`, etc. macros are used **everywhere** the code reads binary data
+from `.GLB` files (game assets in DOS Little Endian format):
 
-- **System plików GLB** (`glbapi.cpp`): nagłówki `KEYFILE` – `LE_ULONG(key.offset)`, `LE_ULONG(key.filesize)`
-- **Struktury grafik** (`gfxapi.cpp`, `gfxapi_a.cpp`): `GFX_PIC.width/height`, `GFX_SPRITE.offset/length` – dostęp przez `LE_LONG()`
-- **Sprite'y wrogów** (`enemy.cpp`): cała struktura `SPRITE` (30+ pól int/short) – każde pole czytane z `LE_LONG()/LE_SHORT()`
-- **Dane mapy** (`tile.cpp`): `MAZELEVEL`, `MAZEDATA` – `LE_SHORT(mapmem->map[loop].flats)`
-- **Audio DSP** (`dspapi.cpp`): `dsp_t.format/freq/length` – `LE_SHORT(dsp->format)`
-- **Muzyka** (`musapi.cpp`): `mushead_t.len/offset/channels` – `LE_USHORT(head->len)`
-- **OPL/GenMIDI** (`i_oplmusic.cpp`): flagi instrumentów – `LE_USHORT(instrument->flags)`
-- **System okien** (`swdapi.cpp`): dziesiątki pól – `LE_LONG(curfld->x)`, `LE_LONG(curfld->opt)`, itp.
-- **Demo** (`demo.cpp`): `RECORD.px/py/playerpic` – `LE_SHORT()`
-- **Czcionki** (`gfxapi.cpp`): `FONT.charofs[]` – `LE_SHORT(font->charofs[ch])`
-- **GSS patches** (`gssapi.cpp`): pola formatu audio – `LE_SHORT(gss->bank)`
+- **GLB file system** (`glbapi.cpp`): `KEYFILE` headers - `LE_ULONG(key.offset)`, `LE_ULONG(key.filesize)`
+- **Graphics structures** (`gfxapi.cpp`, `gfxapi_a.cpp`): `GFX_PIC.width/height`, `GFX_SPRITE.offset/length` - accessed via `LE_LONG()`
+- **Enemy sprites** (`enemy.cpp`): the entire `SPRITE` structure (30+ int/short fields) - every field read via `LE_LONG()/LE_SHORT()`
+- **Map data** (`tile.cpp`): `MAZELEVEL`, `MAZEDATA` - `LE_SHORT(mapmem->map[loop].flats)`
+- **Audio DSP** (`dspapi.cpp`): `dsp_t.format/freq/length` - `LE_SHORT(dsp->format)`
+- **Music** (`musapi.cpp`): `mushead_t.len/offset/channels` - `LE_USHORT(head->len)`
+- **OPL/GenMIDI** (`i_oplmusic.cpp`): instrument flags - `LE_USHORT(instrument->flags)`
+- **Window system** (`swdapi.cpp`): dozens of fields - `LE_LONG(curfld->x)`, `LE_LONG(curfld->opt)`, etc.
+- **Demo** (`demo.cpp`): `RECORD.px/py/playerpic` - `LE_SHORT()`
+- **Fonts** (`gfxapi.cpp`): `FONT.charofs[]` - `LE_SHORT(font->charofs[ch])`
+- **GSS patches** (`gssapi.cpp`): audio format fields - `LE_SHORT(gss->bank)`
 
-### 2.3 System zapisu/odczytu gier
+### 2.3 Game Save/Load System
 
-Plik `loadsave.cpp` zawiera **jawną serializację byte-by-byte** – to wzorcowe rozwiązanie:
+The file `loadsave.cpp` contains **explicit byte-by-byte serialization** - this is a model solution:
 
 ```c
 static int SaveRead32(void) {
@@ -85,11 +85,11 @@ static int SaveRead32(void) {
 }
 ```
 
-To jest **w pełni przenośne** i poprawnie działa na Big Endian.
+This is **fully portable** and works correctly on Big Endian.
 
-### 2.4 Unia ITEM_ID w glbapi.cpp
+### 2.4 The ITEM_ID Union in glbapi.cpp
 
-Kod posiada już obsługę BE dla unii `ITEM_ID`:
+The code already has BE handling for the `ITEM_ID` union:
 
 ```c
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
@@ -99,237 +99,237 @@ typedef struct { uint16_t itemnum; uint16_t filenum; } ITEM_ID;
 #endif
 ```
 
-### 2.5 Potencjalne problemy endianness
+### 2.5 Potential Endianness Issues
 
-1. **Brak wyraźnych problemów** – kod jest dobrze przygotowany. Jednakże potrzebna jest
-   **dokładna weryfikacja** każdego miejsca, gdzie dane z GLB są odczytywane bez makr LE_*.
-   Szczególnie:
-   - Dane grafik czysto bajtowych (palety, piksele 8-bit) – tu nie ma problemu
-   - Tablica `FLATS` w `rap.h` – pola `linkflat` (int), `bonus` (short), `bounty` (short) – 
-     w `tile.cpp` dostęp jest przez `LE_SHORT(lib[...].bounty)` ✓
-   
-2. **Wewnętrzna pamięć**: Dane ze struktur `SPRITE`, `CSPRITE`, `MAZELEVEL` itp. **nie są 
-   konwertowane in-place** – wartości LE są swapowane przy każdym odczycie. Na 68060 operacja
-   byte-swap jest tania (instrukcja `ROL`/`ROR`), ale jest to drobny narzut wydajnościowy.
-   Alternatywnie można dodać jednorazową konwersję po załadowaniu.
+1. **No obvious issues** - the code is well prepared. However, a
+   **thorough verification** is needed of every place where GLB data is read without the LE_* macros.
+   In particular:
+   - Purely byte-based graphics data (palettes, 8-bit pixels) - no issue here
+   - The `FLATS` table in `rap.h` - fields `linkflat` (int), `bonus` (short), `bounty` (short) -
+     in `tile.cpp` accessed via `LE_SHORT(lib[...].bounty)` OK
 
-3. **#pragma pack(push, 1)** – używany w `mushead_t`, `RECORD`, `genmidi_op_t`. 
-   GCC na m68k wspiera `#pragma pack`, ale trzeba upewnić się, że alignment jest poprawny.
+2. **Internal memory**: Data from the `SPRITE`, `CSPRITE`, `MAZELEVEL`, etc. structures is **not
+   converted in-place** - LE values are swapped on every read. On a 68060 the byte-swap operation
+   is cheap (a `ROL`/`ROR` instruction), but it is still a minor performance overhead.
+   Alternatively, a one-time conversion after loading could be added.
 
-### 2.6 Podsumowanie endianness
+3. **#pragma pack(push, 1)** - used in `mushead_t`, `RECORD`, `genmidi_op_t`.
+   GCC on m68k supports `#pragma pack`, but alignment correctness must be verified.
 
-| Obszar | Status | Uwagi |
+### 2.6 Endianness Summary
+
+| Area | Status | Notes |
 |--------|--------|-------|
-| Nagłówki GLB (KEYFILE) | ✅ OK | Pełna konwersja LE_ |
-| Dane graficzne (piksele) | ✅ OK | 8-bit, endianness nie dotyczy |
-| Palety kolorów | ✅ OK | 3 bajty na kolor (R,G,B) |
-| Struktury sprite'ów | ✅ OK | Dostęp przez LE_LONG/LE_SHORT |
-| Dane mapy | ✅ OK | Dostęp przez LE_SHORT |
-| Audio patches (DSP/GSS) | ✅ OK | Nagłówki przez LE_SHORT/LE_LONG, dane 8-bit |
-| Muzyka MUS | ✅ OK | Nagłówek przez LE_USHORT, dane strumieniowe bajtowe |
-| Zapis/odczyt gry | ✅ OK | Jawna serializacja LE byte-by-byte |
-| Demo recordings | ✅ OK | Pola przez LE_SHORT |
-| System okien (SWD) | ✅ OK | Wszystkie pola przez LE_LONG |
+| GLB headers (KEYFILE) | OK | Full LE_ conversion |
+| Graphics data (pixels) | OK | 8-bit, endianness not applicable |
+| Color palettes | OK | 3 bytes per color (R,G,B) |
+| Sprite structures | OK | Accessed via LE_LONG/LE_SHORT |
+| Map data | OK | Accessed via LE_SHORT |
+| Audio patches (DSP/GSS) | OK | Headers via LE_SHORT/LE_LONG, byte-based data |
+| MUS music | OK | Header via LE_USHORT, byte-streamed data |
+| Save/load game | OK | Explicit LE byte-by-byte serialization |
+| Demo recordings | OK | Fields via LE_SHORT |
+| Window system (SWD) | OK | All fields via LE_LONG |
 
 ---
 
-## 3. Zależności – biblioteki zewnętrzne
+## 3. Dependencies - External Libraries
 
-### 3.1 SDL2 – **główna zależność** (KRYTYCZNA)
+### 3.1 SDL2 - **Main Dependency** (CRITICAL)
 
-SDL2 jest używane w **prawie każdym module**:
+SDL2 is used in **almost every module**:
 
-| Użycie SDL2 | Pliki | Amigowe zamienniki |
+| SDL2 Usage | Files | Amiga Replacements |
 |--------------|-------|-------------------|
-| Video (Window, Renderer, Texture, Surface) | `i_video.cpp` | **Picasso96/CyberGraphX API** lub **SDL2 Amiga port** |
-| Audio (SDL_AudioDeviceID, callback mixing) | `fx.cpp`, `mputsf.cpp` | **AHI (Audio Hardware Interface)** lub SDL2 Amiga |
-| Input Events (keyboard, mouse, joystick) | `kbdapi.cpp`, `joyapi.cpp`, `ptrapi.cpp`, `input.cpp` | **input.device, gameport.device, Intuition** lub SDL2 Amiga |
-| Timer (SDL_GetTicks) | `gfxapi.cpp`, `musapi.cpp` | **timer.device** lub `ReadEClock()` |
-| Endianness (SDL_SwapLE*) | `entypes.h` | Prosta re-implementacja (patrz niżej) |
+| Video (Window, Renderer, Texture, Surface) | `i_video.cpp` | **Picasso96/CyberGraphX API** or **SDL2 Amiga port** |
+| Audio (SDL_AudioDeviceID, callback mixing) | `fx.cpp`, `mputsf.cpp` | **AHI (Audio Hardware Interface)** or SDL2 Amiga |
+| Input Events (keyboard, mouse, joystick) | `kbdapi.cpp`, `joyapi.cpp`, `ptrapi.cpp`, `input.cpp` | **input.device, gameport.device, Intuition** or SDL2 Amiga |
+| Timer (SDL_GetTicks) | `gfxapi.cpp`, `musapi.cpp` | **timer.device** or `ReadEClock()` |
+| Endianness (SDL_SwapLE*) | `entypes.h` | Simple re-implementation (see below) |
 | Filesystem (SDL_GetPrefPath) | `loadsave.cpp` | `PROGDIR:` / `ENV:` |
-| Init/Quit subsystems | wielu | Natywne odpowiedniki Amiga |
-| SDL_opengl.h | `i_video.cpp` | **Nie używane aktywnie** – do usunięcia |
+| Init/Quit subsystems | many | Native Amiga equivalents |
+| SDL_opengl.h | `i_video.cpp` | **Not actively used** - to be removed |
 
-#### Strategia zamiany SDL2 – **dwa podejścia**:
+#### SDL2 Replacement Strategy - **Two Approaches**:
 
-**Podejście A: Użycie portu SDL2 dla AmigaOS 3.x**
-- Istnieje port SDL2 dla m68k AmigaOS (np. w bebbo GCC toolchain)
-- **Zalety**: Minimalna modyfikacja kodu, szybki start
-- **Wady**: Dodatkowa warstwa abstrakcji, możliwe problemy z wydajnością, port SDL2 
-  może nie być kompletny lub stabilny
+**Approach A: Use an SDL2 port for AmigaOS 3.x**
+- An SDL2 port for m68k AmigaOS exists (e.g. in the bebbo GCC toolchain)
+- **Pros**: Minimal code modification, quick start
+- **Cons**: Extra abstraction layer, possible performance issues, the SDL2
+  port may not be complete or stable
 
-**Podejście B: Natywne API AmigaOS (ZALECANE)**
-- Wymaga więcej pracy, ale daje najlepszą wydajność i kontrolę
-- Warstwa HAL (Hardware Abstraction Layer) ukryta za istniejącymi interfejsami
-  (`GFX_InitVideo`, `I_InitGraphics`, `SND_InitSound`, itp.)
-- Architektura kodu to ułatwia – gra ma czyste API boundaries
+**Approach B: Native AmigaOS API (RECOMMENDED)**
+- Requires more work, but gives the best performance and control
+- HAL (Hardware Abstraction Layer) hidden behind existing interfaces
+  (`GFX_InitVideo`, `I_InitGraphics`, `SND_InitSound`, etc.)
+- The code architecture makes this easier - the game has clean API boundaries
 
-**Podejście C: Hybrydowe** 
-- Zacząć od SDL2 Amiga port → stopniowo zastępować natywnym API
-- **Rekomendowane jako strategia startowa**
+**Approach C: Hybrid**
+- Start with the SDL2 Amiga port -> gradually replace with native API
+- **Recommended as the starting strategy**
 
 ### 3.2 TinySoundFont (`include/TinySoundFont/tsf.h`)
 
-Header-only C library do syntezy MIDI z plików SoundFont (.sf2).
+Header-only C library for MIDI synthesis from SoundFont (.sf2) files.
 
-- **Status**: Powinno się skompilować na m68k-amigaos-gcc bez zmian
-- **Problem**: Wymaga float/double – na 68060 z FPU to OK, ale może być wolne
-  w porównaniu z OPL3 emulation (integer-based)
-- **Rekomendacja**: Na początek użyć trybu OPL3/Adlib (emulacja w `opl3.cpp` – czyste integer),
-  TinySoundFont odłożyć na później
+- **Status**: Should compile on m68k-amigaos-gcc without changes
+- **Issue**: Requires float/double - on the 68060 with FPU this is OK, but may be slow
+  compared to OPL3 emulation (integer-based)
+- **Recommendation**: Initially use OPL3/Adlib mode (emulation in `opl3.cpp` - pure integer),
+  postpone TinySoundFont for later
 
 ### 3.3 Textscreen (`include/textscreen/`)
 
-Biblioteka tekstowego UI (z projektu Chocolate Doom), używana tylko przez **program setupu** (`raptorsetup`).
+Text UI library (from the Chocolate Doom project), used only by the **setup program** (`raptorsetup`).
 
-- **Status**: Zależna od SDL2, pisana w C
-- **Rekomendacja**: Odłożyć na późniejszą fazę. Konfigurację można ręcznie edytować w SETUP.INI
+- **Status**: Depends on SDL2, written in C
+- **Recommendation**: Postpone for a later phase. Configuration can be edited manually in SETUP.INI
 
-### 3.4 Platformowe biblioteki MIDI
+### 3.4 Platform-Specific MIDI Libraries
 
-| Plik | Platforma | Potrzebne na Amidze? |
+| File | Platform | Needed on Amiga? |
 |------|-----------|---------------------|
-| `mpuwinmm.cpp` | Windows (WinMM) | ❌ Nie |
-| `mpualsa.cpp` | Linux (ALSA) | ❌ Nie |
-| `mpucorea.cpp` | macOS (CoreAudio) | ❌ Nie |
-| `mpucorem.cpp` | macOS (CoreMIDI) | ❌ Nie |
-| `mputsf.cpp` | Wszystkie (TinySoundFont) | ✅ Tak (opcjonalnie) |
+| `mpuwinmm.cpp` | Windows (WinMM) | No |
+| `mpualsa.cpp` | Linux (ALSA) | No |
+| `mpucorea.cpp` | macOS (CoreAudio) | No |
+| `mpucorem.cpp` | macOS (CoreMIDI) | No |
+| `mputsf.cpp` | All (TinySoundFont) | Yes (optional) |
 
-### 3.5 Standardowa biblioteka C
+### 3.5 Standard C Library
 
-Kod intensywnie używa: `stdio.h`, `stdlib.h`, `string.h`, `stdint.h`, `math.h`, `ctype.h`, 
-`limits.h`, `errno.h`, `time.h`. Wszystkie dostępne w m68k-amigaos-gcc (newlib lub clib2).
+The code makes extensive use of: `stdio.h`, `stdlib.h`, `string.h`, `stdint.h`, `math.h`, `ctype.h`,
+`limits.h`, `errno.h`, `time.h`. All available in m68k-amigaos-gcc (newlib or clib2).
 
-### 3.6 Specyficzne wywołania POSIX/Win32
+### 3.6 Specific POSIX/Win32 Calls
 
-| Wywołanie | Plik | Amigowe zamienniki |
+| Call | File | Amiga Replacements |
 |-----------|------|-------------------|
-| `access()` | `glbapi.cpp`, `loadsave.cpp`, `prefapi.cpp` | Dostępne w clib2/newlib |
-| `unistd.h` | `glbapi.cpp`, `rap.cpp`, `loadsave.cpp` | Częściowo w clib2 |
-| `ftruncate()/fileno()` | `prefapi.cpp` | Dostępne w clib2 |
-| `strupr()` | `glbapi.cpp` | Już zaimplementowane inline dla __GNUC__ ✓ |
-| `ltoa()` | `prefapi.cpp` | Już zaimplementowane inline dla __GNUC__ ✓ |
-| `PATH_MAX` | wielu | Zdefiniować jeśli brak (np. 256) |
-| `SDL_GetPrefPath()` | `loadsave.cpp` | Zastąpić stałą ścieżką (`PROGDIR:`) |
+| `access()` | `glbapi.cpp`, `loadsave.cpp`, `prefapi.cpp` | Available in clib2/newlib |
+| `unistd.h` | `glbapi.cpp`, `rap.cpp`, `loadsave.cpp` | Partially in clib2 |
+| `ftruncate()/fileno()` | `prefapi.cpp` | Available in clib2 |
+| `strupr()` | `glbapi.cpp` | Already implemented inline for __GNUC__ OK |
+| `ltoa()` | `prefapi.cpp` | Already implemented inline for __GNUC__ OK |
+| `PATH_MAX` | many | Define if missing (e.g. 256) |
+| `SDL_GetPrefPath()` | `loadsave.cpp` | Replace with a fixed path (`PROGDIR:`) |
 
 ---
 
-## 4. Główne wyzwania portowania – lista priorytetowa
+## 4. Main Porting Challenges - Priority List
 
-### 🔴 KRYTYCZNE (blokujące kompilację i uruchomienie)
+### CRITICAL (blocking compilation and startup)
 
-1. **Zastąpienie/dostarczenie SDL2**
-   - Albo skompilować SDL2 dla AmigaOS 3.x (istnieją porty)
-   - Albo stworzyć warstwę abstrakcji z natywnymi API AmigaOS
-   - Na początek: **stworzyć stub/wrapper pliki SDL** z natywną implementacją Amiga
+1. **Replacing/providing SDL2**
+   - Either compile SDL2 for AmigaOS 3.x (ports exist)
+   - Or create an abstraction layer with native AmigaOS APIs
+   - Initially: **create SDL stub/wrapper files** with a native Amiga implementation
 
-2. **Warstwa wideo (`i_video.cpp`)**
-   - Zamienić SDL_Window/Renderer/Texture na ekran RTG (Picasso96)
-   - Gra renderuje do bufora 320×200×8bit → `WriteChunkyPixels()` lub `WriteLUTPixelArray()`
-   - Paleta 256 kolorów → `LoadRGB32()` lub `SetRGB32()`
-   - VSync / retrace → `WaitTOF()` lub przerwanie VERTB
+2. **Video layer (`i_video.cpp`)**
+   - Replace SDL_Window/Renderer/Texture with an RTG screen (Picasso96)
+   - The game renders to a 320x200x8bit buffer -> `WriteChunkyPixels()` or `WriteLUTPixelArray()`
+   - 256-color palette -> `LoadRGB32()` or `SetRGB32()`
+   - VSync / retrace -> `WaitTOF()` or a VERTB interrupt
 
-3. **Warstwa audio (`fx.cpp`)**
-   - Zamienić `SDL_OpenAudioDevice()` + callback na AHI
-   - Mixer software'owy (DSP_Mix, MUS_Mix) pozostaje bez zmian
-   - Potrzebny AHI double-buffering lub callback mode
+3. **Audio layer (`fx.cpp`)**
+   - Replace `SDL_OpenAudioDevice()` + callback with AHI
+   - The software mixer (DSP_Mix, MUS_Mix) remains unchanged
+   - AHI double-buffering or callback mode needed
 
 4. **Timer**
-   - `SDL_GetTicks()` → `ReadEClock()` (50-sza precyzja) lub `timer.device` (mikrosekund)
-   - `SDL_Init(SDL_INIT_TIMER)` → `OpenDevice("timer.device", ...)`
+   - `SDL_GetTicks()` -> `ReadEClock()` (50 Hz precision) or `timer.device` (microsecond)
+   - `SDL_Init(SDL_INIT_TIMER)` -> `OpenDevice("timer.device", ...)`
 
-### 🟡 WAŻNE (potrzebne do grania)
+### IMPORTANT (needed to play)
 
-5. **Warstwa wejścia**
-   - Klawiatura: `SDL_KEYDOWN/UP` → `IDCMP_RAWKEY` (IntuiMessage) lub `input.device`
-   - Mysz: `SDL_MOUSEMOTION/BUTTON` → `IDCMP_MOUSEMOVE` / `IDCMP_MOUSEBUTTONS`
-   - Joystick: `SDL_GameController` → `gameport.device` lub `lowlevel.library`
-   - Mapowanie SDL scancode→DOS scancode już istnieje w `kbdapi.cpp` – potrzeba Amiga→DOS
+5. **Input layer**
+   - Keyboard: `SDL_KEYDOWN/UP` -> `IDCMP_RAWKEY` (IntuiMessage) or `input.device`
+   - Mouse: `SDL_MOUSEMOTION/BUTTON` -> `IDCMP_MOUSEMOVE` / `IDCMP_MOUSEBUTTONS`
+   - Joystick: `SDL_GameController` -> `gameport.device` or `lowlevel.library`
+   - SDL scancode -> DOS scancode mapping already exists in `kbdapi.cpp` - Amiga -> DOS mapping still needed
 
-6. **Ścieżki plików i system plików**
-   - `\` → `/` (lub `:`) w separatorach ścieżek  
-   - `strrchr(exePath, '\\')` w `glbapi.cpp` → obsłużyć też `/` i `:`
-   - `SDL_GetPrefPath()` → `PROGDIR:` lub `S:Raptor/`
-   - Case sensitivity: pliki `.GLB` vs `.glb` – AmigaOS jest case-insensitive, OK
+6. **File paths and filesystem**
+   - `\` -> `/` (or `:`) in path separators
+   - `strrchr(exePath, '\\')` in `glbapi.cpp` -> also handle `/` and `:`
+   - `SDL_GetPrefPath()` -> `PROGDIR:` or `S:Raptor/`
+   - Case sensitivity: `.GLB` vs `.glb` files - AmigaOS is case-insensitive, OK
 
-7. **Wydajność na 68060**
-   - 320×200×8bit software rendering powinno być OK
-   - Software mixer 44100 Hz stereo → rozważyć obniżenie do 22050 Hz
-   - OPL3 emulacja (`opl3.cpp`) – wymaga profilowania
-   - TinySoundFont – znaczne użycie float, na 68060 FPU to ~10-20 MFLOPS
-   - 68060 @50MHz ≈ ~100 MIPS – powinno wystarczyć przy optymalizacji
+7. **Performance on the 68060**
+   - 320x200x8bit software rendering should be OK
+   - Software mixer at 44100 Hz stereo -> consider lowering to 22050 Hz
+   - OPL3 emulation (`opl3.cpp`) - needs profiling
+   - TinySoundFont - heavy use of float, on the 68060 FPU that's ~10-20 MFLOPS
+   - 68060 @50MHz is approx. ~100 MIPS - should be sufficient with optimization
 
-### 🟢 MNIEJ WAŻNE (mogą poczekać)
+### LESS IMPORTANT (can wait)
 
 8. **Setup program (`raptorsetup`)**
-   - Wymaga textscreen library (SDL2-based)
-   - Odłożyć – konfiguracja przez ręczną edycję SETUP.INI
+   - Requires the textscreen library (SDL2-based)
+   - Postpone - configuration via manual SETUP.INI editing
 
 9. **SDL_ShowSimpleMessageBox()**
-   - Zamienić na `EasyRequestArgs()` lub `printf()`
+   - Replace with `EasyRequestArgs()` or `printf()`
 
-10. **Inne platformowe szczegóły**
-    - `#ifdef __ANDROID__` / `#ifdef _WIN32` → dodać `#ifdef __AMIGA__`
-    - `SDL_free()` → `free()`
-    - `SDL_RWops` (Android file copy) → nie dotyczy
+10. **Other platform-specific details**
+    - `#ifdef __ANDROID__` / `#ifdef _WIN32` -> add `#ifdef __AMIGA__`
+    - `SDL_free()` -> `free()`
+    - `SDL_RWops` (Android file copy) - not applicable
 
 ---
 
-## 5. Architektura portu – rekomendowana struktura
+## 5. Port Architecture - Recommended Structure
 
 ```
 src/
-├── [istniejące pliki – bez zmian lub minimalne zmiany]
+├── [existing files - unchanged or minimally changed]
 ├── amiga/
-│   ├── amiga_video.cpp     # Implementacja I_InitGraphics, I_FinishUpdate (RTG)
-│   ├── amiga_audio.cpp     # Implementacja SND_InitSound via AHI
-│   ├── amiga_input.cpp     # Klawiatura, mysz, joystick via Intuition/input.device
+│   ├── amiga_video.cpp     # Implementation of I_InitGraphics, I_FinishUpdate (RTG)
+│   ├── amiga_audio.cpp     # Implementation of SND_InitSound via AHI
+│   ├── amiga_input.cpp     # Keyboard, mouse, joystick via Intuition/input.device
 │   ├── amiga_timer.cpp     # SDL_GetTicks() replacement via timer.device
-│   ├── amiga_system.cpp    # Inicjalizacja AmigaOS, ścieżki, czyszczenie
-│   └── amiga_sdl_stubs.h   # Minimalne definicje SDL_SwapLE*, SDL_BYTEORDER, itp.
+│   ├── amiga_system.cpp    # AmigaOS initialization, paths, cleanup
+│   └── amiga_sdl_stubs.h   # Minimal definitions for SDL_SwapLE*, SDL_BYTEORDER, etc.
 ```
 
-### Faza 1: Kompilacja i link (cel: uruchomienie programu)
-- Stworzyć stubs SDL lub użyć SDL2 Amiga port
-- Skompilować wszystkie pliki .cpp
-- Zlinkowac z wymaganymi bibliotekami AmigaOS
+### Phase 1: Compilation and Linking (goal: run the program)
+- Create SDL stubs or use the SDL2 Amiga port
+- Compile all .cpp files
+- Link against the required AmigaOS libraries
 
-### Faza 2: Wyświetlanie (cel: ekran tytułowy)
-- Implementacja warstwy wideo (RTG)
-- Test palety i wyświetlania sprite'ów
+### Phase 2: Display (goal: title screen)
+- Implement the video layer (RTG)
+- Test palette and sprite display
 
-### Faza 3: Input + Audio (cel: grywalna gra)
-- Klawiatura i mysz
-- Mixer audio przez AHI
-- Muzyka OPL3
+### Phase 3: Input + Audio (goal: playable game)
+- Keyboard and mouse
+- Audio mixer via AHI
+- OPL3 music
 
-### Faza 4: Optymalizacja
-- Profilowanie wydajności
-- Optymalizacja krytycznych pętli (mixer, renderer)
-- Opcjonalne: 68060-specific assembly dla hot loops
+### Phase 4: Optimization
+- Performance profiling
+- Optimizing critical loops (mixer, renderer)
+- Optional: 68060-specific assembly for hot loops
 
 ---
 
-## 6. Notatki dotyczące kompilatora m68k-amigaos-gcc
+## 6. Notes on the m68k-amigaos-gcc Compiler
 
-### Wymagane flagi:
+### Required flags:
 ```
--m68060           # Generuj kod dla 68060
--m68881           # Użyj FPU (68060 ma zintegrowane FPU)  
--O2               # Optymalizacja (nie O3 – może generować zbyt duży kod)
--fomit-frame-pointer  # Wolny rejestr a6
--noixemul         # Nie linkuj z ixemul (UNIX emulation), użyj natywnego libc
+-m68060           # Generate code for the 68060
+-m68881           # Use FPU (68060 has an integrated FPU)
+-O2               # Optimization (not O3 - may generate excessively large code)
+-fomit-frame-pointer  # Free the a6 register
+-noixemul         # Do not link against ixemul (UNIX emulation), use native libc
 ```
 
-### Potencjalne problemy kompilacji:
-- `long long` w `rap.cpp` (`wrand()`) – m68k-amigaos-gcc wspiera to
-- `bool` / `true` / `false` – wymaga C++11 lub `<stdbool.h>`
-- `auto` keyword (C++11) – `auto chan = &dsp_channels[i];` w `dspapi.cpp`
-- `#pragma once` – wspierane przez GCC
-- `#pragma pack(push, 1)` – wspierane, ale sprawdzić poprawność na m68k
-- Default argument values w C++ (`void I_SetPalette(uint8_t *doompalette, int start = 0)`) – OK w C++
+### Potential compilation issues:
+- `long long` in `rap.cpp` (`wrand()`) - m68k-amigaos-gcc supports this
+- `bool` / `true` / `false` - requires C++11 or `<stdbool.h>`
+- `auto` keyword (C++11) - `auto chan = &dsp_channels[i];` in `dspapi.cpp`
+- `#pragma once` - supported by GCC
+- `#pragma pack(push, 1)` - supported, but verify correctness on m68k
+- Default argument values in C++ (`void I_SetPalette(uint8_t *doompalette, int start = 0)`) - OK in C++
 
 ---
 
-*Dokument przygotowany: lipiec 2026*
-*Wersja kodu źródłowego: upstream skynettx/raptor*
+*Document prepared: July 2026*
+*Source code version: upstream skynettx/raptor*

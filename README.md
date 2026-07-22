@@ -1,7 +1,140 @@
 # Raptor - Amiga 68060 RTG Port
 
-To jest prywatne repozytorium portu gry Raptor na AmigaOS 3.x.
-Docelowy sprzęt: 68060, 32MB RAM, RTG 4MB.
+# Raptor: Call of the Shadows – Amiga 68060 RTG Port / PiStorm
+
+## About this project
+This is a private repository for the port of the Raptor game to AmigaOS 3.x.
+Target hardware: 68060, 32MB RAM, RTG 4MB.
+
+I am an Amiga enthusiast who, with the help of modern AI tools, is attempting
+to port the classic DOS shooter **Raptor: Call of the Shadows** to the Amiga
+platform.
+
+As far as I know, **no Amiga port of Raptor exists** – this is an attempt to
+change that.
+
+The port is based on the reverse-engineered open source recreation by
+[skynettx](https://github.com/skynettx/raptor), which faithfully recreates
+the original game engine in C/C++.
+
+---
+
+## Target platforms
+
+The primary targets are:
+
+- **Amiga 2000** with RTG graphics card (e.g. Picasso IV, CyberVision 64/3D)
+- **Amiga 1200** with PiStorm accelerator (68060 emulation via Emu68)
+
+---
+
+## Target system
+
+- **AmigaOS**: 3.2 (Hyperion Entertainment)
+- **Graphics**: Picasso96 (P96) RTG
+- **Audio**: AHI (Audio Hardware Interface)
+- **CPU**: Motorola 68060 @ 50MHz or PiStorm/Emu68 equivalent
+- **FPU**: required (68060 built-in)
+- **RAM**: minimum 32 MB Fast RAM (64 MB+ recommended)
+- **Storage**: minimum 50 MB free space (HDD/CF card)
+
+> This specific combination was chosen because it reflects
+> real hardware configurations owned by the author.
+> Other configurations (e.g. CyberGraphX, older AmigaOS)
+> are not planned at this time.
+
+---
+
+## Goals of this project
+
+This project is as much about **learning** as it is about gaming:
+
+- Learning to use **modern development tools** (VS Code, CMake, GCC
+  cross-compiler) for Amiga development
+- Understanding **C++ cross-compilation** for the m68k architecture
+- Exploring how a modern SDL2-based game engine can be adapted to
+  **native Amiga APIs** (AHI for audio, Picasso96 for graphics)
+- Documenting the entire process publicly so other Amiga enthusiasts
+  can learn from it
+
+---
+
+## Current status
+
+- [x] Windows build working (SDL2 + MSVC + CMake)
+- [x] m68k cross-compiler toolchain (AmigaPorts/m68k-amigaos-gcc, GCC 6.5.0)
+- [x] All C/C++ source files compile successfully for m68k target
+- [ ] Amiga backend – POSIX stubs (access, ftruncate, gettimeofday)
+- [ ] Graphics layer stub (SDL2 → Picasso96/P96 – basic implementation)
+- [ ] Audio layer stub (SDL2 → AHI – basic implementation)
+- [ ] Input handling stub (SDL2 events → AmigaOS IDCMP)
+- [ ] Joystick stubs (SDL2 → AmigaOS gameport.device)
+- [ ] **First successful link of Amiga executable** ← 20 July 2026
+- [ ] Testing on WinUAE emulator (68060 + RTG + AHI)
+- [ ] First boot on WinUAE without crash
+- [ ] Graphics visible on screen (RTG output)
+- [ ] Audio working (AHI playback)
+- [ ] Input working (keyboard + mouse)
+- [ ] Testing on real hardware (A2000 RTG, A1200 + PiStorm)
+
+> **Milestone reached – 20 July 2026:**
+> Both `raptor` and `raptorsetup` successfully compile and link as
+> native **AmigaOS m68k executables** (loadseg()ble binary format).
+> This is believed to be the first ever Amiga build of Raptor: Call of the Shadows.
+
+---
+
+## Amiga backend
+
+The SDL2 layer has been replaced with native Amiga implementations:
+
+| Module | File | Status |
+|---|---|---|
+| POSIX stubs | `src/amiga/amiga_posix.c` | ✅ Done |
+| Video (Picasso96) | `src/amiga/amiga_video.c` | 🔧 Stub |
+| Audio (AHI) | `src/amiga/amiga_audio.c` | 🔧 Stub |
+| Input (IDCMP) | `src/amiga/amiga_input.c` | 🔧 Stub |
+| Link stubs | `src/amiga/amiga_stubs_link.c` | ✅ Done |
+| SDL2 type defs | `src/amiga/amiga_sdl_stubs.h` | ✅ Done |
+
+---
+
+## Tools used
+
+- [VS Code](https://code.visualstudio.com/) + CMake Tools
+- [AmigaPorts/m68k-amigaos-gcc](https://github.com/AmigaPorts/m68k-amigaos-gcc)
+  – GCC 6.5.0 cross-compiler for m68k AmigaOS
+- WSL2 (Ubuntu 24.04) – build environment on Windows
+- [WinUAE](https://www.winuae.net/) – Amiga emulator for testing
+- AI assistance (Perplexity Comet) for guidance and problem solving
+
+---
+
+## Build environment
+
+- **Host**: Windows 11 + WSL2 (Ubuntu 24.04)
+- **Cross-compiler**: m68k-amigaos-gcc 6.5.0 installed in `/opt/amiga/`
+- **CMake toolchain**: `toolchains/amiga-m68k.cmake`
+- **Target flags**: `-m68060 -mhard-float -noixemul -O2`
+
+---
+
+## Based on
+
+- [skynettx/raptor](https://github.com/skynettx/raptor) – GPL-2.0 licensed
+  reverse-engineered source port of Raptor: Call of the Shadows
+
+---
+
+## Disclaimer
+
+This project does not include any original game assets. You need to own a
+legal copy of **Raptor: Call of the Shadows shareware or full version 1.2+**
+to use this port.
+
+---
+
+*This is a hobbyist learning project. Progress will be slow but steady.*
 
 ---
 # Raptor
@@ -133,17 +266,10 @@ Raptor for Android is licensed under the [GPLv3](https://github.com/skynettx/rap
 Make sure you get all the necessary ALSA and or PulseAudio dependencies from the packagemanager of your distro. 
 2. Where can i change the video settings:  
 The video settings can be set in the config file `SETUP.INI`. To toggle fullscreen mode on edit under the [Video] section `fullscreen=0`
-to `fullscreen=1`. Or aspect ratio mode off `aspect_ratio_correct=1` to `aspect_ratio_correct=0`. 
+to `fullscreen=1`. Or aspect ratio mode off `aspect_ratio_correct=1` to `aspect_ratio_correct=0`.
 
 ## Thanks
 Special thanks to [nukeykt](https://github.com/nukeykt) and [wel97459](https://github.com/wel97459) for their great work on the reconstructed source code.
 Big thanks to [Scott Host](https://www.mking.com) for his great support.
 Also many thanks to [schellingb](https://github.com/schellingb) for the great TinySoundFont library and to all contributors from the
 [chocolate-doom project](https://github.com/chocolate-doom) for the awesome libtextscreen.
-
-
- 
-
-
-
-
