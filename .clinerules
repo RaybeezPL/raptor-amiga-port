@@ -1,0 +1,23 @@
+## Scope rules for Amiga port
+
+- This project task is the Amiga 68k port only: AmigaOS 3.2, 68060/FPU, Picasso96 RTG, AHI audio.
+- Do not search outside the repository.
+- Do not search in `android/`, `build/`, `.cmake/`, generated Visual Studio/CMake files, logs, or compiled artifacts.
+- Prefer searching only in:
+  - `src/amiga/`
+  - `src/fx.cpp`
+  - `src/fx.h`
+  - `src/rap.cpp`
+  - other `src/*.cpp` and `src/*.h` only if directly referenced by the above files.
+- When debugging audio, search only for:
+  - `SDL_OpenAudio`
+  - `SDL_OpenAudioDevice`
+  - `OpenDevice(`
+  - `ahi.device`
+  - `g_nosound`
+  - `g_nomusic`
+  - `SND_InitSound`
+  - `MUS_Init`
+  - `MUSSongPlaying`
+- Never scan the whole disk (`/`, `/mnt/c`, `/c`).
+- Use WSL/bash paths only.
