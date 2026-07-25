@@ -409,6 +409,11 @@ IPT_End(
     // TSM_PauseService(ipt_tsm);
     PTR_Pause(0);
     PTR_DrawCursor(0);
+    /* On Amiga: the system pointer is hidden once at window open (SDL_CreateWindow)
+     * and stays hidden for the entire game session.  Do NOT restore it here when
+     * returning from gameplay to the menu - that would cause the native Amiga
+     * arrow to appear on top of the software crosshair.  The system pointer is
+     * restored only at full application exit via SDL_Quit() / ShutDown(). */
 }
 
 /***************************************************************************

@@ -207,8 +207,12 @@ WIN_Opts(
     curd = opt_detail;
     cur_field = 0;
 
-    opt_vol[MUSIC_VOL] = music_volume;
-    opt_vol[FX_VOL] = fx_volume;
+    /* When -nosound is active, music_volume and fx_volume are both forced
+     * to 0 by SND_InitSound() as a no-op guard for the audio subsystem.
+     * Read the actual user preference from INI instead so the sliders show
+     * the real stored value (default 64 = 50%) rather than always zero. */
+    opt_vol[MUSIC_VOL] = g_nosound ? INI_GetPreferenceLong("Music",   "Volume", 64) : music_volume;
+    opt_vol[FX_VOL]    = g_nosound ? INI_GetPreferenceLong("SoundFX", "Volume", 64) : fx_volume;
     
     opt_window = SWD_InitWindow(FILE13f_OPTS_SWD);
     
@@ -580,9 +584,9 @@ WIN_AskBool(
     GFX_DisplayUpdate();
     
     SND_Patch(FX_SWEP, 127);
-    
+
     PTR_DrawCursor(1);
-    
+
     SWD_GetFieldXYL(ask_window, ASK_YES, &px, &py, &lx, &ly);
     PTR_SetPos(px + (lx >> 1), py + (ly >> 1));
     

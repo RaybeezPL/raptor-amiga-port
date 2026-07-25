@@ -1264,6 +1264,15 @@ Do_Game(
     RAP_FreeMap();
     end_wave = 0;
     PTR_SetGameFlag(0);
+#ifdef __AMIGA__
+    /* Belt-and-suspenders: restore the Intuition system pointer as early as
+     * possible - right when the game loop decides it is done, before any
+     * subsequent GFX_DisplayUpdate() / GFX_FadeOut() calls could blit one
+     * more frame with the blank-sprite hardware pointer still installed.
+     * IPT_End() (called a few lines below) also calls this, so there is no
+     * risk of double-application - ClearPointer() is idempotent. */
+    Amiga_ShowSystemPointer();
+#endif
     
     memset(displaybuffer, 0, 64000);
     GFX_MarkUpdate(0, 0, 320, 200);
@@ -1369,18 +1378,30 @@ main(
      */
     for (loop = 1; loop < argc; loop++)
     {
-        if (RAP_StrCaseEqual(argv[loop], "-nosound"))
+        /* Accept both the GNU-style "-nosound"/"-nomusic" switches and the
+         * plain AmigaDOS keyword style "NOSOUND"/"NOMUSIC" (no leading
+         * dash), since AmigaOS CLI/Shell/Workbench tooltype arguments are
+         * conventionally passed without a dash (e.g. icon tooltype
+         * "NOSOUND" or "raptor NOSOUND" from the Shell). Without this,
+         * users invoking the game the AmigaOS way never actually get
+         * g_nosound set, so the code falls through to the normal
+         * SDL_Init(SDL_INIT_AUDIO)/ahi.device path - which is not what
+         * they asked for, and can hang/fail on some Amiga audio setups. */
+        if (RAP_StrCaseEqual(argv[loop], "-nosound") ||
+            RAP_StrCaseEqual(argv[loop], "nosound"))
         {
             g_nosound = 1;
             printf("-nosound specified: audio disabled\n");
         }
-        else if (RAP_StrCaseEqual(argv[loop], "-nomusic"))
+        else if (RAP_StrCaseEqual(argv[loop], "-nomusic") ||
+                 RAP_StrCaseEqual(argv[loop], "nomusic"))
         {
             g_nomusic = 1;
             printf("-nomusic specified: music disabled (sound FX still enabled)\n");
         }
 
     }
+
 
     if (argv[1])
     {

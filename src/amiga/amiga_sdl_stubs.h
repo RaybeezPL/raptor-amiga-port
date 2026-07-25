@@ -864,7 +864,11 @@ static inline void   SDL_QuitSubSystem(uint32_t flags) { (void)flags; }
 
 static inline void SDL_Quit(void) {
 #ifdef __AMIGA__
-    printf("[AMIGA] SDL_Quit: closing libraries\n"); fflush(stdout);
+    /* Restore the native Amiga system pointer before destroying the game
+     * window and closing libraries.  This is the single canonical "show"
+     * call that matches the single "hide" call in SDL_CreateWindow(). */
+    Amiga_ShowSystemPointer();
+    printf("[AMIGA] SDL_Quit: system pointer restored, closing libraries\n"); fflush(stdout);
     Amiga_CloseGameScreen();
     Amiga_CloseP96();
     if (IntuitionBase) {
@@ -1055,6 +1059,15 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
      * find its IDCMP UserPort message port and MouseX/MouseY fields without
      * needing an SDL_Window* argument (SDL_PumpEvents() takes none). */
     AmigaGameWindow = win->amiga_window;
+
+    /* Hide the system Amiga pointer immediately after the game window opens.
+     * It remains hidden for the entire lifetime of the application and is
+     * restored only in SDL_Quit() / ShutDown(). This is the single, canonical
+     * hide call - SDL_SetRelativeMouseMode() is now a no-op for Amiga so it
+     * cannot accidentally re-show the pointer when returning to the menu. */
+    Amiga_HideSystemPointer();
+    printf("[AMIGA] System pointer hidden (will be restored at SDL_Quit)\n");
+    fflush(stdout);
 #endif /* __AMIGA__ */
 
     return win;
@@ -1415,8 +1428,461 @@ static inline int SDL_PixelFormatEnumToMasks(uint32_t format, int *bpp,
     return SDL_TRUE;
 }
 
-/* --- Audio --- */
-/* TODO: Implement via AHI in amiga_audio.cpp */
+/* ========================================================================= */
+/* --- Audio: real ahi.device backend (double-buffered CMD_WRITE) ---        */
+/* ========================================================================= */
+/*
+ * Implements the small subset of the SDL2 "simple"/global audio API that
+ * src/fx.cpp (SND_InitSound(), via SDL_OpenAudioDevice() below, which just
+ * forwards to SDL_OpenAudio()) and src/mputsf.cpp (TSF_Init(), which calls
+ * SDL_OpenAudio() directly) need:
+ *
+ *      SDL_OpenAudio() / SDL_OpenAudioDevice() / SDL_CloseAudio()
+ *      SDL_PauseAudio() / SDL_PauseAudioDevice()
+ *      SDL_LockAudio()  / SDL_LockAudioDevice()
+ *      SDL_UnlockAudio()/ SDL_UnlockAudioDevice()
+ *
+ * IMPORTANT - scope of this fix: this backend is ONLY ever reached on the
+ * NORMAL (audio-enabled) path. When -nosound is passed on the command
+ * line, src/fx.cpp's SND_InitSound() returns at its very first statement
+ * (before calling SDL_Init(SDL_INIT_AUDIO) or any function in this file),
+ * so none of the code below ever executes and ahi.device is never opened.
+ * See the "if (g_nosound) { ...; return 1; }" early-out at the top of
+ * SND_InitSound() in src/fx.cpp, and the -nosound/-nomusic argv parsing in
+ * src/rap.cpp's main().
+ *
+ * Design: ahi.device is opened directly via OpenDevice("ahi.device", ...)
+ * with a raw struct AHIRequest (defined locally below, since the minimal
+ * devices/ahi.h shipped with this cross toolchain is missing the
+ * io_Data/io_Length/io_Offset/ahir_Link fields required for CMD_WRITE
+ * streaming). Only the raw device I/O interface is used - no ahi.library,
+ * no AHI_AllocAudio()/AHI_Play()/AHI_LoadSound() convenience calls.
+ *
+ * Streaming uses classic double buffering (AHI developer guide, "Writing
+ * To The Device" chapter): two AHIRequests, each owning one sample buffer,
+ * chained via ahir_Link so ahi.device continues seamlessly from one buffer
+ * into the next. A dedicated background task (CreateNewProcTags()) pumps
+ * the buffers: it waits for the oldest outstanding request to complete,
+ * refills it via the SDL_AudioCallback, and resends it chained after the
+ * other (still in-flight) buffer.
+ *
+ * NO STDIO ON THE AUDIO TASK: a process created via CreateNewProcTags()
+ * without NP_Output/NP_Input/NP_CloseOutput has no valid DOS console
+ * filehandle - calling printf()/fflush() from AudioTaskEntry() or the
+ * fill-buffer helper it calls would dereference a bad/foreign BPTR and
+ * fault. All diagnostic logging below therefore happens only in
+ * SDL_OpenAudio()/SDL_CloseAudio()/SDL_PauseAudio(), which always run on
+ * the caller's (main) task.
+ */
+#ifdef __AMIGA__
+
+#include <exec/types.h>
+#include <exec/io.h>
+#include <exec/errors.h>
+#include <exec/memory.h>
+#include <exec/ports.h>
+#include <dos/dos.h>
+#include <dos/dostags.h>
+#include <proto/exec.h>
+#include <proto/dos.h>
+
+#define AMIGA_AHINAME          "ahi.device"
+#define AMIGA_AHI_DEFAULT_UNIT 0
+#define AMIGA_AHIST_M16S 0x00000003UL /* 16 bit mono signed */
+#define AMIGA_AHIST_S16S 0x00000006UL /* 16 bit stereo signed */
+
+/* AHI's 16.16 fixed-point type (normally "Fixed" from <graphics/gfx.h>). */
+typedef LONG AmigaAHIFixed;
+#define AMIGA_AHI_FIXED_1_0 ((AmigaAHIFixed)0x00010000L)
+
+/*
+ * Local, ABI-correct replacement for <devices/ahi.h>'s struct AHIRequest.
+ * Real ahi.device (per the AHI SDK/RKM) reserves a UWORD pad + FOUR ULONGs
+ * of driver-private scratch space right after ahir_Version, and every
+ * consumer/driver relies on ahir_Link existing for double-buffered
+ * streaming - both are required and both are correctly sized here.
+ */
+struct AmigaAHIRequest
+{
+    struct IOStdReq  ahir_Std;        /* io_Data/io_Length/io_Offset/io_Command/io_Error */
+    UWORD            ahir_Version;
+    UWORD            ahir_Reserved;
+    ULONG            ahir_Private[4]; /* driver-private - hands off, must be 4 ULONGs */
+    ULONG            ahir_Type;
+    ULONG            ahir_Frequency;
+    AmigaAHIFixed    ahir_Volume;
+    AmigaAHIFixed    ahir_Position;
+    struct AmigaAHIRequest *ahir_Link;
+};
+
+#define AMIGA_AUDIO_NUM_BUFFERS 2
+
+struct AmigaAudioState
+{
+    int initialized;
+    struct MsgPort         *port;
+    struct AmigaAHIRequest *req[AMIGA_AUDIO_NUM_BUFFERS];
+    int devopen;
+    UBYTE *buffer[AMIGA_AUDIO_NUM_BUFFERS];
+    ULONG  bufferBytes;
+    int freq;
+    int channels;
+    ULONG ahiType;
+    void (*callback)(void *userdata, uint8_t *stream, int len);
+    void *userdata;
+    struct Process *audioTask;
+    volatile int taskRunning;
+    volatile int taskShouldQuit;
+    volatile int paused;
+};
+
+__attribute__((weak)) struct AmigaAudioState g_AmigaAudio;
+
+static inline void AmigaAudio_FreeBuffers(void)
+
+{
+    int i;
+    for (i = 0; i < AMIGA_AUDIO_NUM_BUFFERS; i++)
+    {
+        if (g_AmigaAudio.buffer[i])
+        {
+            FreeMem(g_AmigaAudio.buffer[i], g_AmigaAudio.bufferBytes);
+            g_AmigaAudio.buffer[i] = NULL;
+        }
+    }
+}
+
+static inline void AmigaAudio_FreeIOReqs(void)
+
+{
+    int i;
+    for (i = 0; i < AMIGA_AUDIO_NUM_BUFFERS; i++)
+    {
+        if (g_AmigaAudio.req[i])
+        {
+            DeleteIORequest((struct IORequest *)g_AmigaAudio.req[i]);
+            g_AmigaAudio.req[i] = NULL;
+        }
+    }
+    if (g_AmigaAudio.port)
+    {
+        DeleteMsgPort(g_AmigaAudio.port);
+        g_AmigaAudio.port = NULL;
+    }
+}
+
+/* NO STDIO HERE - runs on the headless background audio task. */
+static inline void AmigaAudio_FillBuffer(UBYTE *dst, ULONG bytes)
+
+{
+    if (!dst || bytes == 0)
+        return;
+
+    if (g_AmigaAudio.paused || !g_AmigaAudio.callback)
+    {
+        memset(dst, 0, bytes);
+        return;
+    }
+
+    g_AmigaAudio.callback(g_AmigaAudio.userdata, dst, (int)bytes);
+}
+
+static inline void AmigaAudio_SetupRequest(struct AmigaAHIRequest *req, UBYTE *buf, ULONG bytes)
+
+{
+    req->ahir_Std.io_Command = CMD_WRITE;
+    req->ahir_Std.io_Data    = (APTR)buf;
+    req->ahir_Std.io_Length  = (ULONG)bytes;
+    req->ahir_Std.io_Offset  = 0;
+    req->ahir_Type      = g_AmigaAudio.ahiType;
+    req->ahir_Frequency = (ULONG)g_AmigaAudio.freq;
+    req->ahir_Volume    = AMIGA_AHI_FIXED_1_0;
+    req->ahir_Position  = 0x00000000; /* centered */
+}
+
+/* NO STDIO IN THIS FUNCTION - dedicated background audio task. */
+static inline void AmigaAudio_TaskEntry(void)
+
+{
+    int cur;
+
+    g_AmigaAudio.taskRunning = 1;
+
+    if (!g_AmigaAudio.buffer[0] || !g_AmigaAudio.buffer[1] ||
+        !g_AmigaAudio.req[0]    || !g_AmigaAudio.req[1]    ||
+        !g_AmigaAudio.devopen)
+    {
+        g_AmigaAudio.taskRunning = 0;
+        return;
+    }
+
+    AmigaAudio_FillBuffer(g_AmigaAudio.buffer[0], g_AmigaAudio.bufferBytes);
+    AmigaAudio_FillBuffer(g_AmigaAudio.buffer[1], g_AmigaAudio.bufferBytes);
+
+    AmigaAudio_SetupRequest(g_AmigaAudio.req[0], g_AmigaAudio.buffer[0], g_AmigaAudio.bufferBytes);
+    g_AmigaAudio.req[0]->ahir_Link = NULL;
+    SendIO((struct IORequest *)g_AmigaAudio.req[0]);
+
+    AmigaAudio_SetupRequest(g_AmigaAudio.req[1], g_AmigaAudio.buffer[1], g_AmigaAudio.bufferBytes);
+    g_AmigaAudio.req[1]->ahir_Link = g_AmigaAudio.req[0];
+    SendIO((struct IORequest *)g_AmigaAudio.req[1]);
+
+    cur = 0;
+
+    while (!g_AmigaAudio.taskShouldQuit)
+    {
+        struct AmigaAHIRequest *done = g_AmigaAudio.req[cur];
+        int other;
+
+        WaitIO((struct IORequest *)done);
+
+        AmigaAudio_FillBuffer(g_AmigaAudio.buffer[cur], g_AmigaAudio.bufferBytes);
+
+        other = cur ^ 1;
+        AmigaAudio_SetupRequest(done, g_AmigaAudio.buffer[cur], g_AmigaAudio.bufferBytes);
+        done->ahir_Link = g_AmigaAudio.req[other];
+        SendIO((struct IORequest *)done);
+
+        cur ^= 1;
+    }
+
+    AbortIO((struct IORequest *)g_AmigaAudio.req[0]);
+    AbortIO((struct IORequest *)g_AmigaAudio.req[1]);
+    WaitIO((struct IORequest *)g_AmigaAudio.req[0]);
+    WaitIO((struct IORequest *)g_AmigaAudio.req[1]);
+
+    g_AmigaAudio.taskRunning = 0;
+}
+
+static inline void SDL_CloseAudio(void)
+{
+    if (!g_AmigaAudio.initialized)
+        return;
+
+    printf("[AMIGA][AUDIO] SDL_CloseAudio: shutting down\n"); fflush(stdout);
+
+    g_AmigaAudio.taskShouldQuit = 1;
+    {
+        int spins = 0;
+        while (g_AmigaAudio.taskRunning && spins < 500)
+        {
+            Delay(1);
+            spins++;
+        }
+    }
+
+    if (g_AmigaAudio.devopen)
+    {
+        CloseDevice((struct IORequest *)g_AmigaAudio.req[0]);
+        g_AmigaAudio.devopen = 0;
+    }
+
+    AmigaAudio_FreeIOReqs();
+    AmigaAudio_FreeBuffers();
+
+    memset(&g_AmigaAudio, 0, sizeof(g_AmigaAudio));
+
+    printf("[AMIGA][AUDIO] SDL_CloseAudio: done\n"); fflush(stdout);
+}
+
+/*
+ * DIAGNOSIS / FIX: #8000000B (Line 1111/F-line emulator, FPU trap) crashing
+ * exactly at OpenDevice(). This project is built with -m68060 -m68881
+ * together; at -O2 GCC's register allocator may opportunistically spill a
+ * plain integer/pointer value into an FPU register via an "fmove" that a
+ * real 68060 doesn't implement in hardware (relying on FPSP emulation that
+ * may not be resident/active for that opcode), producing an unhandled
+ * trap that looks like it happens "at" OpenDevice(). Forcing this function
+ * to compile at -O0 (Makefile.amiga's global -O2 cannot be changed per
+ * project rules) removes the opportunity for that spill entirely.
+ */
+__attribute__((optimize("O0")))
+static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obtained)
+{
+    if (g_AmigaAudio.initialized)
+        SDL_CloseAudio();
+
+    memset(&g_AmigaAudio, 0, sizeof(g_AmigaAudio));
+
+    if (!desired)
+        return -1;
+
+    printf("[AMIGA][AUDIO] SDL_OpenAudio: ENTRY desired->freq=%d desired->format=0x%04x "
+           "desired->channels=%d desired->samples=%u desired->callback=%p desired->userdata=%p\n",
+           desired->freq, (unsigned)desired->format, desired->channels,
+           (unsigned)desired->samples, (void *)desired->callback, desired->userdata);
+    fflush(stdout);
+
+    g_AmigaAudio.freq     = desired->freq > 0 ? desired->freq : 44100;
+    g_AmigaAudio.channels = desired->channels > 0 ? desired->channels : 2;
+    g_AmigaAudio.callback = desired->callback;
+    g_AmigaAudio.userdata = desired->userdata;
+    g_AmigaAudio.paused   = 1; /* SDL2 semantics: audio starts paused */
+    g_AmigaAudio.ahiType  = (g_AmigaAudio.channels >= 2) ? AMIGA_AHIST_S16S : AMIGA_AHIST_M16S;
+
+    {
+        ULONG frames = desired->samples > 0 ? desired->samples : 512;
+        g_AmigaAudio.bufferBytes = frames * (ULONG)g_AmigaAudio.channels * sizeof(short);
+    }
+
+    printf("[AMIGA][AUDIO] SDL_OpenAudio: using freq=%d channels=%d ahiType=%s bufferBytes=%lu\n",
+           g_AmigaAudio.freq, g_AmigaAudio.channels,
+           (g_AmigaAudio.ahiType == AMIGA_AHIST_S16S) ? "AHIST_S16S" : "AHIST_M16S",
+           (unsigned long)g_AmigaAudio.bufferBytes);
+    fflush(stdout);
+
+    {
+        int i;
+        for (i = 0; i < AMIGA_AUDIO_NUM_BUFFERS; i++)
+        {
+            g_AmigaAudio.buffer[i] = (UBYTE *)AllocMem(g_AmigaAudio.bufferBytes, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!g_AmigaAudio.buffer[i])
+            {
+                printf("[AMIGA][AUDIO] SDL_OpenAudio: AllocMem failed for buffer %d\n", i);
+                fflush(stdout);
+                AmigaAudio_FreeBuffers();
+                return -1;
+            }
+        }
+    }
+
+    g_AmigaAudio.port = CreateMsgPort();
+    if (!g_AmigaAudio.port)
+    {
+        printf("[AMIGA][AUDIO] SDL_OpenAudio: CreateMsgPort failed\n"); fflush(stdout);
+        AmigaAudio_FreeBuffers();
+        return -1;
+    }
+
+    {
+        int i;
+        for (i = 0; i < AMIGA_AUDIO_NUM_BUFFERS; i++)
+        {
+            g_AmigaAudio.req[i] = (struct AmigaAHIRequest *)CreateIORequest(g_AmigaAudio.port, sizeof(struct AmigaAHIRequest));
+            if (!g_AmigaAudio.req[i])
+            {
+                printf("[AMIGA][AUDIO] SDL_OpenAudio: CreateIORequest failed for req %d\n", i);
+                fflush(stdout);
+                AmigaAudio_FreeIOReqs();
+                AmigaAudio_FreeBuffers();
+                return -1;
+            }
+            memset(g_AmigaAudio.req[i], 0, sizeof(struct AmigaAHIRequest));
+            g_AmigaAudio.req[i]->ahir_Version = 2;
+            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Node.ln_Type = NT_MESSAGE;
+            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Node.ln_Name = NULL;
+            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_ReplyPort    = g_AmigaAudio.port;
+            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Length       = sizeof(struct AmigaAHIRequest);
+        }
+    }
+
+    {
+        BYTE odErr;
+        extern struct ExecBase *SysBase;
+
+        printf("[AMIGA][AUDIO] SDL_OpenAudio: SysBase=0x%08lx\n", (unsigned long)SysBase);
+        fflush(stdout);
+
+        if (!SysBase)
+        {
+            printf("[AMIGA][AUDIO] SDL_OpenAudio: FATAL - SysBase is NULL, aborting audio init.\n");
+            fflush(stdout);
+            AmigaAudio_FreeIOReqs();
+            AmigaAudio_FreeBuffers();
+            return -1;
+        }
+
+        printf("[AMIGA][AUDIO] SDL_OpenAudio: about to call OpenDevice()\n");
+        fflush(stdout);
+
+        odErr = OpenDevice((CONST_STRPTR)AMIGA_AHINAME, AMIGA_AHI_DEFAULT_UNIT,
+                            (struct IORequest *)g_AmigaAudio.req[0], 0);
+
+        printf("[AMIGA][AUDIO] SDL_OpenAudio: OpenDevice(\"%s\", unit=%d) returned %d (0=success)\n",
+               AMIGA_AHINAME, AMIGA_AHI_DEFAULT_UNIT, (int)odErr);
+        fflush(stdout);
+
+        if (odErr != 0)
+        {
+            printf("[AMIGA][AUDIO] SDL_OpenAudio: OpenDevice FAILED (io_Error=%d) - "
+                   "ahi.device could not be opened. Check DEVS:AHI mode/driver config.\n",
+                   (int)g_AmigaAudio.req[0]->ahir_Std.io_Error);
+            fflush(stdout);
+            AmigaAudio_FreeIOReqs();
+            AmigaAudio_FreeBuffers();
+            return -1;
+        }
+    }
+    g_AmigaAudio.devopen = 1;
+
+    g_AmigaAudio.req[1]->ahir_Std.io_Device = g_AmigaAudio.req[0]->ahir_Std.io_Device;
+    g_AmigaAudio.req[1]->ahir_Std.io_Unit   = g_AmigaAudio.req[0]->ahir_Std.io_Unit;
+
+    printf("[AMIGA][AUDIO] ahi.device opened OK (unit %d)\n", AMIGA_AHI_DEFAULT_UNIT);
+    fflush(stdout);
+
+    g_AmigaAudio.taskShouldQuit = 0;
+    g_AmigaAudio.taskRunning = 0;
+
+    g_AmigaAudio.audioTask = CreateNewProcTags(
+        NP_Entry,     (ULONG)AmigaAudio_TaskEntry,
+        NP_Name,      (ULONG)"Raptor Audio Task",
+        NP_Priority,  (LONG)0,
+        NP_StackSize, (ULONG)16384,
+        TAG_DONE);
+
+    if (!g_AmigaAudio.audioTask)
+    {
+        printf("[AMIGA][AUDIO] SDL_OpenAudio: CreateNewProcTags failed\n"); fflush(stdout);
+        CloseDevice((struct IORequest *)g_AmigaAudio.req[0]);
+        g_AmigaAudio.devopen = 0;
+        AmigaAudio_FreeIOReqs();
+        AmigaAudio_FreeBuffers();
+        return -1;
+    }
+
+    printf("[AMIGA][AUDIO] Background audio task started\n"); fflush(stdout);
+
+    g_AmigaAudio.initialized = 1;
+
+    if (obtained)
+    {
+        obtained->freq     = g_AmigaAudio.freq;
+        obtained->format   = AUDIO_S16SYS;
+        obtained->channels = (uint8_t)g_AmigaAudio.channels;
+        obtained->samples  = desired->samples;
+        obtained->size     = g_AmigaAudio.bufferBytes;
+        obtained->callback = g_AmigaAudio.callback;
+        obtained->userdata = g_AmigaAudio.userdata;
+        obtained->silence  = 0;
+    }
+
+    return 0;
+}
+
+static inline SDL_AudioDeviceID SDL_OpenAudioDevice(const char *d, int ic,
+    const SDL_AudioSpec *desired, SDL_AudioSpec *obtained, int changes)
+{
+    (void)d; (void)ic; (void)changes;
+    if (SDL_OpenAudio(desired, obtained) < 0)
+        return 0;
+    return 1; /* non-zero device id == success, matching SDL2 semantics */
+}
+
+static inline void SDL_PauseAudio(int pause_on) { g_AmigaAudio.paused = pause_on ? 1 : 0; }
+static inline void SDL_PauseAudioDevice(SDL_AudioDeviceID d, int p) { (void)d; SDL_PauseAudio(p); }
+
+/* Disable()/Enable(): lightweight critical-section guard between the main
+ * task (e.g. TinySoundFont tsf_channel_* calls) and the background audio
+ * task's callback invocation - the traditional AmigaOS technique for a
+ * tiny critical section like this one. */
+static inline void SDL_LockAudio(void)   { Disable(); }
+static inline void SDL_UnlockAudio(void) { Enable(); }
+static inline void SDL_LockAudioDevice(SDL_AudioDeviceID d)   { (void)d; SDL_LockAudio(); }
+static inline void SDL_UnlockAudioDevice(SDL_AudioDeviceID d) { (void)d; SDL_UnlockAudio(); }
+
+#else /* !__AMIGA__ : non-Amiga stub/test-compile fallback, unchanged */
+
 static inline SDL_AudioDeviceID SDL_OpenAudioDevice(const char *d, int ic,
     const SDL_AudioSpec *desired, SDL_AudioSpec *obtained, int changes)
 {
@@ -1429,6 +1895,11 @@ static inline void   SDL_PauseAudio(int p) { (void)p; }
 static inline int    SDL_OpenAudio(const SDL_AudioSpec *d, SDL_AudioSpec *o) { (void)d; (void)o; return -1; }
 static inline void   SDL_LockAudioDevice(SDL_AudioDeviceID d) { (void)d; }
 static inline void   SDL_UnlockAudioDevice(SDL_AudioDeviceID d) { (void)d; }
+static inline void   SDL_LockAudio(void) {}
+static inline void   SDL_UnlockAudio(void) {}
+
+#endif /* __AMIGA__ */
+
 
 /* --- Mouse button constants ---
  * (Moved above the native event pump below, since Amiga_PumpWindowEvents()
@@ -1810,11 +2281,15 @@ static inline int    SDL_GetNumTouchFingers(int64_t touchId) { (void)touchId; re
  * bug). SDL_TRUE (relative/hidden) -> hide; SDL_FALSE -> show.
  */
 static inline int    SDL_SetRelativeMouseMode(SDL_bool e) {
-#ifdef __AMIGA__
-    if (e) Amiga_HideSystemPointer();
-    else   Amiga_ShowSystemPointer();
-#else
     (void)e;
+#ifdef __AMIGA__
+    /* On Amiga the system pointer is hidden ONCE at SDL_CreateWindow() and
+     * shown ONCE at SDL_Quit().  Toggling it here in response to gameplay
+     * grab/ungrab would make the native Amiga arrow re-appear in the menu
+     * every time Do_Game() exits (IPT_End -> UpdateGrab -> SetShowCursor(true)
+     * -> SDL_SetRelativeMouseMode(false) -> Amiga_ShowSystemPointer).
+     * Keep this a no-op for Amiga so the single-hide / single-show model
+     * in SDL_CreateWindow / SDL_Quit is the only place that matters. */
 #endif
     return 0;
 }
