@@ -70,6 +70,16 @@ extern int fx_freq;
 extern int fx_gus;
 extern int sys_midi, winmm_mpu_device, core_dls_synth, core_midi_port, alsaclient, alsaport;
 
+/* Command-line audio disable flags (-nosound / -nomusic), parsed in main()
+ * (src/rap.cpp) and consumed by SND_InitSound() (src/fx.cpp):
+ *   -nosound : disables ALL audio (music AND sound effects). ahi.device /
+ *              the audio backend is never even opened.
+ *   -nomusic : disables music only. Sound effects (gun shots, explosions,
+ *              etc.) keep working normally. */
+extern int g_nosound;
+extern int g_nomusic;
+
+
 int SND_InitSound(void);
 void SND_DeInit(void);
 void SND_Setup(void);

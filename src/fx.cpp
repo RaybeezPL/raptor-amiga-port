@@ -27,6 +27,14 @@ int fx_gus;
 int fx_channels;
 int sys_midi, winmm_mpu_device, core_dls_synth, core_midi_port, alsaclient, alsaport;
 
+/* -nosound / -nomusic command-line flags - parsed in main() (src/rap.cpp).
+ * See fx.h for the full description of each flag's semantics. Defaulting
+ * to 0 (audio fully enabled) preserves the exact previous behaviour when
+ * neither switch is passed on the command line. */
+int g_nosound = 0;
+int g_nomusic = 0;
+
+
 typedef struct
 {
     int item;         // GLB ITEM
@@ -90,8 +98,27 @@ SND_InitSound(
     if (fx_init)
         return 0;
 
+    /* -nosound : skip audio entirely - never open SDL_INIT_AUDIO / the
+     * ahi.device backend at all. Music AND all sound effects (gun shots,
+     * explosions, etc.) are disabled; music_volume/fx_volume stay at 0
+     * (their static/global initial value) so every other SND_* call in
+     * the game (SND_Patch/SND_3DPatch/SND_PlaySong/...) becomes a no-op
+     * via their existing "if (fx_volume < 1) return;" / "if (music_volume
+     * <= 1) return;" early-out checks - no other code needs to change. */
+    if (g_nosound)
+    {
+        printf("[AUDIO] -nosound specified: audio subsystem disabled.\n");
+        fflush(stdout);
+        fx_device = SND_NONE;
+        music_volume = 0;
+        fx_volume = 0;
+        fx_init = 1;
+        return 1;
+    }
+
     if (SDL_Init(SDL_INIT_AUDIO) < 0)
         return 0;
+
 
     spec.freq = fx_freq;
     spec.format = AUDIO_S16SYS;
@@ -141,13 +168,28 @@ SND_InitSound(
         break;
     }
 
-    printf("Music Enabled (%s)\n", cards[music_card]);
+    /* -nomusic : disable music only - sound effects (gun shots, explosions,
+     * etc.) still work normally via fx_volume/fx_device below. Forcing
+     * music_volume to 0 makes every music-related SND_* entry point
+     * (SND_PlaySong/SND_FadeOutSong/SND_IsSongPlaying) a no-op via their
+     * existing "if (music_volume <= 1) return;" checks, and skipping
+     * MUS_Init() below means the OPL/TinySoundFont music backend is never
+     * even initialized. */
+    if (g_nomusic)
+    {
+        printf("[AUDIO] -nomusic specified: music disabled (sound FX still enabled).\n");
+        fflush(stdout);
+        music_volume = 0;
+    }
+
+    printf("Music Enabled (%s)\n", g_nomusic ? "Disabled (-nomusic)" : cards[music_card]);
     
-    if (music_card != M_NONE)                               
+    if (music_card != M_NONE && !g_nomusic)
     {
         MUS_Init(music_card, 0);
         MUS_SetVolume(music_volume);
     }
+
 
     fx_volume = INI_GetPreferenceLong("SoundFX", "Volume", 127);
     fx_card = INI_GetPreferenceLong("SoundFX", "CardType", 0);

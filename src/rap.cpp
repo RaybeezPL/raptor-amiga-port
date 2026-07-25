@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+
 #include "SDL.h"
 #include "common.h"
 #include "glbapi.h"
@@ -163,9 +165,44 @@ char flatnames[4][14] = {
 
 FLATS *flatlib[4];
 
+/*
+ * RAP_StrCaseEqual() - simple portable case-insensitive string compare
+ * helper, used for parsing the -nosound/-nomusic command-line switches.
+ * Avoids depending on strcasecmp()/<strings.h>, which is not guaranteed
+ * to be available on every m68k-amigaos clib2/newlib cross-toolchain.
+ */
+static int
+RAP_StrCaseEqual(
+    const char *a,
+    const char *b
+)
+{
+    if (!a || !b)
+        return 0;
+
+    while (*a && *b)
+    {
+        char ca = *a, cb = *b;
+
+        if (ca >= 'A' && ca <= 'Z')
+            ca = (char)(ca - 'A' + 'a');
+        if (cb >= 'A' && cb <= 'Z')
+            cb = (char)(cb - 'A' + 'a');
+
+        if (ca != cb)
+            return 0;
+
+        a++;
+        b++;
+    }
+
+    return (*a == 0 && *b == 0);
+}
+
 /***************************************************************************
 RAP_Bday() - Get system date
  ***************************************************************************/
+
 void 
 RAP_Bday(
     void
@@ -1318,6 +1355,33 @@ main(
     else
         godmode = 0;
 
+    /* ================================================
+     * -nosound / -nomusic command-line switches
+     * ================================================
+     * Scanned across the whole argv[] (not just argv[1]) so they can be
+     * combined with the existing REC/PLAY demo arguments in any order,
+     * e.g. "raptor -nosound REC demo1.dem" or "raptor REC demo1.dem
+     * -nomusic". Recognized case-insensitively to be forgiving of AmigaOS
+     * shell/CLI conventions.
+     *   -nosound : disables ALL audio (music AND sound effects).
+     *   -nomusic : disables music only, sound effects (shots, explosions,
+     *              etc.) keep working.
+     */
+    for (loop = 1; loop < argc; loop++)
+    {
+        if (RAP_StrCaseEqual(argv[loop], "-nosound"))
+        {
+            g_nosound = 1;
+            printf("-nosound specified: audio disabled\n");
+        }
+        else if (RAP_StrCaseEqual(argv[loop], "-nomusic"))
+        {
+            g_nomusic = 1;
+            printf("-nomusic specified: music disabled (sound FX still enabled)\n");
+        }
+
+    }
+
     if (argv[1])
     {
         if (!strcmp(argv[1], "REC"))
@@ -1336,6 +1400,7 @@ main(
             }
         }
     }
+
 
     if (godmode)
         printf("GOD mode enabled\n");
