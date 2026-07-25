@@ -24,7 +24,7 @@ static int lockcount;
 int fx_freq = 44100;
 
 /* FX_Fill instrumentation counters (audio thread writes, main thread reads at shutdown) */
-static volatile unsigned long fx_fill_calls   = 0;
+       volatile unsigned long fx_fill_calls   = 0;
 static volatile int           fx_fill_last_len = 0;
 static volatile unsigned long fx_fill_nonzero  = 0;
 

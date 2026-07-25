@@ -1657,7 +1657,45 @@ main(
     BONUS_Init();
     ANIMS_Init();
     SND_Setup();
-    
+
+#ifdef __AMIGA__
+    /* [AUDIO PROBE] Early SFX test: fire one sound right after SND_Setup(),
+     * before the Apogee/intro screen, and wait long enough for the AHI
+     * background task to call FX_Fill at least once.
+     *
+     * Rationale: SND_Setup() has just cached all GLB SFX items.
+     * fx_dev is open and SDL_PauseAudioDevice(fx_dev,0) was called in
+     * SND_InitSound(). If fx_fill_calls is still 0 after 3 s then the AHI
+     * background task is never invoking the SDL audio callback.
+     * If fx_fill_calls > 0 the callback fires and we should hear the sound.
+     */
+    if (!g_nosound)
+    {
+        unsigned long calls_before, calls_after;
+
+        /* Re-assert un-pause right here so there is zero ambiguity. */
+        SDL_PauseAudioDevice(fx_dev, 0);
+
+        calls_before = fx_fill_calls;
+        printf("[AUDIO PROBE] Before test sound: fx_fill_calls=%lu\n",
+               calls_before);
+        fflush(stdout);
+
+        /* Play a short SFX through the normal SND_Patch path. */
+        SND_Patch(FX_BONUS, 127);
+
+        /* Wait ~3 s (150 x 20 ms). SDL_Delay(3000) -> Amiga Delay() via SDL stub. */
+        SDL_Delay(3000);
+
+        calls_after = fx_fill_calls;
+        printf("[AUDIO PROBE] After 3 s wait: fx_fill_calls=%lu (delta=%lu) -> %s\n",
+               calls_after,
+               calls_after - calls_before,
+               (calls_after > calls_before) ? "CALLBACK FIRES OK" : "CALLBACK NEVER CALLED");
+        fflush(stdout);
+    }
+#endif /* __AMIGA__ */
+
     fprintf(stderr, "[INIT] GFX_SetPalRange()...\n"); fflush(stderr);
     GFX_SetPalRange(0, ROTPAL_START - 1);
     fprintf(stderr, "[INIT] GFX_InitVideo(palette)... (calls I_InitGraphics)\n"); fflush(stderr);

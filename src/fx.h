@@ -79,6 +79,10 @@ extern int sys_midi, winmm_mpu_device, core_dls_synth, core_midi_port, alsaclien
 extern int g_nosound;
 extern int g_nomusic;
 
+#include "SDL.h"
+
+extern SDL_AudioDeviceID fx_dev;
+extern volatile unsigned long fx_fill_calls;
 
 int SND_InitSound(void);
 void SND_DeInit(void);
