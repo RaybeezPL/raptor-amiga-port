@@ -1,0 +1,919 @@
+.
+├── --data
+├── --header
+├── .clineignore
+├── .clinerules
+├── .gitignore
+├── AMIGA_PORTING_ANALYSIS.md
+├── CMakeLists.txt
+├── LICENSE
+├── Makefile.amiga
+├── README.md
+├── SETUP(ADLIB).INI
+├── SETUP(MIDI).INI
+├── android
+│   ├── .gitignore
+│   ├── app
+│   │   ├── .gitignore
+│   │   ├── build.gradle
+│   │   ├── proguard-rules.pro
+│   │   └── src
+│   │       └── main
+│   │           ├── AndroidManifest.xml
+│   │           ├── ic_launcher-playstore.png
+│   │           ├── java
+│   │           │   ├── .gitignore
+│   │           │   └── com
+│   │           └── res
+│   │               ├── mipmap-anydpi-v26
+│   │               │   ├── ic_launcher.xml
+│   │               │   └── ic_launcher_round.xml
+│   │               ├── mipmap-hdpi
+│   │               │   ├── ic_launcher.webp
+│   │               │   ├── ic_launcher_foreground.webp
+│   │               │   └── ic_launcher_round.webp
+│   │               ├── mipmap-mdpi
+│   │               │   ├── ic_launcher.webp
+│   │               │   ├── ic_launcher_foreground.webp
+│   │               │   └── ic_launcher_round.webp
+│   │               ├── mipmap-xhdpi
+│   │               │   ├── ic_launcher.webp
+│   │               │   ├── ic_launcher_foreground.webp
+│   │               │   └── ic_launcher_round.webp
+│   │               ├── mipmap-xxhdpi
+│   │               │   ├── ic_launcher.webp
+│   │               │   ├── ic_launcher_foreground.webp
+│   │               │   └── ic_launcher_round.webp
+│   │               ├── mipmap-xxxhdpi
+│   │               │   ├── ic_launcher.webp
+│   │               │   ├── ic_launcher_foreground.webp
+│   │               │   └── ic_launcher_round.webp
+│   │               └── values
+│   │                   ├── colors.xml
+│   │                   ├── ic_launcher_background.xml
+│   │                   ├── strings.xml
+│   │                   └── styles.xml
+│   ├── build.gradle
+│   ├── gradle
+│   │   └── wrapper
+│   │       ├── gradle-wrapper.jar
+│   │       └── gradle-wrapper.properties
+│   ├── gradle.properties
+│   ├── gradlew
+│   ├── gradlew.bat
+│   └── settings.gradle
+├── build_amiga.sh
+├── build_wsl.sh
+├── curl
+├── docker_out.log
+├── gcc
+│   ├── raptor.cbp
+│   ├── raptor.workspace
+│   └── raptorsetup.cbp
+├── include
+│   ├── SDL2-devel-2.28.2-VC
+│   │   └── SDL2-2.28.2
+│   │       ├── BUGS.txt
+│   │       ├── COPYING.txt
+│   │       ├── README-SDL.txt
+│   │       ├── README.txt
+│   │       ├── WhatsNew.txt
+│   │       ├── cmake
+│   │       │   ├── sdl2-config-version.cmake
+│   │       │   └── sdl2-config.cmake
+│   │       ├── docs
+│   │       │   ├── CONTRIBUTING.md
+│   │       │   ├── README-android.md
+│   │       │   ├── README-cmake.md
+│   │       │   ├── README-directfb.md
+│   │       │   ├── README-dynapi.md
+│   │       │   ├── README-emscripten.md
+│   │       │   ├── README-gdk.md
+│   │       │   ├── README-gesture.md
+│   │       │   ├── README-git.md
+│   │       │   ├── README-hg.md
+│   │       │   ├── README-ios.md
+│   │       │   ├── README-kmsbsd.md
+│   │       │   ├── README-linux.md
+│   │       │   ├── README-macos.md
+│   │       │   ├── README-n3ds.md
+│   │       │   ├── README-nacl.md
+│   │       │   ├── README-ngage.md
+│   │       │   ├── README-os2.md
+│   │       │   ├── README-pandora.md
+│   │       │   ├── README-platforms.md
+│   │       │   ├── README-porting.md
+│   │       │   ├── README-ps2.md
+│   │       │   ├── README-psp.md
+│   │       │   ├── README-raspberrypi.md
+│   │       │   ├── README-riscos.md
+│   │       │   ├── README-touch.md
+│   │       │   ├── README-versions.md
+│   │       │   ├── README-visualc.md
+│   │       │   ├── README-vita.md
+│   │       │   ├── README-wince.md
+│   │       │   ├── README-windows.md
+│   │       │   ├── README-winrt.md
+│   │       │   ├── README.md
+│   │       │   ├── doxyfile
+│   │       │   └── release_checklist.md
+│   │       ├── include
+│   │       │   ├── SDL.h
+│   │       │   ├── SDL_assert.h
+│   │       │   ├── SDL_atomic.h
+│   │       │   ├── SDL_audio.h
+│   │       │   ├── SDL_bits.h
+│   │       │   ├── SDL_blendmode.h
+│   │       │   ├── SDL_clipboard.h
+│   │       │   ├── SDL_config.h
+│   │       │   ├── SDL_cpuinfo.h
+│   │       │   ├── SDL_egl.h
+│   │       │   ├── SDL_endian.h
+│   │       │   ├── SDL_error.h
+│   │       │   ├── SDL_events.h
+│   │       │   ├── SDL_filesystem.h
+│   │       │   ├── SDL_gamecontroller.h
+│   │       │   ├── SDL_gesture.h
+│   │       │   ├── SDL_guid.h
+│   │       │   ├── SDL_haptic.h
+│   │       │   ├── SDL_hidapi.h
+│   │       │   ├── SDL_hints.h
+│   │       │   ├── SDL_joystick.h
+│   │       │   ├── SDL_keyboard.h
+│   │       │   ├── SDL_keycode.h
+│   │       │   ├── SDL_loadso.h
+│   │       │   ├── SDL_locale.h
+│   │       │   ├── SDL_log.h
+│   │       │   ├── SDL_main.h
+│   │       │   ├── SDL_messagebox.h
+│   │       │   ├── SDL_metal.h
+│   │       │   ├── SDL_misc.h
+│   │       │   ├── SDL_mouse.h
+│   │       │   ├── SDL_mutex.h
+│   │       │   ├── SDL_name.h
+│   │       │   ├── SDL_opengl.h
+│   │       │   ├── SDL_opengl_glext.h
+│   │       │   ├── SDL_opengles.h
+│   │       │   ├── SDL_opengles2.h
+│   │       │   ├── SDL_opengles2_gl2.h
+│   │       │   ├── SDL_opengles2_gl2ext.h
+│   │       │   ├── SDL_opengles2_gl2platform.h
+│   │       │   ├── SDL_opengles2_khrplatform.h
+│   │       │   ├── SDL_pixels.h
+│   │       │   ├── SDL_platform.h
+│   │       │   ├── SDL_power.h
+│   │       │   ├── SDL_quit.h
+│   │       │   ├── SDL_rect.h
+│   │       │   ├── SDL_render.h
+│   │       │   ├── SDL_revision.h
+│   │       │   ├── SDL_rwops.h
+│   │       │   ├── SDL_scancode.h
+│   │       │   ├── SDL_sensor.h
+│   │       │   ├── SDL_shape.h
+│   │       │   ├── SDL_stdinc.h
+│   │       │   ├── SDL_surface.h
+│   │       │   ├── SDL_system.h
+│   │       │   ├── SDL_syswm.h
+│   │       │   ├── SDL_test.h
+│   │       │   ├── SDL_test_assert.h
+│   │       │   ├── SDL_test_common.h
+│   │       │   ├── SDL_test_compare.h
+│   │       │   ├── SDL_test_crc32.h
+│   │       │   ├── SDL_test_font.h
+│   │       │   ├── SDL_test_fuzzer.h
+│   │       │   ├── SDL_test_harness.h
+│   │       │   ├── SDL_test_images.h
+│   │       │   ├── SDL_test_log.h
+│   │       │   ├── SDL_test_md5.h
+│   │       │   ├── SDL_test_memory.h
+│   │       │   ├── SDL_test_random.h
+│   │       │   ├── SDL_thread.h
+│   │       │   ├── SDL_timer.h
+│   │       │   ├── SDL_touch.h
+│   │       │   ├── SDL_types.h
+│   │       │   ├── SDL_version.h
+│   │       │   ├── SDL_video.h
+│   │       │   ├── SDL_vulkan.h
+│   │       │   ├── begin_code.h
+│   │       │   └── close_code.h
+│   │       └── lib
+│   │           ├── x64
+│   │           │   ├── SDL2.dll
+│   │           │   ├── SDL2.lib
+│   │           │   ├── SDL2main.lib
+│   │           │   └── SDL2test.lib
+│   │           └── x86
+│   │               ├── SDL2.dll
+│   │               ├── SDL2.lib
+│   │               ├── SDL2main.lib
+│   │               └── SDL2test.lib
+│   ├── SDL2-devel-2.28.2-mingw
+│   │   └── SDL2-2.28.2
+│   │       ├── BUGS.txt
+│   │       ├── COPYING.txt
+│   │       ├── CREDITS.txt
+│   │       ├── INSTALL.txt
+│   │       ├── README-SDL.txt
+│   │       ├── README.txt
+│   │       ├── WhatsNew.txt
+│   │       ├── cmake
+│   │       │   ├── sdl2-config-version.cmake
+│   │       │   └── sdl2-config.cmake
+│   │       ├── docs
+│   │       │   ├── CONTRIBUTING.md
+│   │       │   ├── README-android.md
+│   │       │   ├── README-cmake.md
+│   │       │   ├── README-directfb.md
+│   │       │   ├── README-dynapi.md
+│   │       │   ├── README-emscripten.md
+│   │       │   ├── README-gdk.md
+│   │       │   ├── README-gesture.md
+│   │       │   ├── README-git.md
+│   │       │   ├── README-hg.md
+│   │       │   ├── README-ios.md
+│   │       │   ├── README-kmsbsd.md
+│   │       │   ├── README-linux.md
+│   │       │   ├── README-macos.md
+│   │       │   ├── README-n3ds.md
+│   │       │   ├── README-nacl.md
+│   │       │   ├── README-ngage.md
+│   │       │   ├── README-os2.md
+│   │       │   ├── README-pandora.md
+│   │       │   ├── README-platforms.md
+│   │       │   ├── README-porting.md
+│   │       │   ├── README-ps2.md
+│   │       │   ├── README-psp.md
+│   │       │   ├── README-raspberrypi.md
+│   │       │   ├── README-riscos.md
+│   │       │   ├── README-touch.md
+│   │       │   ├── README-versions.md
+│   │       │   ├── README-visualc.md
+│   │       │   ├── README-vita.md
+│   │       │   ├── README-wince.md
+│   │       │   ├── README-windows.md
+│   │       │   ├── README-winrt.md
+│   │       │   ├── README.md
+│   │       │   ├── doxyfile
+│   │       │   └── release_checklist.md
+│   │       ├── i686-w64-mingw32
+│   │       │   ├── bin
+│   │       │   │   ├── SDL2.dll
+│   │       │   │   └── sdl2-config
+│   │       │   ├── include
+│   │       │   │   └── SDL2
+│   │       │   │       ├── SDL.h
+│   │       │   │       ├── SDL_assert.h
+│   │       │   │       ├── SDL_atomic.h
+│   │       │   │       ├── SDL_audio.h
+│   │       │   │       ├── SDL_bits.h
+│   │       │   │       ├── SDL_blendmode.h
+│   │       │   │       ├── SDL_clipboard.h
+│   │       │   │       ├── SDL_config.h
+│   │       │   │       ├── SDL_cpuinfo.h
+│   │       │   │       ├── SDL_egl.h
+│   │       │   │       ├── SDL_endian.h
+│   │       │   │       ├── SDL_error.h
+│   │       │   │       ├── SDL_events.h
+│   │       │   │       ├── SDL_filesystem.h
+│   │       │   │       ├── SDL_gamecontroller.h
+│   │       │   │       ├── SDL_gesture.h
+│   │       │   │       ├── SDL_guid.h
+│   │       │   │       ├── SDL_haptic.h
+│   │       │   │       ├── SDL_hidapi.h
+│   │       │   │       ├── SDL_hints.h
+│   │       │   │       ├── SDL_joystick.h
+│   │       │   │       ├── SDL_keyboard.h
+│   │       │   │       ├── SDL_keycode.h
+│   │       │   │       ├── SDL_loadso.h
+│   │       │   │       ├── SDL_locale.h
+│   │       │   │       ├── SDL_log.h
+│   │       │   │       ├── SDL_main.h
+│   │       │   │       ├── SDL_messagebox.h
+│   │       │   │       ├── SDL_metal.h
+│   │       │   │       ├── SDL_misc.h
+│   │       │   │       ├── SDL_mouse.h
+│   │       │   │       ├── SDL_mutex.h
+│   │       │   │       ├── SDL_name.h
+│   │       │   │       ├── SDL_opengl.h
+│   │       │   │       ├── SDL_opengl_glext.h
+│   │       │   │       ├── SDL_opengles.h
+│   │       │   │       ├── SDL_opengles2.h
+│   │       │   │       ├── SDL_opengles2_gl2.h
+│   │       │   │       ├── SDL_opengles2_gl2ext.h
+│   │       │   │       ├── SDL_opengles2_gl2platform.h
+│   │       │   │       ├── SDL_opengles2_khrplatform.h
+│   │       │   │       ├── SDL_pixels.h
+│   │       │   │       ├── SDL_platform.h
+│   │       │   │       ├── SDL_power.h
+│   │       │   │       ├── SDL_quit.h
+│   │       │   │       ├── SDL_rect.h
+│   │       │   │       ├── SDL_render.h
+│   │       │   │       ├── SDL_revision.h
+│   │       │   │       ├── SDL_rwops.h
+│   │       │   │       ├── SDL_scancode.h
+│   │       │   │       ├── SDL_sensor.h
+│   │       │   │       ├── SDL_shape.h
+│   │       │   │       ├── SDL_stdinc.h
+│   │       │   │       ├── SDL_surface.h
+│   │       │   │       ├── SDL_system.h
+│   │       │   │       ├── SDL_syswm.h
+│   │       │   │       ├── SDL_test.h
+│   │       │   │       ├── SDL_test_assert.h
+│   │       │   │       ├── SDL_test_common.h
+│   │       │   │       ├── SDL_test_compare.h
+│   │       │   │       ├── SDL_test_crc32.h
+│   │       │   │       ├── SDL_test_font.h
+│   │       │   │       ├── SDL_test_fuzzer.h
+│   │       │   │       ├── SDL_test_harness.h
+│   │       │   │       ├── SDL_test_images.h
+│   │       │   │       ├── SDL_test_log.h
+│   │       │   │       ├── SDL_test_md5.h
+│   │       │   │       ├── SDL_test_memory.h
+│   │       │   │       ├── SDL_test_random.h
+│   │       │   │       ├── SDL_thread.h
+│   │       │   │       ├── SDL_timer.h
+│   │       │   │       ├── SDL_touch.h
+│   │       │   │       ├── SDL_types.h
+│   │       │   │       ├── SDL_version.h
+│   │       │   │       ├── SDL_video.h
+│   │       │   │       ├── SDL_vulkan.h
+│   │       │   │       ├── begin_code.h
+│   │       │   │       └── close_code.h
+│   │       │   ├── lib
+│   │       │   │   ├── cmake
+│   │       │   │   │   └── SDL2
+│   │       │   │   │       ├── sdl2-config-version.cmake
+│   │       │   │   │       └── sdl2-config.cmake
+│   │       │   │   ├── libSDL2.a
+│   │       │   │   ├── libSDL2.dll.a
+│   │       │   │   ├── libSDL2.la
+│   │       │   │   ├── libSDL2_test.a
+│   │       │   │   ├── libSDL2_test.la
+│   │       │   │   ├── libSDL2main.a
+│   │       │   │   ├── libSDL2main.la
+│   │       │   │   └── pkgconfig
+│   │       │   │       └── sdl2.pc
+│   │       │   └── share
+│   │       │       └── aclocal
+│   │       │           └── sdl2.m4
+│   │       ├── test
+│   │       │   ├── CMakeLists.txt
+│   │       │   ├── COPYING
+│   │       │   ├── Makefile.in
+│   │       │   ├── Makefile.os2
+│   │       │   ├── Makefile.w32
+│   │       │   ├── README
+│   │       │   ├── acinclude.m4
+│   │       │   ├── autogen.sh
+│   │       │   ├── axis.bmp
+│   │       │   ├── button.bmp
+│   │       │   ├── checkkeys.c
+│   │       │   ├── checkkeysthreads.c
+│   │       │   ├── configure
+│   │       │   ├── configure.ac
+│   │       │   ├── controllermap.bmp
+│   │       │   ├── controllermap.c
+│   │       │   ├── controllermap_back.bmp
+│   │       │   ├── emscripten
+│   │       │   │   └── joystick-pre.js
+│   │       │   ├── icon.bmp
+│   │       │   ├── loopwave.c
+│   │       │   ├── loopwavequeue.c
+│   │       │   ├── moose.dat
+│   │       │   ├── n3ds
+│   │       │   │   └── logo48x48.png
+│   │       │   ├── nacl
+│   │       │   │   ├── background.js
+│   │       │   │   ├── common.js
+│   │       │   │   ├── index.html
+│   │       │   │   └── manifest.json
+│   │       │   ├── picture.xbm
+│   │       │   ├── relative_mode.markdown
+│   │       │   ├── sample.bmp
+│   │       │   ├── sample.wav
+│   │       │   ├── shapes
+│   │       │   │   ├── p01_shape24.bmp
+│   │       │   │   ├── p01_shape32alpha.bmp
+│   │       │   │   ├── p01_shape8.bmp
+│   │       │   │   ├── p02_shape24.bmp
+│   │       │   │   ├── p02_shape32alpha.bmp
+│   │       │   │   ├── p02_shape8.bmp
+│   │       │   │   ├── p03_shape24.bmp
+│   │       │   │   ├── p03_shape8.bmp
+│   │       │   │   ├── p04_shape1.bmp
+│   │       │   │   ├── p04_shape24.bmp
+│   │       │   │   ├── p04_shape32alpha.bmp
+│   │       │   │   ├── p04_shape8.bmp
+│   │       │   │   ├── p05_shape8.bmp
+│   │       │   │   ├── p06_shape1alpha.bmp
+│   │       │   │   ├── p06_shape24.bmp
+│   │       │   │   ├── p06_shape32alpha.bmp
+│   │       │   │   ├── p06_shape8.bmp
+│   │       │   │   ├── p07_shape24.bmp
+│   │       │   │   ├── p07_shape32alpha.bmp
+│   │       │   │   ├── p07_shape8.bmp
+│   │       │   │   ├── p08_shape24.bmp
+│   │       │   │   ├── p08_shape32alpha.bmp
+│   │       │   │   ├── p08_shape8.bmp
+│   │       │   │   ├── p09_shape24.bmp
+│   │       │   │   ├── p09_shape32alpha.bmp
+│   │       │   │   ├── p09_shape8.bmp
+│   │       │   │   ├── p10_shape1.bmp
+│   │       │   │   ├── p10_shape24.bmp
+│   │       │   │   ├── p10_shape32alpha.bmp
+│   │       │   │   ├── p10_shape8.bmp
+│   │       │   │   ├── p11_shape24.bmp
+│   │       │   │   ├── p11_shape32alpha.bmp
+│   │       │   │   ├── p11_shape8.bmp
+│   │       │   │   ├── p12_shape24.bmp
+│   │       │   │   ├── p12_shape8.bmp
+│   │       │   │   ├── p13_shape24.bmp
+│   │       │   │   ├── p13_shape32alpha.bmp
+│   │       │   │   ├── p13_shape8.bmp
+│   │       │   │   ├── p14_shape24.bmp
+│   │       │   │   ├── p14_shape8.bmp
+│   │       │   │   ├── p15_shape24.bmp
+│   │       │   │   ├── p15_shape32alpha.bmp
+│   │       │   │   ├── p15_shape8.bmp
+│   │       │   │   ├── p16_shape1.bmp
+│   │       │   │   ├── p16_shape24.bmp
+│   │       │   │   ├── p16_shape8.bmp
+│   │       │   │   ├── trollface_24.bmp
+│   │       │   │   └── trollface_32alpha.bmp
+│   │       │   ├── template.test.in
+│   │       │   ├── testatomic.c
+│   │       │   ├── testaudiocapture.c
+│   │       │   ├── testaudiohotplug.c
+│   │       │   ├── testaudioinfo.c
+│   │       │   ├── testautomation.c
+│   │       │   ├── testautomation_audio.c
+│   │       │   ├── testautomation_clipboard.c
+│   │       │   ├── testautomation_events.c
+│   │       │   ├── testautomation_guid.c
+│   │       │   ├── testautomation_hints.c
+│   │       │   ├── testautomation_joystick.c
+│   │       │   ├── testautomation_keyboard.c
+│   │       │   ├── testautomation_main.c
+│   │       │   ├── testautomation_math.c
+│   │       │   ├── testautomation_mouse.c
+│   │       │   ├── testautomation_pixels.c
+│   │       │   ├── testautomation_platform.c
+│   │       │   ├── testautomation_rect.c
+│   │       │   ├── testautomation_render.c
+│   │       │   ├── testautomation_rwops.c
+│   │       │   ├── testautomation_sdltest.c
+│   │       │   ├── testautomation_stdlib.c
+│   │       │   ├── testautomation_suites.h
+│   │       │   ├── testautomation_surface.c
+│   │       │   ├── testautomation_syswm.c
+│   │       │   ├── testautomation_timer.c
+│   │       │   ├── testautomation_video.c
+│   │       │   ├── testbounds.c
+│   │       │   ├── testcustomcursor.c
+│   │       │   ├── testdisplayinfo.c
+│   │       │   ├── testdraw2.c
+│   │       │   ├── testdrawchessboard.c
+│   │       │   ├── testdropfile.c
+│   │       │   ├── testerror.c
+│   │       │   ├── testevdev.c
+│   │       │   ├── testfile.c
+│   │       │   ├── testfilesystem.c
+│   │       │   ├── testgamecontroller.c
+│   │       │   ├── testgeometry.c
+│   │       │   ├── testgesture.c
+│   │       │   ├── testgl2.c
+│   │       │   ├── testgles.c
+│   │       │   ├── testgles2.c
+│   │       │   ├── testgles2_sdf.c
+│   │       │   ├── testgles2_sdf_img_normal.bmp
+│   │       │   ├── testgles2_sdf_img_sdf.bmp
+│   │       │   ├── testhaptic.c
+│   │       │   ├── testhittesting.c
+│   │       │   ├── testhotplug.c
+│   │       │   ├── testiconv.c
+│   │       │   ├── testime.c
+│   │       │   ├── testintersections.c
+│   │       │   ├── testjoystick.c
+│   │       │   ├── testkeys.c
+│   │       │   ├── testloadso.c
+│   │       │   ├── testlocale.c
+│   │       │   ├── testlock.c
+│   │       │   ├── testmessage.c
+│   │       │   ├── testmouse.c
+│   │       │   ├── testmultiaudio.c
+│   │       │   ├── testnative.c
+│   │       │   ├── testnative.h
+│   │       │   ├── testnativecocoa.m
+│   │       │   ├── testnativeos2.c
+│   │       │   ├── testnativew32.c
+│   │       │   ├── testnativex11.c
+│   │       │   ├── testoffscreen.c
+│   │       │   ├── testoverlay2.c
+│   │       │   ├── testplatform.c
+│   │       │   ├── testpower.c
+│   │       │   ├── testqsort.c
+│   │       │   ├── testrelative.c
+│   │       │   ├── testrendercopyex.c
+│   │       │   ├── testrendertarget.c
+│   │       │   ├── testresample.c
+│   │       │   ├── testrumble.c
+│   │       │   ├── testscale.c
+│   │       │   ├── testsem.c
+│   │       │   ├── testsensor.c
+│   │       │   ├── testshader.c
+│   │       │   ├── testshape.c
+│   │       │   ├── testsprite2.c
+│   │       │   ├── testspriteminimal.c
+│   │       │   ├── teststreaming.c
+│   │       │   ├── testsurround.c
+│   │       │   ├── testthread.c
+│   │       │   ├── testtimer.c
+│   │       │   ├── testurl.c
+│   │       │   ├── testutils.c
+│   │       │   ├── testutils.h
+│   │       │   ├── testver.c
+│   │       │   ├── testviewport.c
+│   │       │   ├── testvulkan.c
+│   │       │   ├── testwm2.c
+│   │       │   ├── testyuv.bmp
+│   │       │   ├── testyuv.c
+│   │       │   ├── testyuv_cvt.c
+│   │       │   ├── testyuv_cvt.h
+│   │       │   ├── torturethread.c
+│   │       │   ├── unifont-13.0.06-license.txt
+│   │       │   ├── unifont-13.0.06.hex
+│   │       │   ├── utf8.txt
+│   │       │   └── watcom.mif
+│   │       └── x86_64-w64-mingw32
+│   │           ├── bin
+│   │           │   ├── SDL2.dll
+│   │           │   └── sdl2-config
+│   │           ├── include
+│   │           │   └── SDL2
+│   │           │       ├── SDL.h
+│   │           │       ├── SDL_assert.h
+│   │           │       ├── SDL_atomic.h
+│   │           │       ├── SDL_audio.h
+│   │           │       ├── SDL_bits.h
+│   │           │       ├── SDL_blendmode.h
+│   │           │       ├── SDL_clipboard.h
+│   │           │       ├── SDL_config.h
+│   │           │       ├── SDL_cpuinfo.h
+│   │           │       ├── SDL_egl.h
+│   │           │       ├── SDL_endian.h
+│   │           │       ├── SDL_error.h
+│   │           │       ├── SDL_events.h
+│   │           │       ├── SDL_filesystem.h
+│   │           │       ├── SDL_gamecontroller.h
+│   │           │       ├── SDL_gesture.h
+│   │           │       ├── SDL_guid.h
+│   │           │       ├── SDL_haptic.h
+│   │           │       ├── SDL_hidapi.h
+│   │           │       ├── SDL_hints.h
+│   │           │       ├── SDL_joystick.h
+│   │           │       ├── SDL_keyboard.h
+│   │           │       ├── SDL_keycode.h
+│   │           │       ├── SDL_loadso.h
+│   │           │       ├── SDL_locale.h
+│   │           │       ├── SDL_log.h
+│   │           │       ├── SDL_main.h
+│   │           │       ├── SDL_messagebox.h
+│   │           │       ├── SDL_metal.h
+│   │           │       ├── SDL_misc.h
+│   │           │       ├── SDL_mouse.h
+│   │           │       ├── SDL_mutex.h
+│   │           │       ├── SDL_name.h
+│   │           │       ├── SDL_opengl.h
+│   │           │       ├── SDL_opengl_glext.h
+│   │           │       ├── SDL_opengles.h
+│   │           │       ├── SDL_opengles2.h
+│   │           │       ├── SDL_opengles2_gl2.h
+│   │           │       ├── SDL_opengles2_gl2ext.h
+│   │           │       ├── SDL_opengles2_gl2platform.h
+│   │           │       ├── SDL_opengles2_khrplatform.h
+│   │           │       ├── SDL_pixels.h
+│   │           │       ├── SDL_platform.h
+│   │           │       ├── SDL_power.h
+│   │           │       ├── SDL_quit.h
+│   │           │       ├── SDL_rect.h
+│   │           │       ├── SDL_render.h
+│   │           │       ├── SDL_revision.h
+│   │           │       ├── SDL_rwops.h
+│   │           │       ├── SDL_scancode.h
+│   │           │       ├── SDL_sensor.h
+│   │           │       ├── SDL_shape.h
+│   │           │       ├── SDL_stdinc.h
+│   │           │       ├── SDL_surface.h
+│   │           │       ├── SDL_system.h
+│   │           │       ├── SDL_syswm.h
+│   │           │       ├── SDL_test.h
+│   │           │       ├── SDL_test_assert.h
+│   │           │       ├── SDL_test_common.h
+│   │           │       ├── SDL_test_compare.h
+│   │           │       ├── SDL_test_crc32.h
+│   │           │       ├── SDL_test_font.h
+│   │           │       ├── SDL_test_fuzzer.h
+│   │           │       ├── SDL_test_harness.h
+│   │           │       ├── SDL_test_images.h
+│   │           │       ├── SDL_test_log.h
+│   │           │       ├── SDL_test_md5.h
+│   │           │       ├── SDL_test_memory.h
+│   │           │       ├── SDL_test_random.h
+│   │           │       ├── SDL_thread.h
+│   │           │       ├── SDL_timer.h
+│   │           │       ├── SDL_touch.h
+│   │           │       ├── SDL_types.h
+│   │           │       ├── SDL_version.h
+│   │           │       ├── SDL_video.h
+│   │           │       ├── SDL_vulkan.h
+│   │           │       ├── begin_code.h
+│   │           │       └── close_code.h
+│   │           ├── lib
+│   │           │   ├── cmake
+│   │           │   │   └── SDL2
+│   │           │   │       ├── sdl2-config-version.cmake
+│   │           │   │       └── sdl2-config.cmake
+│   │           │   ├── libSDL2.a
+│   │           │   ├── libSDL2.dll.a
+│   │           │   ├── libSDL2.la
+│   │           │   ├── libSDL2_test.a
+│   │           │   ├── libSDL2_test.la
+│   │           │   ├── libSDL2main.a
+│   │           │   ├── libSDL2main.la
+│   │           │   └── pkgconfig
+│   │           │       └── sdl2.pc
+│   │           └── share
+│   │               └── aclocal
+│   │                   └── sdl2.m4
+│   ├── TinySoundFont
+│   │   ├── LICENSE
+│   │   └── tsf.h
+│   └── textscreen
+│       ├── gcc
+│       │   └── textscreen.cbp
+│       ├── include
+│       │   ├── .gitignore
+│       │   ├── CMakeLists.txt
+│       │   ├── Doxyfile
+│       │   ├── Makefile.am
+│       │   ├── doomkeys.h
+│       │   ├── examples
+│       │   │   ├── .gitignore
+│       │   │   ├── Makefile.am
+│       │   │   ├── calculator.c
+│       │   │   └── guitest.c
+│       │   ├── fonts
+│       │   │   ├── Makefile.am
+│       │   │   ├── README
+│       │   │   ├── codepage.h
+│       │   │   ├── convert-font
+│       │   │   ├── large.h
+│       │   │   ├── large.png
+│       │   │   ├── normal.h
+│       │   │   ├── normal.png
+│       │   │   ├── small.h
+│       │   │   └── small.png
+│       │   ├── textscreen.h
+│       │   ├── txt_button.c
+│       │   ├── txt_button.h
+│       │   ├── txt_checkbox.c
+│       │   ├── txt_checkbox.h
+│       │   ├── txt_conditional.c
+│       │   ├── txt_conditional.h
+│       │   ├── txt_desktop.c
+│       │   ├── txt_desktop.h
+│       │   ├── txt_dropdown.c
+│       │   ├── txt_dropdown.h
+│       │   ├── txt_fileselect.c
+│       │   ├── txt_fileselect.h
+│       │   ├── txt_gui.c
+│       │   ├── txt_gui.h
+│       │   ├── txt_inputbox.c
+│       │   ├── txt_inputbox.h
+│       │   ├── txt_io.c
+│       │   ├── txt_io.h
+│       │   ├── txt_label.c
+│       │   ├── txt_label.h
+│       │   ├── txt_main.h
+│       │   ├── txt_radiobutton.c
+│       │   ├── txt_radiobutton.h
+│       │   ├── txt_scrollpane.c
+│       │   ├── txt_scrollpane.h
+│       │   ├── txt_sdl.c
+│       │   ├── txt_sdl.h
+│       │   ├── txt_separator.c
+│       │   ├── txt_separator.h
+│       │   ├── txt_spinctrl.c
+│       │   ├── txt_spinctrl.h
+│       │   ├── txt_strut.c
+│       │   ├── txt_strut.h
+│       │   ├── txt_table.c
+│       │   ├── txt_table.h
+│       │   ├── txt_utf8.c
+│       │   ├── txt_utf8.h
+│       │   ├── txt_widget.c
+│       │   ├── txt_widget.h
+│       │   ├── txt_window.c
+│       │   ├── txt_window.h
+│       │   ├── txt_window_action.c
+│       │   └── txt_window_action.h
+│       ├── liblinux
+│       │   ├── x64
+│       │   │   └── libtextscreen.a
+│       │   └── x86
+│       │       └── libtextscreen.a
+│       ├── libwin
+│       │   ├── x64
+│       │   │   ├── libtextscreen.a
+│       │   │   └── textscreen.lib
+│       │   └── x86
+│       │       ├── libtextscreen.a
+│       │       └── textscreen.lib
+│       └── msvc
+│           ├── textscreen.sln
+│           ├── textscreen.vcxproj
+│           ├── textscreen.vcxproj.filters
+│           └── textscreen.vcxproj.user
+├── msvc
+│   ├── raptor.sln
+│   ├── raptor.vcxproj
+│   ├── raptor.vcxproj.filters
+│   ├── raptor.vcxproj.user
+│   ├── raptorsetup.vcxproj
+│   ├── raptorsetup.vcxproj.filters
+│   └── raptorsetup.vcxproj.user
+├── osxbuild.sh
+├── pkg
+│   ├── android
+│   │   └── license
+│   │       └── LICENSE
+│   └── osx
+│       ├── create-dmg
+│       │   ├── .this-is-the-create-dmg-repo
+│       │   ├── LICENSE
+│       │   ├── builder
+│       │   │   └── create-dmg.builder
+│       │   ├── create-dmg
+│       │   └── support
+│       │       ├── eula-resources-template.xml
+│       │       └── template.applescript
+│       ├── raptorlauncher
+│       │   ├── AppDelegate.h
+│       │   ├── AppDelegate.m
+│       │   ├── Assets.xcassets
+│       │   │   ├── AccentColor.colorset
+│       │   │   │   └── Contents.json
+│       │   │   ├── AppIcon.appiconset
+│       │   │   │   ├── Contents.json
+│       │   │   │   ├── raptor 1.png
+│       │   │   │   ├── raptor 2.png
+│       │   │   │   ├── raptor 3.png
+│       │   │   │   ├── raptor 4.png
+│       │   │   │   ├── raptor 5.png
+│       │   │   │   ├── raptor 6.png
+│       │   │   │   ├── raptor 7.png
+│       │   │   │   ├── raptor 8.png
+│       │   │   │   ├── raptor 9.png
+│       │   │   │   └── raptor.png
+│       │   │   ├── Contents.json
+│       │   │   ├── raptor.imageset
+│       │   │   │   ├── Contents.json
+│       │   │   │   └── raptor.png
+│       │   │   └── raptorsetup.imageset
+│       │   │       ├── Contents.json
+│       │   │       └── raptorsetup.png
+│       │   ├── Base.lproj
+│       │   │   └── Main.storyboard
+│       │   ├── ViewController.h
+│       │   ├── ViewController.m
+│       │   ├── main.m
+│       │   └── raptorlauncher.entitlements
+│       └── raptorlauncher.xcodeproj
+│           ├── project.pbxproj
+│           └── xcshareddata
+│               └── xcschemes
+│                   └── raptorlauncher.xcscheme
+├── project_structure.txt
+├── rsrc
+│   ├── raptor.icns
+│   ├── raptor.ico
+│   ├── raptor.png
+│   ├── raptorback.png
+│   ├── resource.rc
+│   └── setup
+│       ├── raptorsetup.icns
+│       ├── raptorsetup.ico
+│       ├── raptorsetup.png
+│       └── resource.rc
+├── src
+│   ├── amiga
+│   │   ├── SDL.h
+│   │   ├── SDL_endian.h
+│   │   ├── SDL_filesystem.h
+│   │   ├── SDL_opengl.h
+│   │   └── amiga_sdl_stubs.h
+│   ├── anims.cpp
+│   ├── anims.h
+│   ├── bonus.cpp
+│   ├── bonus.h
+│   ├── cards.h
+│   ├── common.h
+│   ├── demo.cpp
+│   ├── demo.h
+│   ├── dspapi.cpp
+│   ├── dspapi.h
+│   ├── enemy.cpp
+│   ├── enemy.h
+│   ├── entypes.h
+│   ├── eshot.cpp
+│   ├── eshot.h
+│   ├── fileids.h
+│   ├── flame.cpp
+│   ├── flame.h
+│   ├── fx.cpp
+│   ├── fx.h
+│   ├── gfxapi.cpp
+│   ├── gfxapi.h
+│   ├── gfxapi_a.cpp
+│   ├── glbapi.cpp
+│   ├── glbapi.h
+│   ├── gssapi.cpp
+│   ├── gssapi.h
+│   ├── help.cpp
+│   ├── help.h
+│   ├── i_lastscr.cpp
+│   ├── i_lastscr.h
+│   ├── i_oplmusic.cpp
+│   ├── i_oplmusic.h
+│   ├── i_video.cpp
+│   ├── i_video.h
+│   ├── imsapi.cpp
+│   ├── imsapi.h
+│   ├── input.cpp
+│   ├── input.h
+│   ├── intro.cpp
+│   ├── intro.h
+│   ├── joyapi.cpp
+│   ├── joyapi.h
+│   ├── kbdapi.cpp
+│   ├── kbdapi.h
+│   ├── loadsave.cpp
+│   ├── loadsave.h
+│   ├── m_misc.cpp
+│   ├── m_misc.h
+│   ├── movie.cpp
+│   ├── movie.h
+│   ├── movie_a.cpp
+│   ├── mpualsa.cpp
+│   ├── mpucorea.cpp
+│   ├── mpucorem.cpp
+│   ├── mputsf.cpp
+│   ├── mpuwinmm.cpp
+│   ├── musapi.cpp
+│   ├── musapi.h
+│   ├── objects.cpp
+│   ├── objects.h
+│   ├── opl3.cpp
+│   ├── opl3.h
+│   ├── prefapi.cpp
+│   ├── prefapi.h
+│   ├── ptrapi.cpp
+│   ├── ptrapi.h
+│   ├── ptrapi_a.cpp
+│   ├── rap.cpp
+│   ├── rap.h
+│   ├── setup
+│   │   ├── input.cpp
+│   │   ├── input.h
+│   │   ├── main.cpp
+│   │   ├── main.h
+│   │   ├── music.cpp
+│   │   ├── music.h
+│   │   ├── prefapi.cpp
+│   │   ├── prefapi.h
+│   │   ├── sound.cpp
+│   │   ├── sound.h
+│   │   ├── txt_joyinput.cpp
+│   │   ├── txt_joyinput.h
+│   │   ├── txt_keyinput.cpp
+│   │   ├── txt_keyinput.h
+│   │   ├── txt_mouseinput.cpp
+│   │   └── txt_mouseinput.h
+│   ├── shadow.cpp
+│   ├── shadow.h
+│   ├── shots.cpp
+│   ├── shots.h
+│   ├── store.cpp
+│   ├── store.h
+│   ├── swdapi.cpp
+│   ├── swdapi.h
+│   ├── tile.cpp
+│   ├── tile.h
+│   ├── tile_a.cpp
+│   ├── vmemapi.cpp
+│   ├── vmemapi.h
+│   ├── windows.cpp
+│   ├── windows.h
+│   └── winids.h
+├── struktura_projektu.txt
+└── win32build.bat
