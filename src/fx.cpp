@@ -22,6 +22,12 @@ int fx_volume;
 static int fx_init = 0;
 static int lockcount;
 int fx_freq = 44100;
+
+/* FX_Fill instrumentation counters (audio thread writes, main thread reads at shutdown) */
+static volatile unsigned long fx_fill_calls   = 0;
+static volatile int           fx_fill_last_len = 0;
+static volatile unsigned long fx_fill_nonzero  = 0;
+
 int music_song = -1;
 int fx_gus;
 int fx_channels;
@@ -78,9 +84,21 @@ FX_Fill(
     memset(stream, 0, len);
     int16_t *stream16 = (int16_t*)stream;
     len /= 4;
+
+    fx_fill_calls++;
+    fx_fill_last_len = len;
+
     MUS_Mix(stream16, len);
     GSS_Mix(stream16, len);
     DSP_Mix(stream16, len);
+
+    {
+        int i, any = 0;
+        for (i = 0; i < 32 && i < len * 2; i++) {
+            if (stream16[i] != 0) { any = 1; break; }
+        }
+        if (any) fx_fill_nonzero++;
+    }
 }
 
 /***************************************************************************
@@ -194,7 +212,17 @@ SND_InitSound(
     fx_volume = INI_GetPreferenceLong("SoundFX", "Volume", 127);
     fx_card = INI_GetPreferenceLong("SoundFX", "CardType", 0);
     fx_chans = INI_GetPreferenceLong("SoundFX", "Channels", 2);
-    
+
+#ifdef __AMIGA__
+    /* On Amiga with no SETUP.INI the CardType defaults to 0 (M_NONE), which
+     * would leave fx_device=SND_NONE and skip DSP_Init() even though ahi.device
+     * is already open and ready.  Default to M_SB (digital SFX) so the DSP
+     * software mixer is initialised and SFX play through the AHI backend.
+     * A real SETUP.INI with an explicit CardType overrides this automatically. */
+    if (fx_card == M_NONE)
+        fx_card = M_SB;
+#endif
+
     switch (fx_card)
     {
     default:
@@ -254,7 +282,13 @@ SND_InitSound(
     SDL_PauseAudioDevice(fx_dev, 0);
 
     fx_init = 1;
-    
+
+    /* [PROBE 1] SND_InitSound summary - verify config was read correctly on Amiga */
+    printf("[SFX PROBE] SND_InitSound done: fx_volume=%d fx_card=%d fx_device=%d "
+           "fx_channels=%d dig_flag=%d fx_freq=%d\n",
+           fx_volume, fx_card, fx_device, fx_channels, dig_flag, fx_freq);
+    fflush(stdout);
+
     return 1;
 }
 
@@ -270,6 +304,14 @@ void SND_DeInit(
 
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
     fx_init = 0;
+
+    /* [FX_Fill PROBE] printed once after audio subsystem teardown, on the main task.
+     * By this point the AHI background task (started in SDL_OpenAudio) has been
+     * stopped by SDL_QuitSubSystem, so the audio callback can no longer run and
+     * reading the volatile counters here is race-free. */
+    printf("[FX_Fill PROBE] calls=%lu last_len=%d nonzero_blocks=%lu\n",
+           fx_fill_calls, fx_fill_last_len, fx_fill_nonzero);
+    fflush(stdout);
 }
 
 /***************************************************************************
@@ -702,6 +744,20 @@ SND_Setup(
         else
             lib->item = -1;
     }
+
+    /* [PROBE 2] SND_Setup summary - verify GLB item IDs resolved correctly.
+     * fx_device (SND_DIGITAL=4) is added to each raw GLB_GetItemID base.
+     * If items show as -1, GLB_GetItemID returned 0 (name not found).
+     * If items are wrong values, the +fx_device offset is misaligned. */
+    printf("[SFX PROBE] SND_Setup done: fx_device=%d fx_loaded=%d\n",
+           fx_device, fx_loaded);
+    printf("[SFX PROBE]   FX_GUN    item=0x%x  FX_AIREXPLO item=0x%x  FX_JETSND item=0x%x\n",
+           fx_items[FX_GUN].item, fx_items[FX_AIREXPLO].item, fx_items[FX_JETSND].item);
+    printf("[SFX PROBE]   FX_BONUS  item=0x%x  FX_LASER    item=0x%x  FX_EXPLO  item=0x%x\n",
+           fx_items[FX_BONUS].item, fx_items[FX_LASER].item, fx_items[FX_GEXPLO].item);
+    printf("[SFX PROBE]   FX_MON1   item=0x%x  FX_BOSS1    item=0x%x  FX_THEME  item=0x%x\n",
+           fx_items[FX_MON1].item, fx_items[FX_BOSS1].item, fx_items[FX_THEME].item);
+    fflush(stdout);
 }
 
 /***************************************************************************
@@ -821,6 +877,28 @@ SFX_PlayPatch(
     int priority
 )
 {
+    /* [PROBE 3] SFX_PlayPatch - confirm patch pointer is valid and format type.
+     * patch==NULL means GLB_LockItem returned NULL (item ID wrong or not cached).
+     * type should be 3 for DSP digital audio; 1/2 = GSS/OPL; 0 = no data. */
+    static int probe3_count = 0;
+    if (probe3_count < 20)
+    {
+        probe3_count++;
+        if (!patch)
+        {
+            printf("[SFX PROBE] SFX_PlayPatch #%d: patch=NULL! pitch=%d sep=%d vol=%d pri=%d\n",
+                   probe3_count, pitch, sep, vol, priority);
+            fflush(stdout);
+            return -1;
+        }
+        int probe_type = LE_SHORT(*(int16_t*)patch);
+        printf("[SFX PROBE] SFX_PlayPatch #%d: patch=%p type=%d pitch=%d sep=%d vol=%d pri=%d\n",
+               probe3_count, (void*)patch, probe_type, pitch, sep, vol, priority);
+        fflush(stdout);
+    }
+    else if (!patch)
+        return -1;
+
     int type = LE_SHORT(*(int16_t*)patch);
     
     switch (type)

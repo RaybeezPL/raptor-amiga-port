@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 #include "common.h"
 #include "dspapi.h"
 #include "fx.h"
@@ -164,6 +165,8 @@ DSP_Mix(
 {
     channel_t *chan;
     int i, l, r, j;
+    int16_t *buf_start = buffer;
+    static int dsp_mix_probe = 0;
     
     if (!dsp_init)
         return;
@@ -229,6 +232,16 @@ DSP_Mix(
         buffer[1] = r;
 
         buffer += 2;
+    }
+
+    if (dsp_mix_probe < 5) {
+        int nz = 0, k;
+        for (k = 0; k < 16 && k < len * 2; k++)
+            if (buf_start[k]) nz++;
+        printf("[DSP_Mix] probe#%d len=%d non-zero/first-8-frames=%d\n",
+            dsp_mix_probe, len, nz);
+        fflush(stdout);
+        dsp_mix_probe++;
     }
 }
 
@@ -309,6 +322,13 @@ DSP_StartPatch(
     channel_t *chan = NULL;
     int i, lowpriority, samples, best, step, lvol, rvol;
     int handle = (dsp_cnt++) & FXHAND_MASK;
+
+    printf("[DSP_StartPatch] dsp=%p sep=%d pitch=%d vol=%d pri=%d\n",
+        (void*)dsp, sep, pitch, volume, priority);
+    if (dsp)
+        printf("[DSP_StartPatch]  fmt=%d len=%ld\n",
+            (int)LE_SHORT(dsp->format), (long)LE_LONG(dsp->length));
+    fflush(stdout);
 
     if (LE_SHORT(dsp->format) != 3 || LE_LONG(dsp->length) <= 32)
         return -1;
