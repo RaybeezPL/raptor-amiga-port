@@ -88,6 +88,13 @@ IPT_GetButtons(
     
     if (KBD_Key(k_Mega))
         buttons[3] = 1;
+
+#ifdef __AMIGA__
+    /* Oba przyciski FIRE joysticka -> Fire (buttons[0] = jak CTRL).
+     * AButton = RED|BLUE (z SDL_GameControllerGetButton), BButton = 0. */
+    if (AButton || BButton)
+        buttons[0] = 1;
+#endif
 }
 
 /*------------------------------------------------------------------------
@@ -370,6 +377,9 @@ IPT_Init(
     I_SetGrabMouseCallback(IPT_MouseGrab);
     // ipt_tsm = TSM_NewService(IPT_GetButtons, 26, 254, 1);
     IPT_CalJoy();
+#ifdef __AMIGA__
+    control = I_JOYSTICK;
+#endif
 }
 
 /***************************************************************************
@@ -440,7 +450,15 @@ IPT_MovePlayer(
             break;
         
         case I_JOYSTICK:
+#ifdef __AMIGA__
+            /* Na Amidze joystick i klawiatura działają równolegle.
+             * Klawiatura (strzałki) idzie pierwsza; joystick nadpisuje
+             * g_addx/g_addy tylko gdy wykryje ruch. */
+            IPT_GetKeyBoard();
             IPT_GetJoyStick();
+#else
+            IPT_GetJoyStick();
+#endif
             break;
 
         case I_MOUSE:
@@ -543,6 +561,12 @@ IPT_LoadPrefs(
 {
     opt_detail = INI_GetPreferenceLong("Setup", "Detail", 1);
     control = INI_GetPreferenceLong("Setup", "Control", 0);
+#ifdef __AMIGA__
+    /* Na Amidze zawsze używamy trybu joystick - zarówno w menu (kursor via
+     * PTR_JoyHandler) jak i w grze (IPT_GetJoyStick). Ignorujemy wartość
+     * z setup.ini, żeby klawiatura i joystick działały równolegle. */
+    control = I_JOYSTICK;
+#endif
     haptic = INI_GetPreferenceLong("Setup", "Haptic", 1);
     joy_ipt_MenuNew = INI_GetPreferenceLong("Setup", "joy_ipt_MenuNew", 0);
     

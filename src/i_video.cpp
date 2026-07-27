@@ -451,6 +451,8 @@ void I_GetEvent(void)
             case SDL_CONTROLLERAXISMOTION:
                 I_HandleJoystickEvent(&sdlevent);
                 break;
+
+            /* Amiga: joystick is polled, not event-driven - handled below */
             case SDL_FINGERDOWN:
             case SDL_FINGERUP:
                 I_HandleTouchEvent(&sdlevent);
@@ -492,6 +494,19 @@ void I_GetEvent(void)
                 break;
         }
     }
+
+#ifdef __AMIGA__
+    /* On Amiga, joystick is polled not event-driven.
+     * SDL_PumpEvents() already called Amiga_ReadJoystick() above, so
+     * AmigaJoyState is current. Now call I_HandleJoystickEvent() with a
+     * synthetic dummy event so it reads the fresh AmigaJoyState into the
+     * Up/Down/Left/Right/AButton/... booleans used by the rest of the game. */
+    {
+        SDL_Event joy_dummy;
+        joy_dummy.type = SDL_CONTROLLERAXISMOTION;
+        I_HandleJoystickEvent(&joy_dummy);
+    }
+#endif
 
     if ((control == 2) && (!joy_ipt_MenuNew))
         PTR_JoyHandler();
