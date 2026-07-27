@@ -1,281 +1,110 @@
-# Raptor - Amiga 68060 RTG Port
+# Raptor: Call of the Shadows - Amiga 68060 RTG Port
 
-# Raptor: Call of the Shadows – Amiga 68060 RTG Port / PiStorm
+This repository contains an AmigaOS 3.x port of **Raptor: Call of the Shadows**, based on the open-source reverse-engineered codebase by [skynettx/raptor](https://github.com/skynettx/raptor).
 
-## About this project
-This is a private repository for the port of the Raptor game to AmigaOS 3.x.
-Target hardware: 68060, 32MB RAM, RTG 4MB.
+The current focus is a native build for **68060-based Amiga systems with RTG graphics**, with primary testing and optimization aimed at:
 
-I am an Amiga enthusiast who, with the help of modern AI tools, is attempting
-to port the classic DOS shooter **Raptor: Call of the Shadows** to the Amiga
-platform.
+- **Amiga 2000 / Amiga 3000 / Amiga 4000** with RTG cards such as **CyberVision 64/3D**, Picasso IV, or similar
+- **Amiga 1200 with PiStorm / Emu68**
+- **AmigaOS 3.2**
+- **Picasso96 RTG**
+- **AHI audio**
 
-As far as I know, **no Amiga port of Raptor exists** – this is an attempt to
-change that.
+This fork is focused on making the game run natively on classic Amiga hardware without unnecessary abstraction layers. The rendering path is being adapted for a fixed **320x200, 8-bit paletted RTG mode**, with Amiga-specific SDL replacement stubs and an RTG-friendly chunky output path.
 
-The port is based on the reverse-engineered open source recreation by
-[skynettx](https://github.com/skynettx/raptor), which faithfully recreates
-the original game engine in C/C++.
+## Project goals
 
----
+The goals of this port are:
 
-## Target platforms
-
-The primary targets are:
-
-- **Amiga 2000** with RTG graphics card (e.g. Picasso IV, CyberVision 64/3D)
-- **Amiga 1200** with PiStorm accelerator (68060 emulation via Emu68)
-
----
-
-## Target system
-
-- **AmigaOS**: 3.2 (Hyperion Entertainment)
-- **Graphics**: Picasso96 (P96) RTG
-- **Audio**: AHI (Audio Hardware Interface)
-- **CPU**: Motorola 68060 @ 50MHz or PiStorm/Emu68 equivalent
-- **FPU**: required (68060 built-in)
-- **RAM**: minimum 32 MB Fast RAM (64 MB+ recommended)
-- **Storage**: minimum 50 MB free space (HDD/CF card)
-
-> This specific combination was chosen because it reflects
-> real hardware configurations owned by the author.
-> Other configurations (e.g. CyberGraphX, older AmigaOS)
-> are not planned at this time.
-
----
-
-## Goals of this project
-
-This project is as much about **learning** as it is about gaming:
-
-- Learning to use **modern development tools** (VS Code, CMake, GCC
-  cross-compiler) for Amiga development
-- Understanding **C++ cross-compilation** for the m68k architecture
-- Exploring how a modern SDL2-based game engine can be adapted to
-  **native Amiga APIs** (AHI for audio, Picasso96 for graphics)
-- Documenting the entire process publicly so other Amiga enthusiasts
-  can learn from it
-
----
+- Bring **Raptor: Call of the Shadows** to classic Amiga systems with **68060 + RTG**
+- Replace SDL-dependent parts of the engine with **native AmigaOS implementations**
+- Keep the rendering path efficient for Amiga RTG hardware, avoiding unnecessary format conversion and slow per-pixel drawing paths
+- Make the codebase practical for testing on both **WinUAE** and **real hardware**
+- Document the porting process in a clean and reproducible way
 
 ## Current status
 
-- [x] Windows build working (SDL2 + MSVC + CMake)
-- [x] m68k cross-compiler toolchain (AmigaPorts/m68k-amigaos-gcc, GCC 6.5.0)
-- [x] All C/C++ source files compile successfully for m68k target
-- [x] Amiga backend – POSIX stubs (access, ftruncate, gettimeofday)
-- [x] Graphics layer stub (SDL2 → Picasso96/P96 – basic implementation)
-- [ ] Audio layer stub (SDL2 → AHI – basic implementation)
-- [ ] Input handling stub (SDL2 events → AmigaOS IDCMP) ← **in progress**
-- [ ] Joystick stubs (SDL2 → AmigaOS gameport.device)
-- [x] **First successful link of Amiga executable** ← 20 July 2026
-- [x] Testing on WinUAE emulator (68060 + RTG + AHI)
-- [x] First boot on WinUAE without crash
-- [x] Graphics visible on screen (RTG output) – intro movies play correctly
-- [ ] Audio working (AHI playback)
-- [ ] Input working (keyboard + mouse) ← **currently being implemented, starting with the menu**
-- [ ] Testing on real hardware (A2000 RTG, A1200 + PiStorm)
+Current milestone tag: **`v0.7.0-amiga-preview1`**
 
-> **Milestone reached – 20 July 2026:**
-> Both `raptor` and `raptorsetup` successfully compile and link as
-> native **AmigaOS m68k executables** (loadseg()ble binary format).
-> This is believed to be the first ever Amiga build of Raptor: Call of the Shadows.
+Implemented or already working:
 
-> **Milestone reached – 22 July 2026:**
-> The game now boots successfully on WinUAE and the intro movies play
-> correctly on screen. Next step: implementing keyboard and mouse input
-> handling, starting with the main menu.
+- Native **m68k AmigaOS cross-build**
+- Successful Amiga executable linking
+- SDL replacement layer for the Amiga port
+- RTG video path for **320x200x8-bit** output
+- Visible graphics output on Amiga-side test builds
+- Intro playback visible on screen
+- Basic Amiga-specific backend integration groundwork
+- Repository cleaned up with **`main`** as the primary development branch
 
+Work still in progress:
 
----
+- Stable **keyboard and mouse input**
+- Full **AHI audio playback**
+- Further optimization of the RTG rendering path
+- Extended testing on real Amiga hardware
+- Gameplay validation beyond boot / intro / early menu flow
 
-## Amiga backend
+## Target configuration
 
-The SDL2 layer has been replaced with native Amiga implementations:
+Recommended baseline target:
 
-| Module | File | Status |
-|---|---|---|
-| POSIX stubs | `src/amiga/amiga_posix.c` | ✅ Done |
-| Video (Picasso96) | `src/amiga/amiga_video.c` | 🔧 Stub |
-| Audio (AHI) | `src/amiga/amiga_audio.c` | 🔧 Stub |
-| Input (IDCMP) | `src/amiga/amiga_input.c` | 🔧 Stub |
-| Link stubs | `src/amiga/amiga_stubs_link.c` | ✅ Done |
-| SDL2 type defs | `src/amiga/amiga_sdl_stubs.h` | ✅ Done |
+- **CPU:** Motorola 68060 or PiStorm/Emu68 equivalent
+- **Graphics:** RTG board with Picasso96 support
+- **Display mode:** 320x200, 8-bit paletted
+- **RAM:** 32 MB Fast RAM minimum
+- **OS:** AmigaOS 3.2
+- **Audio:** AHI
 
----
+Current development and testing is mainly aimed at systems such as:
 
-## Tools used
-
-- [VS Code](https://code.visualstudio.com/) + CMake Tools
-- [AmigaPorts/m68k-amigaos-gcc](https://github.com/AmigaPorts/m68k-amigaos-gcc)
-  – GCC 6.5.0 cross-compiler for m68k AmigaOS
-- WSL2 (Ubuntu 24.04) – build environment on Windows
-- [WinUAE](https://www.winuae.net/) – Amiga emulator for testing
-- AI assistance (Perplexity Comet) for guidance and problem solving
-
----
+- **CyberVision 64/3D**
+- **Picasso IV**
+- **PiStorm-based Amiga systems**
 
 ## Build environment
 
-- **Host**: Windows 11 + WSL2 (Ubuntu 24.04)
-- **Cross-compiler**: m68k-amigaos-gcc 6.5.0 installed in `/opt/amiga/`
-- **CMake toolchain**: `toolchains/amiga-m68k.cmake`
-- **Target flags**: `-m68060 -mhard-float -noixemul -O2`
+Primary development environment:
 
----
+- **Host OS:** Windows 11 + WSL2
+- **Build environment:** Ubuntu under WSL
+- **Compiler:** `m68k-amigaos-gcc`
+- **Main branch:** `main`
 
-## Based on
+The current porting workflow focuses on practical iteration speed, reproducible cross-builds, and fast emulator-to-real-hardware testing.
 
-- [skynettx/raptor](https://github.com/skynettx/raptor) – GPL-2.0 licensed
-  reverse-engineered source port of Raptor: Call of the Shadows
+## Assets and legal note
 
----
+This repository does **not** include the original game data files.
 
-## Disclaimer
+To use this port, you must provide your own legal copy of the original **Raptor: Call of the Shadows** data files (shareware or full version, compatible data set required).
 
-This project does not include any original game assets. You need to own a
-legal copy of **Raptor: Call of the Shadows shareware or full version 1.2+**
-to use this port.
+## Upstream base
 
----
+This Amiga port is based on the reverse-engineered open-source project:
 
-*This is a hobbyist learning project. Progress will be slow but steady.*
+- [skynettx/raptor](https://github.com/skynettx/raptor)
 
----
-# Raptor
-Based on the reverse-engineered codebase from Raptor Call Of The Shadows by nukeykt
+That upstream project reconstructs the original game engine in C/C++ and made this Amiga port possible.
 
-## Media
-Click on the thumbnail to watch some videos showing the project in action  
+## Scope of this fork
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/Nt2HfchiudY/0.jpg)](https://www.youtube.com/channel/UCedmTTlonJK5DvkiMpA_teQ)
-## Information
-Original Raptor Call Of The Shadows author Scott Host is working on a new modernized version of the classic called Raptor Remixed. If you are a Raptor fan it would be cool if you would support the project on Kickstarter. For more information visit [www.mking.com](https://www.mking.com)
+This repository is **not** a generic multi-platform fork. Its main purpose is to develop and maintain the **Amiga 68060 RTG port**.
 
-## Quick start
-Release builds are available for Windows, macOS and Android.
-To download the latest release build for your platform, click [Download](https://github.com/skynettx/raptor/releases/latest).
-Then install the downloaded release build on your system by following the instructions of the installer.
-You then need to obtain the assets (GLB files) of the shareware or full version 1.2 or higher yourself and copy them into the installation directory or the external system specific directory.
-That's it now Raptor is ready to play.
-For those who want to build themselves or who want more configuration information, continue below otherwise you're done here.
+Platform-specific notes for Windows, Linux, macOS, and Android from the original upstream project are not the focus of this fork and may differ from the current upstream README.
 
-## Installing
-You need the original assets (GLB files) from Raptor Call Of The Shadows shareware or full version 1.2 or higher.
-Important: No older versions before 1.2 are compatible! You have to take care of these files yourself.  
-The assets can be loaded from the current working directory (Raptor directory) or from the external system specific directory.
-**Please note that the release build version 0.8.0 does not support the external system specific directory and manages all assets, config and save files in the current working directory.**
-The external system specific directories are the following:
-```
- Windows: Users\Username\AppData\Roaming\Raptor\  
- Linux: ~/.local/share/Raptor/
- macOS: ~/Library/Application Support/Raptor/
- Android: storage/emulated/0/Android/data/com.raptor.skynettx/files/
-```
-The config file `SETUP.INI` and the save files are also loaded and saved in these folders.
-On other systems that are not officially supported, the Raptor directory is used for loading and saving the config file and the save files.  
-Copy the `raptor.exe` (Windows) or `raptor` (Linux or macOS) from build directory to Raptor directory. 
-Under Windows copy the file `SDL.dll` from `include\SDL2-devel-2.28.2-VC\SDL2-2.28.2\lib\x86\` for 32 bit installation or for 64 bit installation from 
-`include\SDL2-devel-2.28.2-VC\SDL2-2.28.2\lib\x64\` to Raptor directory.
-Under Linux install lib-sdl2 from the packagemanager of your respective distro. When you use macOS install lib-sdl2 from dmg or from a packagemanager like brew etc. 
-On an Android device, the APK can be installed via your preferred file manager.
-### Shareware
-Copy the following files to Raptor or external system specific directory:  
-```
-FILE0000.GLB  
-FILE0001.GLB  
-```
-### Full version
-Copy the following files to Raptor or external system specific directory:  
-```
-FILE0000.GLB  
-FILE0001.GLB  
-FILE0002.GLB  
-FILE0003.GLB  
-FILE0004.GLB  
-```
-### Configuration
-If no `SETUP.INI` file exists in the target directory, a default file will be created automatically on Windows, Linux, macOS and Android.
-Furthermore, Raptor Setup can be used to create or edit the `SETUP.INI` (not available on Android), or edit it manually as follows.
-Copy the `SETUP(ADLIB).INI` or the `SETUP(MIDI).INI` (MIDI is currently not supported on Android) file from build directory to external system specific directory (Windows, Linux, macOS and Android) or Raptor directory (only systems that are not officially supported) and rename it to `SETUP.INI`.  
-For MIDI support via TinySoundFont (currently not supported on Android), you need a GM-compatible soundfont in SF2 format, e.g., FluidR3_GM.sf2.
-You can specify the path to the soundfont in the `SETUP.INI` file:  
-`SoundFont=SoundFont.sf2`  
-To play with one of the following input devices set `Control=0` under the [Setup] section in the `SETUP.INI` file to:  
-`Control=0` Keyboard  
-`Control=1` Mouse  
-`Control=2` Joystick (Game Controller)  
-Haptic (Game Controller rumble support) can be switched off or on under the [Setup] section in the `SETUP.INI` file:  
-`Haptic=0`  
-`Haptic=1`  
-If you want to turn off the menu pointer control via the joystick in mode `Control=2` and enable the new joystick menu control in all 
-input modes, set under the [Setup] section in the `SETUP.INI` file:  
-`joy_ipt_MenuNew=0`  
-`joy_ipt_MenuNew=1`  
-System MIDI support (Windows Multimedia, Linux ALSA, macOS CoreAudio and macOS CoreMIDI) can be switched off or on in the [Setup] section in the `SETUP.INI` file:  
-`sys_midi=0`  
-`sys_midi=1`  
-For Windows Multimedia under Windows, the MIDI device is set under the [Setup] section in `SETUP.INI` file:  
-`winmm_mpu_device=0`  
-Client and port for ALSA MIDI under Linux, is set under the [Setup] section in the `SETUP.INI` file:  
-`alsa_output_client=128`  
-`alsa_output_port=0`  
-To use a software synthesizer with ALSA MIDI, install for example timidity and soundfont-fluid from the packagemanager of your distro.  
-CoreAudio support on macOS with software synthesizer DLS synth can be switched off or on under the [Setup] section in the `SETUP.INI` file:  
-`core_dls_synth=0`  
-`core_dls_synth=1`  
-If you want to use CoreMIDI under macOS, `core_dls_synth=0` must be switched off in the `SETUP.INI` file.  
-You can set the CoreMIDI port under the [Setup] section in the `SETUP.INI` file as follows:  
-`core_midi_port=0`  
-To display the text mode ending screen after the game quits in fullscreen mode set under the [Video] section in the `SETUP.INI` file:  
-`txt_fullscreen=0`  
-`txt_fullscreen=1`  
+## Upstream project reference
 
-## Build
-The project supports the compilers msvc, gcc and clang.  
-When you have installed git on your system you can clone the repository by type in `git clone https://github.com/skynettx/raptor.git`.
+This repository is a downstream Amiga-focused fork of:
 
-### Windows
-You can use the projectfile for Visual Studio 2022 under `msvc\` or the projectfile for CodeBlocks under `gcc\`.
+- [skynettx/raptor](https://github.com/skynettx/raptor)
 
-### Linux
-Please remember to install the required dependencies lib-sdl2. In some distros there is an extra libsdl2-dev package like Debian or Ubuntu.  
-You can use the projectfile for CodeBlocks under `gcc\`.
-Otherwise you can use CMake. To use CMake type in the root of the repository:   
-```
-mkdir build  
-cd build  
-cmake ..  
-make  
-```
+For the original multi-platform project documentation, installation notes, and upstream release information, refer to the upstream repository.
 
-### macOS
-Install the required dependencies lib-sdl2. To build use CMake, type in the root of the repository:
-```
-mkdir build  
-cd build  
-cmake ..  
-make  
-```
+## Credits
 
-### Android
-Make sure CMake is installed in your Android Studio environment.
-If this is the case, open the `android\` project folder in Android Studio and build the APK.
+Special thanks to:
 
-## License
-Raptor is licensed under the [GPLv2](https://github.com/skynettx/raptor/blob/master/LICENSE) or later.  
-Raptor for Android is licensed under the [GPLv3](https://github.com/skynettx/raptor/blob/master/pkg/android/license/LICENSE) to be compatible with Apache 2.0 licensed libraries.
-
-## FAQ
-1. No audio under Linux:  
-Make sure you get all the necessary ALSA and or PulseAudio dependencies from the packagemanager of your distro. 
-2. Where can i change the video settings:  
-The video settings can be set in the config file `SETUP.INI`. To toggle fullscreen mode on edit under the [Video] section `fullscreen=0`
-to `fullscreen=1`. Or aspect ratio mode off `aspect_ratio_correct=1` to `aspect_ratio_correct=0`.
-
-## Thanks
-Special thanks to [nukeykt](https://github.com/nukeykt) and [wel97459](https://github.com/wel97459) for their great work on the reconstructed source code.
-Big thanks to [Scott Host](https://www.mking.com) for his great support.
-Also many thanks to [schellingb](https://github.com/schellingb) for the great TinySoundFont library and to all contributors from the
-[chocolate-doom project](https://github.com/chocolate-doom) for the awesome libtextscreen.
+- **nukeykt** and contributors involved in the reverse-engineered Raptor codebase
+- **skynettx** for the open-source C/C++ recreation used as the base for this port
+- The Amiga community, emulator authors, and RTG/AHI toolchain developers
