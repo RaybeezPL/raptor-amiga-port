@@ -5,4 +5,5 @@ CMakeCache.txt
 Makefile
 build
 .vscode
-**/.DS_Store
+**/.DS_Storebuild.amiga/
+raptor
