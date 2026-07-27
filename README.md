@@ -66,8 +66,8 @@ Current development and testing is mainly aimed at systems such as:
 
 Primary development environment:
 
-- **Host OS:** Windows 11 + WSL2
-- **Build environment:** Ubuntu under WSL
+- **Host OS:** Windows 11
+- **Build environment:** Ubuntu under WSL2
 - **Compiler:** `m68k-amigaos-gcc`
 - **Main branch:** `main`
 
