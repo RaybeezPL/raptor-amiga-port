@@ -158,6 +158,7 @@ SRCS_CXX  = \
     src/shots.cpp \
     src/store.cpp \
     src/swdapi.cpp \
+    src/amiga/amiga_stubs_impl.cpp \
     src/tile.cpp \
     src/tile_a.cpp \
     src/vmemapi.cpp \

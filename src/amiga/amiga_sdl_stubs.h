@@ -1,50 +1,26 @@
 /*
- * amiga_sdl_stubs.h - Minimal SDL2 type/macro stubs for AmigaOS 3.x port
+ * amiga_sdl_stubs.h - Minimal SDL2 type/macro stubs for AmigaOS 3.x port.
  *
- * This header provides just enough SDL2 definitions to allow the Raptor
- * source code to compile without a real SDL2 library. Actual functionality
- * is implemented natively here via AmigaOS/RTG (Picasso96) APIs.
+ * Provides enough SDL2 definitions to compile Raptor without a real SDL2.
+ * Active only when USE_SDL_STUBS is defined.
  *
- * This file is only used when USE_SDL_STUBS is defined (i.e., when no
- * real SDL2 Amiga port is available).
+ * Targeting: RTG (Picasso96) boards exclusively.  Game opens its own
+ * 320x200x8 custom screen (never Workbench).
  *
- * ---------------------------------------------------------------------------
- * RTG (Picasso96) TARGETING NOTES
- * ---------------------------------------------------------------------------
- * This port strictly targets RTG (Picasso96) boards. The game does NOT use
- * the standard Workbench screen: it always opens its own dedicated custom
- * screen at the native game resolution (320x200, 8-bit chunky/CLUT).
+ * RTG strategy:
+ *  - Picasso96API.library opened by name to detect RTG; no p96*() calls.
+ *  - Screen/window opened via standard BestModeID()/OpenScreenTags()/
+ *    OpenWindowTags() which Picasso96 patches transparently.
+ *  - Blit: WriteChunkyPixels() (gfx.lib v50+) with SetAPen/WritePixel
+ *    fallback for older systems.
+ *  - Palette: LoadRGB32() patched by Picasso96 for CLUT updates.
  *
- * We deliberately do NOT #include <libraries/picasso96.h> or
- * <proto/Picasso96API.h> anywhere in this file, because those headers are
- * third-party (not part of the base AmigaOS 3.x NDK) and might simply be
- * missing from a minimal cross-compiler environment. Instead:
- *
- *   - Picasso96API.library is opened by raw name via OpenLibrary() only to
- *     detect whether an RTG board/driver is actually present at runtime.
- *     We do not call any p96*() functions directly (no vector table, no
- *     LVO offsets needed for that).
- *   - The actual custom screen/window is opened with completely standard,
- *     always-available graphics.library / intuition.library calls
- *     (BestModeID(), OpenScreenTagList(), OpenWindowTagList()) - these are
- *     part of the base NDK (proto/graphics.h, proto/intuition.h, already
- *     included below) and Picasso96 transparently hooks/patches them for
- *     its own RTG "friend" bitmaps. This gives full RTG support without any
- *     Picasso96 SDK headers or raw LVO offsets.
- *   - Pixel blit uses WriteChunkyPixels() - again a *standard*
- *     graphics.library v50+ call, which on an RTG system writes directly
- *     into the RTG bitmap's chunky buffer. A slow raw SetAPen()+WritePixel()
- *     fallback is provided for older graphics.library versions.
- *   - Palette is applied with LoadRGB32() - also a standard graphics.library
- *     call, patched by Picasso96 to update the RTG board's CLUT/gamma
- *     tables for 8-bit screens.
- *
- * If Picasso96API.library cannot be opened (no RTG board installed), we
- * fall back to plain Intuition custom-screen creation using whatever
- * default/best matching ModeID BestModeID() returns for the requested
- * dimensions/depth - this still works on AGA machines, just without RTG
- * acceleration.
- * ---------------------------------------------------------------------------
+ * Shared globals:
+ *  All Amiga-specific globals (library bases, window/screen ptrs, joystick
+ *  state, event queue, audio state) are declared extern here and defined
+ *  exactly once in amiga_stubs_impl.cpp (AMIGA_STUBS_OWNER).
+ *  This prevents per-TU copies that broke joystick state sharing between
+ *  i_video.cpp (SDL_PumpEvents) and joyapi.cpp (GetButton/Axis).
  */
 
 #ifndef AMIGA_SDL_STUBS_H
@@ -67,26 +43,39 @@
 #include <proto/graphics.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
+#include <proto/lowlevel.h>
+#include <libraries/lowlevel.h>
 
-/* Library bases needed by proto header inline stubs.                        */
-/* __attribute__((weak)): safe if this header is included from multiple TUs. */
-__attribute__((weak)) struct IntuitionBase *IntuitionBase = NULL;
-__attribute__((weak)) struct GfxBase *GfxBase = NULL;
+/* -------------------------------------------------------------------------
+ * Global storage pattern:
+ *   AMIGA_STUBS_OWNER (defined in amiga_stubs_impl.cpp) -> actual definition
+ *   All other TUs                                        -> extern declaration
+ * This guarantees a single instance of every shared variable.
+ * ------------------------------------------------------------------------- */
+#ifdef AMIGA_STUBS_OWNER
+#  define AMIGA_STUBS_DECL          /* plain definition */
+#  define AMIGA_STUBS_INIT(v) = v   /* with initialiser */
+#else
+#  define AMIGA_STUBS_DECL    extern
+#  define AMIGA_STUBS_INIT(v)       /* no initialiser in extern decl */
+#endif
 
-/* ------------------------------------------------------------------------- */
-/* Picasso96API.library - RTG detection only (see file header comment for    */
-/* the full rationale). We only need the pointer to know it opened OK; we    */
-/* never call through it directly.                                          */
-/* ------------------------------------------------------------------------- */
-__attribute__((weak)) struct Library *P96Base = NULL;
-__attribute__((weak)) int AmigaUsingP96 = 0;
+/* Library bases */
+AMIGA_STUBS_DECL struct IntuitionBase *IntuitionBase AMIGA_STUBS_INIT(NULL);
+AMIGA_STUBS_DECL struct GfxBase       *GfxBase       AMIGA_STUBS_INIT(NULL);
+AMIGA_STUBS_DECL struct Library       *LowLevelBase  AMIGA_STUBS_INIT(NULL);
 
-/* ------------------------------------------------------------------------- */
-/* Raw/inline BestModeID() tag values (normally in <graphics/displayinfo.h>, */
-/* a standard AmigaOS 3.x NDK header, stable since Kickstart 2.04/           */
-/* graphics.library v39). Defined raw/inline here so we don't depend on     */
-/* that header being present either.                                        */
-/* ------------------------------------------------------------------------- */
+/* Joystick state - polled once per frame in SDL_PumpEvents(), read by
+ * SDL_GameControllerGetButton/Axis() from any TU. Must be shared. */
+AMIGA_STUBS_DECL ULONG AmigaJoyState AMIGA_STUBS_INIT(0);
+
+/* Picasso96API.library - opened by name for RTG detection only.
+ * Never called through (no LVO offsets needed). */
+AMIGA_STUBS_DECL struct Library *P96Base      AMIGA_STUBS_INIT(NULL);
+AMIGA_STUBS_DECL int             AmigaUsingP96 AMIGA_STUBS_INIT(0);
+
+/* BestModeID() tag values from <graphics/displayinfo.h> - inlined so we
+ * don't depend on that header being present. */
 #ifndef BIDTAG_DesiredWidth
 #define BIDTAG_DesiredWidth     (TAG_USER + 0x0000UL)
 #endif
@@ -106,36 +95,20 @@ __attribute__((weak)) int AmigaUsingP96 = 0;
 #define INVALID_ID              0xFFFFFFFFUL
 #endif
 
-/* Game's fixed native resolution/depth. Always 320x200x8 - RTG target. */
+/* Game fixed native resolution - always 320x200x8 for RTG. */
 #define AMIGA_GAME_WIDTH   320
 #define AMIGA_GAME_HEIGHT  200
 #define AMIGA_GAME_DEPTH   8
 
-/* ------------------------------------------------------------------------- */
-/* RTG screen/window state - the single dedicated custom screen we open for  */
-/* the game. Declared weak at header scope so every TU that includes SDL.h   */
-/* shares the same instance via the linker (same trick as IntuitionBase/     */
-/* GfxBase above).                                                          */
-/* ------------------------------------------------------------------------- */
-__attribute__((weak)) struct Screen *AmigaGameScreen = NULL;
+/* RTG screen / window - single instance shared across all TUs. */
+AMIGA_STUBS_DECL struct Screen  *AmigaGameScreen    AMIGA_STUBS_INIT(NULL);
+AMIGA_STUBS_DECL struct Window  *AmigaGameWindow    AMIGA_STUBS_INIT(NULL);
 
-/* The single dedicated game window (matches AmigaGameScreen's only window).
- * Declared weak/shared here (same trick as IntuitionBase/GfxBase above) so
- * the native IDCMP event pump (Amiga_PumpWindowEvents(), further down this
- * file) can find the window's IDCMP message port from anywhere, without
- * having to thread an SDL_Window* through the generic SDL_PumpEvents(void)
- * call signature used by i_video.cpp's I_GetEvent(). */
-__attribute__((weak)) struct Window *AmigaGameWindow = NULL;
-
-/* Cached "pending" chunky pixel buffer + dimensions, set by SDL_LowerBlit()
- * each frame and consumed by SDL_RenderPresent() to perform the actual
- * hardware blit. This mirrors the real SDL2 flow (LowerBlit fills a
- * surface, RenderPresent flips it to the screen) while letting us do the
- * real Amiga blit at the correct "present" point in the frame. */
-__attribute__((weak)) const uint8_t *AmigaPendingChunky = NULL;
-__attribute__((weak)) int AmigaPendingW = 0;
-__attribute__((weak)) int AmigaPendingH = 0;
-
+/* Pending chunky blit buffer set by SDL_LowerBlit(), consumed by
+ * SDL_RenderPresent() - mirrors real SDL2 LowerBlit/Present flow. */
+AMIGA_STUBS_DECL const uint8_t *AmigaPendingChunky AMIGA_STUBS_INIT(NULL);
+AMIGA_STUBS_DECL int            AmigaPendingW       AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int            AmigaPendingH       AMIGA_STUBS_INIT(0);
 
 /*
  * Amiga_OpenP96: try to open Picasso96API.library, purely to detect whether
@@ -277,31 +250,14 @@ static inline void Amiga_CloseGameScreen(void)
  * a raw per-pixel copy via SetAPen()+WritePixel(). Slow, but keeps the game
  * functionally working on any system (e.g. plain AGA fallback).
  */
-static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky, int w, int h)
+static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
 {
     if (!win || !win->RPort || !chunky) return;
 
-    if (GfxBase && GfxBase->LibNode.lib_Version >= 50)
-    {
-        WriteChunkyPixels(win->RPort,
-                           win->BorderLeft, win->BorderTop,
-                           win->BorderLeft + w - 1, win->BorderTop + h - 1,
-                           (UBYTE *)chunky, w);
-    }
-    else
-    {
-        int x, y;
-        const uint8_t *row = chunky;
-        for (y = 0; y < h; y++)
-        {
-            for (x = 0; x < w; x++)
-            {
-                SetAPen(win->RPort, row[x]);
-                WritePixel(win->RPort, win->BorderLeft + x, win->BorderTop + y);
-            }
-            row += w;
-        }
-    }
+    WriteChunkyPixels(win->RPort,
+                      win->BorderLeft, win->BorderTop,
+                      win->BorderLeft + 319, win->BorderTop + 199,
+                      (UBYTE *)chunky, 320);
 }
 
 /*
@@ -313,25 +269,23 @@ static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky, i
  */
 static inline void Amiga_ApplyPalette(struct Screen *scr, const void *sdlcolors, int first, int n)
 {
-    /* sdlcolors points at an array of {r,g,b,a} uint8_t structs (SDL_Color),
-     * but SDL_Color isn't declared yet at this point in the header, so we
-     * take a void* and reinterpret via a local byte-compatible struct. */
     struct RawColor { uint8_t r, g, b, a; };
     const struct RawColor *colors = (const struct RawColor *)sdlcolors;
     static ULONG table[1 + 256 * 3 + 1];
     int i;
 
-    if (!scr || !colors || n <= 0) return;
-    if (n > 256) n = 256;
+    if (!scr || !colors || n <= 0 || first < 0 || first > 255) return;
+    if (first + n > 256) n = 256 - first;
+    if (n <= 0) return;
 
-    table[0] = ((ULONG)n << 16) | (ULONG)(first & 0xFFFF);
-    for (i = 0; i < n; i++)
+    table[0] = ((ULONG)n << 16) | (ULONG)first;
+    for (i = 0; i < n; ++i)
     {
         table[1 + i * 3 + 0] = (ULONG)colors[i].r << 24;
         table[1 + i * 3 + 1] = (ULONG)colors[i].g << 24;
         table[1 + i * 3 + 2] = (ULONG)colors[i].b << 24;
     }
-    table[1 + n * 3] = 0; /* terminator */
+    table[1 + n * 3] = 0;
 
     LoadRGB32(&scr->ViewPort, table);
 }
@@ -339,30 +293,12 @@ static inline void Amiga_ApplyPalette(struct Screen *scr, const void *sdlcolors,
 /*
  * Amiga_HideSystemPointer / Amiga_ShowSystemPointer: hide or restore the
  * native Amiga hardware sprite mouse pointer on our game window.
- *
- * AmigaOS/Intuition has no direct "hide cursor" call (unlike modern OSes).
- * The standard, well-known trick (used by countless native Amiga programs)
- * is to install a completely blank 1x1 two-bitplane sprite image via
- * SetPointer() - this makes the hardware pointer sprite effectively
- * invisible while it's still technically "present" (so the game's own
- * software-drawn crosshair/cursor, blitted into the chunky screen buffer
- * by ptrapi.cpp, is the only cursor actually visible - fixing the reported
- * "two cursors visible at the same time" bug). ClearPointer() restores the
- * default system arrow pointer.
- *
- * The image data layout follows the classic Intuition sprite format: 2
- * reserved zero words, then (height) rows of 2 words each (one per
- * bitplane - both zero, i.e. fully transparent), then a mandatory
- * terminating zero word pair. All-zero data of the right size is all
- * that's needed for a blank/invisible pointer.
  */
-static UWORD AmigaBlankPointerData[2 + 1 * 2 + 2] = { 0 };
-
 static inline void Amiga_HideSystemPointer(void)
 {
-    if (AmigaGameWindow) {
-        SetPointer(AmigaGameWindow, AmigaBlankPointerData, 1, 1, 0, 0);
-    }
+    if (!AmigaGameWindow) return;
+    static UWORD emptyPointer[16]={0};
+    SetPointer(AmigaGameWindow, emptyPointer, 1, 16, 0, 0);
 }
 
 static inline void Amiga_ShowSystemPointer(void)
@@ -372,7 +308,7 @@ static inline void Amiga_ShowSystemPointer(void)
     }
 }
 
-#endif /* __AMIGA__ */
+#endif /* __AMIGA__ (main AmigaOS block - library bases, globals, helper functions) */
 
 
 
@@ -701,11 +637,12 @@ typedef struct SDL_RendererInfo {
 #define SDL_SCANCODE_LCTRL      224
 #define SDL_SCANCODE_LSHIFT     225
 #define SDL_SCANCODE_LALT       226
+#define SDL_SCANCODE_LGUI       227
 #define SDL_SCANCODE_RCTRL      228
 #define SDL_SCANCODE_RSHIFT     229
 #define SDL_SCANCODE_RALT       230
+#define SDL_SCANCODE_RGUI       231
 #define SDL_SCANCODE_AC_BACK    270
-
 
 #define KMOD_LALT   0x0100
 #define KMOD_RALT   0x0200
@@ -773,6 +710,21 @@ typedef union SDL_Event {
 } SDL_Event;
 
 /* ========================================================================= */
+/* Shared Amiga globals that reference SDL_Event (placed after typedef)      */
+/* ========================================================================= */
+
+#ifdef __AMIGA__
+/* Event queue, mouse state - single instance owned by amiga_stubs_impl.cpp */
+#define AMIGA_SDL_EVENT_QUEUE_SIZE 64
+AMIGA_STUBS_DECL SDL_Event AmigaEventQueue[AMIGA_SDL_EVENT_QUEUE_SIZE];
+AMIGA_STUBS_DECL int       AmigaEventQueueHead AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int       AmigaEventQueueTail AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int       AmigaMouseX         AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int       AmigaMouseY         AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int       AmigaMouseButtons   AMIGA_STUBS_INIT(0);
+#endif /* __AMIGA__ */
+
+/* ========================================================================= */
 /* Gamecontroller / Haptic stubs                                             */
 /* ========================================================================= */
 
@@ -829,14 +781,6 @@ typedef enum {
 #define SDL_min(a, b) ((a) < (b) ? (a) : (b))
 
 /* ========================================================================= */
-/* SDL_messagebox constants                                                  */
-/* ========================================================================= */
-
-#define SDL_MESSAGEBOX_ERROR       0x00000010u
-#define SDL_MESSAGEBOX_WARNING     0x00000020u
-#define SDL_MESSAGEBOX_INFORMATION 0x00000040u
-
-/* ========================================================================= */
 /* putenv compatibility for noixemul                                         */
 /* ========================================================================= */
 
@@ -859,11 +803,42 @@ extern "C" {
 #endif
 
 /* --- Init / Quit --- */
-static inline int    SDL_Init(uint32_t flags) { (void)flags; return 0; }
+static inline int SDL_Init(uint32_t flags)
+{
+    (void)flags;
+
+#ifdef __AMIGA__
+
+    if (!LowLevelBase)
+    {
+        LowLevelBase = OpenLibrary((CONST_STRPTR)"lowlevel.library", 40);
+        if (LowLevelBase)
+        {
+            printf("[AMIGA] SDL_Init: lowlevel.library v40 opened OK (joystick enabled)\n");
+            fflush(stdout);
+        }
+        else
+        {
+            printf("[AMIGA] SDL_Init: lowlevel.library v40 NOT available (joystick disabled)\n");
+            fflush(stdout);
+        }
+    }
+
+#endif
+
+    return 0;
+}
 static inline void   SDL_QuitSubSystem(uint32_t flags) { (void)flags; }
 
 static inline void SDL_Quit(void) {
 #ifdef __AMIGA__
+    /* Idempotent guard: jeśli wszystkie biblioteki już zamknięte (np. przy
+     * drugim wywołaniu przez atexit/EXIT_Clean po ShutDown()), wyjdź od razu.
+     * Zapobiega podwójnemu zamknięciu bibliotek i podwójnemu printf. */
+    if (!AmigaGameWindow && !AmigaGameScreen &&
+        !IntuitionBase && !GfxBase && !LowLevelBase && !P96Base)
+        return;
+
     /* Restore the native Amiga system pointer before destroying the game
      * window and closing libraries.  This is the single canonical "show"
      * call that matches the single "hide" call in SDL_CreateWindow(). */
@@ -878,6 +853,11 @@ static inline void SDL_Quit(void) {
     if (GfxBase) {
         CloseLibrary((struct Library *)GfxBase);
         GfxBase = NULL;
+    }
+    if (LowLevelBase)
+    {
+        CloseLibrary(LowLevelBase);
+        LowLevelBase = NULL;
     }
 #endif
 }
@@ -1217,12 +1197,10 @@ static inline void SDL_RenderPresent(SDL_Renderer *r) {
     if (AmigaGameScreen && AmigaGameScreen->FirstWindow &&
         AmigaPendingChunky && AmigaPendingW > 0 && AmigaPendingH > 0)
     {
-        Amiga_BlitScreen(AmigaGameScreen->FirstWindow, AmigaPendingChunky,
-                         AmigaPendingW, AmigaPendingH);
+        Amiga_BlitScreen(AmigaGameScreen->FirstWindow, AmigaPendingChunky);
     }
 #endif
 }
-
 
 static inline int    SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) { (void)r; (void)t; return 0; }
 static inline int    SDL_SetRenderDrawColor(SDL_Renderer *r, uint8_t rr, uint8_t g, uint8_t b, uint8_t a) { (void)r; (void)rr; (void)g; (void)b; (void)a; return 0; }
@@ -1367,7 +1345,7 @@ static inline int SDL_SetPaletteColors(SDL_Palette *p, const SDL_Color *c, int f
 
 static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst, SDL_Rect *dr) {
     /*
-     * Palette-indexed 8-bit surface â†’ 32-bit ARGB surface conversion.
+     * Palette-indexed 8-bit surface -> 32-bit ARGB surface conversion.
      * This is the critical blit path used by I_FinishUpdate() every frame.
      * src = 8-bit paletted screenbuffer, dst = 32-bit argbbuffer.
      */
@@ -1382,10 +1360,13 @@ static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst
     if (w > dst->w) w = dst->w;
     if (h > dst->h) h = dst->h;
 
-    SDL_Color *colors = src->format->palette->colors;
     uint8_t *srcpix = (uint8_t*)src->pixels;
-    uint32_t *dstpix = (uint32_t*)dst->pixels;
     int srcpitch = src->pitch;
+
+/* Konwersja palety omijana na Amidze na rzecz surowego bufora chunky */
+#ifndef __AMIGA__
+    SDL_Color *colors = src->format->palette->colors;
+    uint32_t *dstpix = (uint32_t*)dst->pixels;
     int dstpitch = dst->pitch / 4; /* pitch in uint32_t units */
     int x, y;
 
@@ -1399,15 +1380,11 @@ static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst
             dp[x] = (0xFFu << 24) | ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | (uint32_t)c.b;
         }
     }
-
-#ifdef __AMIGA__
+#else
     /*
      * Cache the source 8-bit chunky buffer pointer + dimensions for the
      * actual RTG screen blit, which happens later at SDL_RenderPresent()
-     * time (the real "flip" point in the frame). The ARGB conversion above
-     * is kept only so the rest of the generic i_video.cpp code path
-     * continues to work unmodified; the genuinely visible on-screen update
-     * is the raw chunky blit performed in SDL_RenderPresent().
+     * time (the real "flip" point in the frame).
      */
     AmigaPendingChunky = srcpix + y0 * srcpitch + x0;
     AmigaPendingW = w;
@@ -1536,7 +1513,7 @@ struct AmigaAudioState
     volatile int paused;
 };
 
-__attribute__((weak)) struct AmigaAudioState g_AmigaAudio;
+AMIGA_STUBS_DECL struct AmigaAudioState g_AmigaAudio;
 
 static inline void AmigaAudio_FreeBuffers(void)
 
@@ -1908,6 +1885,10 @@ static inline void   SDL_UnlockAudio(void) {}
 #define SDL_BUTTON_MIDDLE   2
 #define SDL_BUTTON_RIGHT    3
 
+#ifndef SDL_BUTTON
+#define SDL_BUTTON(X) (1 << ((X)-1))
+#endif
+
 /* SDL_ShowCursor() argument/return values (real SDL2 numbering). */
 #define SDL_DISABLE 0
 #define SDL_ENABLE  1
@@ -1932,25 +1913,11 @@ static inline void   SDL_UnlockAudio(void) {}
 /* exactly mirroring how real SDL2 works internally.                        */
 /* ========================================================================= */
 
-#define AMIGA_SDL_EVENT_QUEUE_SIZE 64
-
-__attribute__((weak)) SDL_Event AmigaEventQueue[AMIGA_SDL_EVENT_QUEUE_SIZE];
-__attribute__((weak)) int AmigaEventQueueHead = 0;
-__attribute__((weak)) int AmigaEventQueueTail = 0;
-
-/* Current mouse position (window-relative) + button bitmask (bit0=left,
- * bit1=right, bit2=middle), updated live by Amiga_PumpWindowEvents() and
- * read back by SDL_GetMouseState()/SDL_GetRelativeMouseState() below. */
-__attribute__((weak)) int AmigaMouseX = 0;
-__attribute__((weak)) int AmigaMouseY = 0;
-__attribute__((weak)) int AmigaMouseButtons = 0;
-
+#ifdef __AMIGA__
 static inline void Amiga_PushEvent(const SDL_Event *ev)
 {
     int next = (AmigaEventQueueTail + 1) % AMIGA_SDL_EVENT_QUEUE_SIZE;
     if (next == AmigaEventQueueHead) {
-        /* Queue full: drop the oldest event to make room for the newest
-         * (most relevant/current) input rather than losing new input. */
         AmigaEventQueueHead = (AmigaEventQueueHead + 1) % AMIGA_SDL_EVENT_QUEUE_SIZE;
     }
     AmigaEventQueue[AmigaEventQueueTail] = *ev;
@@ -1965,6 +1932,10 @@ static inline int Amiga_PopEvent(SDL_Event *out)
     AmigaEventQueueHead = (AmigaEventQueueHead + 1) % AMIGA_SDL_EVENT_QUEUE_SIZE;
     return 1;
 }
+#else
+static inline void Amiga_PushEvent(const SDL_Event *ev) { (void)ev; }
+static inline int  Amiga_PopEvent(SDL_Event *out)       { (void)out; return 0; }
+#endif /* __AMIGA__ */
 
 #ifdef __AMIGA__
 
@@ -2105,276 +2076,339 @@ static const uint8_t AmigaRawKeyToScancode[0x68] = {
     /* 0x59 */ SDL_SCANCODE_F10,
     /* 0x5A */ 0,
     /* 0x5B */ 0,
-    /* 0x5C */ SDL_SCANCODE_KP_DIVIDE,
-    /* 0x5D */ SDL_SCANCODE_KP_MULTIPLY,
-    /* 0x5E */ SDL_SCANCODE_KP_PLUS,
-    /* 0x5F */ 0,
+    /* 0x5C */ 0,
+    /* 0x5D */ 0,
+    /* 0x5E */ 0,
+    /* 0x5F */ 0, /* Help */
     /* 0x60 */ SDL_SCANCODE_LSHIFT,
     /* 0x61 */ SDL_SCANCODE_RSHIFT,
     /* 0x62 */ SDL_SCANCODE_CAPSLOCK,
     /* 0x63 */ SDL_SCANCODE_LCTRL,
     /* 0x64 */ SDL_SCANCODE_LALT,
     /* 0x65 */ SDL_SCANCODE_RALT,
-    /* 0x66 */ 0,
-    /* 0x67 */ 0,
+    /* 0x66 */ SDL_SCANCODE_LGUI,
+    /* 0x67 */ SDL_SCANCODE_RGUI
 };
 
-/*
- * Amiga_PumpWindowEvents() - drains the game window's IDCMP message port
- * (GetMsg/ReplyMsg, the standard AmigaOS Intuition event loop pattern) and
- * translates each IntuiMessage into an equivalent SDL_Event pushed onto
- * our ring buffer for SDL_PollEvent() to hand out.
- */
+#ifndef SDL_NUM_SCANCODES
+#define SDL_NUM_SCANCODES 512
+#endif
+
+AMIGA_STUBS_DECL ULONG AmigaJoyStatePrev AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL Uint32 AmigaFrameCount AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL Uint8 AmigaKeyboardState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0});
+
+#ifndef JPF_JOY_UP
+#define JPF_JOY_UP (1<<3)
+#define JPF_JOY_DOWN (1<<2)
+#define JPF_JOY_LEFT (1<<1)
+#define JPF_JOY_RIGHT (1<<0)
+#define JPF_BUTTON_PLAY (1<<17)
+#define JPF_BUTTON_RED (1<<22)
+#endif
+
+static inline void Amiga_InjectKeyboardEvent(int scancode, int pressed) {
+    if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES) return;
+    AmigaKeyboardState[scancode] = pressed ? 1 : 0;
+    
+    SDL_Event ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = pressed ? SDL_KEYDOWN : SDL_KEYUP;
+    ev.key.keysym.scancode = scancode;
+    ev.key.keysym.sym = scancode;
+    ev.key.keysym.mod = 0;
+    Amiga_PushEvent(&ev);
+}
+
 static inline void Amiga_PumpWindowEvents(void)
 {
-    struct IntuiMessage *imsg;
-
-    if (!AmigaGameWindow || !AmigaGameWindow->UserPort)
-        return;
-
-    while ((imsg = (struct IntuiMessage *)GetMsg(AmigaGameWindow->UserPort)) != NULL)
+    if (!AmigaGameWindow) return;
+    struct IntuiMessage *msg;
+    while ((msg = (struct IntuiMessage *)GetMsg(AmigaGameWindow->UserPort)))
     {
-        ULONG mclass = imsg->Class;
-        UWORD mcode  = imsg->Code;
-        UWORD mqual  = imsg->Qualifier;
-        WORD  mx     = imsg->MouseX;
-        WORD  my     = imsg->MouseY;
+        ULONG class_ = msg->Class;
+        UWORD code = msg->Code;
+        WORD mx = msg->MouseX;
+        WORD my = msg->MouseY;
+        ReplyMsg((struct Message *)msg);
 
-        /* Copy out everything we need BEFORE ReplyMsg(): Intuition is free
-         * to recycle/reuse the message the instant it has been replied. */
-        ReplyMsg((struct Message *)imsg);
-
-        /* MouseX/MouseY are valid on every single IntuiMessage regardless
-         * of class, so we get an up-to-date pointer position for free on
-         * every event, not just IDCMP_MOUSEMOVE ones. */
-        AmigaMouseX = mx;
-        AmigaMouseY = my;
-
-        switch (mclass)
-        {
-        case IDCMP_CLOSEWINDOW:
+        if (class_ == IDCMP_CLOSEWINDOW)
         {
             SDL_Event ev;
             memset(&ev, 0, sizeof(ev));
             ev.type = SDL_QUIT;
-            printf("[AMIGA] IDCMP_CLOSEWINDOW received -> SDL_QUIT\n"); fflush(stdout);
             Amiga_PushEvent(&ev);
-            break;
         }
-
-        case IDCMP_RAWKEY:
+        else if (class_ == IDCMP_RAWKEY)
         {
-            int up  = (mcode & IECODE_UP_PREFIX) ? 1 : 0;
-            int raw = mcode & ~IECODE_UP_PREFIX;
-            int scancode = 0;
-
-            if (raw >= 0 && raw < (int)(sizeof(AmigaRawKeyToScancode) / sizeof(AmigaRawKeyToScancode[0])))
-                scancode = AmigaRawKeyToScancode[raw];
-
-            if (scancode != 0)
+            int pressed = !(code & IECODE_UP_PREFIX);
+            code &= ~IECODE_UP_PREFIX;
+            if (code < sizeof(AmigaRawKeyToScancode))
             {
-                SDL_Event ev;
-                memset(&ev, 0, sizeof(ev));
-                ev.type = up ? SDL_KEYUP : SDL_KEYDOWN;
-                ev.key.type = ev.type;
-                ev.key.keysym.scancode = scancode;
-                ev.key.keysym.sym = scancode;
-                ev.key.keysym.mod = 0;
-                if (mqual & IEQUALIFIER_LALT) ev.key.keysym.mod |= KMOD_LALT;
-                if (mqual & IEQUALIFIER_RALT) ev.key.keysym.mod |= KMOD_RALT;
+                int scancode = AmigaRawKeyToScancode[code];
+                if (scancode)
+                {
+                    Amiga_InjectKeyboardEvent(scancode, pressed);
+                }
+            }
+        }
+        else if (class_ == IDCMP_MOUSEMOVE)
+        {
+            AmigaMouseX = mx;
+            AmigaMouseY = my;
+            SDL_Event ev;
+            memset(&ev, 0, sizeof(ev));
+            ev.type = SDL_MOUSEMOTION;
+            ev.button.x = mx;
+            ev.button.y = my;
+            Amiga_PushEvent(&ev);
+        }
+        else if (class_ == IDCMP_MOUSEBUTTONS)
+        {
+            SDL_Event ev;
+            memset(&ev, 0, sizeof(ev));
+            if (code == SELECTDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_LEFT; ev.button.state = 1; AmigaMouseButtons |= 1; }
+            else if (code == SELECTUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_LEFT; ev.button.state = 0; AmigaMouseButtons &= ~1; }
+            else if (code == MENUDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_RIGHT; ev.button.state = 1; AmigaMouseButtons |= 2; }
+            else if (code == MENUUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_RIGHT; ev.button.state = 0; AmigaMouseButtons &= ~2; }
+            else if (code == MIDDLEDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_MIDDLE; ev.button.state = 1; AmigaMouseButtons |= 4; }
+            else if (code == MIDDLEUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_MIDDLE; ev.button.state = 0; AmigaMouseButtons &= ~4; }
+            
+            if (ev.type) {
+                ev.button.x = AmigaMouseX;
+                ev.button.y = AmigaMouseY;
                 Amiga_PushEvent(&ev);
             }
-            else
-            {
-                printf("[AMIGA] IDCMP_RAWKEY: unmapped raw code 0x%02x (%s)\n",
-                       raw, up ? "up" : "down");
-                fflush(stdout);
-            }
-            break;
-        }
-
-        case IDCMP_MOUSEBUTTONS:
-        {
-            int button = 0, down = 0;
-
-            switch (mcode)
-            {
-            case SELECTDOWN: button = SDL_BUTTON_LEFT;   down = 1; break;
-            case SELECTUP:   button = SDL_BUTTON_LEFT;   down = 0; break;
-            case MENUDOWN:   button = SDL_BUTTON_RIGHT;  down = 1; break;
-            case MENUUP:     button = SDL_BUTTON_RIGHT;  down = 0; break;
-            case MIDDLEDOWN: button = SDL_BUTTON_MIDDLE; down = 1; break;
-            case MIDDLEUP:   button = SDL_BUTTON_MIDDLE; down = 0; break;
-            default: break;
-            }
-
-            if (button)
-            {
-                SDL_Event ev;
-                memset(&ev, 0, sizeof(ev));
-                ev.type = down ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
-                ev.button.type = ev.type;
-                ev.button.button = (uint8_t)button;
-                ev.button.state = (uint8_t)down;
-                ev.button.x = mx;
-                ev.button.y = my;
-
-                if (button == SDL_BUTTON_LEFT)   { if (down) AmigaMouseButtons |= 1; else AmigaMouseButtons &= ~1; }
-                if (button == SDL_BUTTON_RIGHT)  { if (down) AmigaMouseButtons |= 2; else AmigaMouseButtons &= ~2; }
-                if (button == SDL_BUTTON_MIDDLE) { if (down) AmigaMouseButtons |= 4; else AmigaMouseButtons &= ~4; }
-
-                Amiga_PushEvent(&ev);
-            }
-            break;
-        }
-
-        case IDCMP_MOUSEMOVE:
-            /* Position already latched into AmigaMouseX/Y above; the game
-             * polls the mouse position on demand every frame via
-             * I_GetMousePos() -> SDL_GetMouseState() rather than needing a
-             * discrete SDL_MOUSEMOTION event pushed here. */
-            break;
-
-        default:
-            break;
         }
     }
 }
+#else
+static inline void Amiga_PumpWindowEvents(void) {}
+#endif
 
-#else /* !__AMIGA__ */
-
-static inline void Amiga_PumpWindowEvents(void) { }
-
-#endif /* __AMIGA__ */
-
-/* --- Events ---
- *
- * SDL_PumpEvents() drains the real Amiga IDCMP message port (via
- * Amiga_PumpWindowEvents() above) into our internal SDL_Event ring buffer;
- * SDL_PollEvent() then just pops events back out of that buffer, exactly
- * like real SDL2 does internally. This is what makes I_GetEvent()'s
- * SDL_PumpEvents() + while(SDL_PollEvent()) loop in i_video.cpp actually
- * see real keyboard/mouse/window-close events instead of nothing.
- */
-static inline void   SDL_PumpEvents(void) { Amiga_PumpWindowEvents(); }
-static inline int    SDL_PollEvent(SDL_Event *e) { return Amiga_PopEvent(e); }
-
-/* --- Touch --- */
-static inline int    SDL_GetNumTouchFingers(int64_t touchId) { (void)touchId; return 0; }
-
-/* --- Mouse ---
- *
- * SDL_GetMouseState()/SDL_GetRelativeMouseState() now report the real,
- * live mouse position + button bitmask kept up to date by
- * Amiga_PumpWindowEvents() above (fed by every IDCMP message's
- * MouseX/MouseY fields and IDCMP_MOUSEBUTTONS codes), instead of always
- * reporting (0,0)/no buttons.
- */
-/*
- * SDL_SetRelativeMouseMode: i_video.cpp's SetShowCursor() calls this with
- * !show to hide the cursor (relative mode implicitly hides the pointer on
- * every other SDL2 backend). On Amiga we don't have a real relative/warp
- * mouse mode, but we DO need the hide/show side effect - this is one of
- * the two places (along with SDL_ShowCursor() below) that must hide the
- * native Amiga hardware sprite pointer, or else it stays visible on top
- * of the game's own software-drawn crosshair (the reported "two cursors"
- * bug). SDL_TRUE (relative/hidden) -> hide; SDL_FALSE -> show.
- */
-static inline int    SDL_SetRelativeMouseMode(SDL_bool e) {
-    (void)e;
+static inline void SDL_PumpEvents(void) {
 #ifdef __AMIGA__
-    /* On Amiga the system pointer is hidden ONCE at SDL_CreateWindow() and
-     * shown ONCE at SDL_Quit().  Toggling it here in response to gameplay
-     * grab/ungrab would make the native Amiga arrow re-appear in the menu
-     * every time Do_Game() exits (IPT_End -> UpdateGrab -> SetShowCursor(true)
-     * -> SDL_SetRelativeMouseMode(false) -> Amiga_ShowSystemPointer).
-     * Keep this a no-op for Amiga so the single-hide / single-show model
-     * in SDL_CreateWindow / SDL_Quit is the only place that matters. */
+    Amiga_PumpWindowEvents();
+
+    if (LowLevelBase) {
+        ULONG joy = ReadJoyPort(1);
+        
+        ULONG changed = joy ^ AmigaJoyStatePrev;
+        
+        if (changed & JPF_JOY_UP) {
+            Amiga_InjectKeyboardEvent(SDL_SCANCODE_UP, (joy & JPF_JOY_UP) != 0);
+        }
+        if (changed & JPF_JOY_DOWN) {
+            Amiga_InjectKeyboardEvent(SDL_SCANCODE_DOWN, (joy & JPF_JOY_DOWN) != 0);
+        }
+        if (changed & JPF_JOY_LEFT) {
+            Amiga_InjectKeyboardEvent(SDL_SCANCODE_LEFT, (joy & JPF_JOY_LEFT) != 0);
+        }
+        if (changed & JPF_JOY_RIGHT) {
+            Amiga_InjectKeyboardEvent(SDL_SCANCODE_RIGHT, (joy & JPF_JOY_RIGHT) != 0);
+        }
+        
+        ULONG fire_mask = JPF_BUTTON_RED | JPF_BUTTON_PLAY;
+        int prev_fire = (AmigaJoyStatePrev & fire_mask) ? 1 : 0;
+        int curr_fire = (joy & fire_mask) ? 1 : 0;
+        if (curr_fire != prev_fire) {
+            Amiga_InjectKeyboardEvent(SDL_SCANCODE_RETURN, curr_fire);
+        }
+        
+        AmigaJoyState = joy;
+        AmigaJoyStatePrev = joy;
+        AmigaFrameCount++;
+    }
+#endif
+}
+
+static inline int SDL_PollEvent(SDL_Event *event) {
+#ifdef __AMIGA__
+    return Amiga_PopEvent(event);
+#else
+    (void)event;
+    return 0;
+#endif
+}
+
+static inline int SDL_WaitEvent(SDL_Event *event) {
+    while (!SDL_PollEvent(event)) {
+        SDL_Delay(10);
+    }
+    return 1;
+}
+
+static inline const Uint8* SDL_GetKeyboardState(int *numkeys) {
+    if (numkeys) *numkeys = SDL_NUM_SCANCODES;
+#ifdef __AMIGA__
+    return AmigaKeyboardState;
+#else
+    static Uint8 empty[SDL_NUM_SCANCODES] = {0};
+    return empty;
+#endif
+}
+
+static inline uint32_t SDL_GetModState(void) {
+    return 0;
+}
+
+static inline uint32_t SDL_GetMouseState(int *x, int *y) {
+#ifdef __AMIGA__
+    if (x) *x = AmigaMouseX;
+    if (y) *y = AmigaMouseY;
+    
+    uint32_t mask = 0;
+    if (AmigaMouseButtons & 1) mask |= SDL_BUTTON(SDL_BUTTON_LEFT);
+    if (AmigaMouseButtons & 2) mask |= SDL_BUTTON(SDL_BUTTON_RIGHT);
+    if (AmigaMouseButtons & 4) mask |= SDL_BUTTON(SDL_BUTTON_MIDDLE);
+    return mask;
+#else
+    if (x) *x = 0; if (y) *y = 0; return 0;
+#endif
+}
+
+static inline uint32_t SDL_GetRelativeMouseState(int *x, int *y) {
+    if (x) *x = 0;
+    if (y) *y = 0;
+    return SDL_GetMouseState(NULL, NULL);
+}
+
+static inline int SDL_SetRelativeMouseMode(SDL_bool enabled) { (void)enabled; return 0; }
+static inline void SDL_WarpMouseInWindow(SDL_Window *window, int x, int y) { (void)window; (void)x; (void)y; }
+static inline int SDL_ShowCursor(int toggle) { (void)toggle; return 0; }
+
+static inline int SDL_NumJoysticks(void) { return 1; }
+static inline SDL_bool SDL_IsGameController(int idx) { (void)idx; return SDL_TRUE; }
+static inline SDL_GameController* SDL_GameControllerOpen(int idx) { (void)idx; return (SDL_GameController*)1; }
+static inline void SDL_GameControllerClose(SDL_GameController *gc) { (void)gc; }
+
+static inline Sint16 SDL_GameControllerGetAxis(SDL_GameController *gamecontroller, int axis)
+{
+    (void)gamecontroller;
+#ifdef __AMIGA__
+    if (!LowLevelBase) return 0;
+
+    if (axis == SDL_CONTROLLER_AXIS_LEFTX) {
+        const int left  = (AmigaJoyState & JPF_JOY_LEFT)  ? 1 : 0;
+        const int right = (AmigaJoyState & JPF_JOY_RIGHT) ? 1 : 0;
+
+        if (left && !right)  return -32768;
+        if (right && !left)  return 32767;
+        return 0;
+    }
+
+    if (axis == SDL_CONTROLLER_AXIS_LEFTY) {
+        const int up   = (AmigaJoyState & JPF_JOY_UP)   ? 1 : 0;
+        const int down = (AmigaJoyState & JPF_JOY_DOWN) ? 1 : 0;
+
+        if (up && !down)   return -32768;
+        if (down && !up)   return 32767;
+        return 0;
+    }
 #endif
     return 0;
 }
 
 
-static inline uint32_t SDL_GetRelativeMouseState(int *x, int *y) {
-    static int last_x = 0, last_y = 0;
-    int dx = AmigaMouseX - last_x;
-    int dy = AmigaMouseY - last_y;
-    last_x = AmigaMouseX;
-    last_y = AmigaMouseY;
-    if (x) *x = dx;
-    if (y) *y = dy;
-    return (uint32_t)AmigaMouseButtons;
-}
-
-static inline uint32_t SDL_GetMouseState(int *x, int *y) {
-    if (x) *x = AmigaMouseX;
-    if (y) *y = AmigaMouseY;
-    return (uint32_t)AmigaMouseButtons;
-}
-
-/*
- * SDL_ShowCursor: the other call site (i_video.cpp's I_ShutdownGraphics()
- * calls SetShowCursor(true) directly, and the #else branch of
- * SetShowCursor() - kept for parity with upstream desktop ports - calls
- * this directly with the raw show/hide flag) that must actually hide/show
- * the real Amiga hardware sprite pointer. Accepts real SDL2 semantics:
- * SDL_DISABLE (0) hides, SDL_ENABLE (1) shows, SDL_QUERY (-1) just queries
- * current state without changing it. Returns the previous (or current, for
- * SDL_QUERY) shown state, exactly like real SDL2.
- */
-static inline int    SDL_ShowCursor(int t) {
-    static int shown = 1; /* SDL2 default: cursor visible until told otherwise */
-    int prev = shown;
-
-    if (t == SDL_QUERY)
-        return prev;
-
+static inline Uint8 SDL_GameControllerGetButton(SDL_GameController *gamecontroller, int button)
+{
+    (void)gamecontroller;
 #ifdef __AMIGA__
-    if (t == SDL_DISABLE) Amiga_HideSystemPointer();
-    else                  Amiga_ShowSystemPointer();
+    if (!LowLevelBase) return 0;
+
+    {
+        const int fire_red  = (AmigaJoyState & JPF_BUTTON_RED)  ? 1 : 0;
+        const int fire_play = (AmigaJoyState & JPF_BUTTON_PLAY) ? 1 : 0;
+        const int is_fire   = (fire_red || fire_play) ? 1 : 0;
+
+        /*
+         * Oba amigowe FIRE mają robić to samo.
+         * SDL_GameControllerGetButton ma zwracać rzeczywisty, stabilny stan
+         * przycisku, a nie sztucznie migający sygnał co drugą klatkę.
+         * Miganie przez AmigaFrameCount psuło ciągły odczyt fire podczas trzymania.
+         */
+        if (button == SDL_CONTROLLER_BUTTON_A) return is_fire ? 1 : 0;
+        if (button == SDL_CONTROLLER_BUTTON_B) return is_fire ? 1 : 0;
+    }
+
+    if (button == SDL_CONTROLLER_BUTTON_DPAD_UP)
+        return (AmigaJoyState & JPF_JOY_UP) ? 1 : 0;
+
+    if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN)
+        return (AmigaJoyState & JPF_JOY_DOWN) ? 1 : 0;
+
+    if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT)
+        return (AmigaJoyState & JPF_JOY_LEFT) ? 1 : 0;
+
+    if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT)
+        return (AmigaJoyState & JPF_JOY_RIGHT) ? 1 : 0;
 #endif
-
-    shown = (t != SDL_DISABLE);
-    return prev;
+    return 0;
 }
 
+/* Wstępne deklaracje typów dla atrapy */
+typedef struct SDL_Haptic SDL_Haptic;
+typedef struct SDL_GameController SDL_GameController;
 
-static inline void   SDL_WarpMouseInWindow(SDL_Window *w, int x, int y) {
-    (void)w;
-    /* Keep our tracked mouse position consistent with an explicit warp
-     * (e.g. I_SetMousePos() clamping the cursor to the screen edges),
-     * since on Amiga there's no hardware call to actually move the real
-     * pointer sprite position under program control the way SDL's
-     * relative-mode warp does on other platforms. */
-    AmigaMouseX = x;
-    AmigaMouseY = y;
+/* -------------------- HAPTIC ---------------------- */
+
+static inline SDL_Haptic* SDL_HapticOpen(int idx) {
+    (void)idx;
+    return NULL;
 }
 
+static inline SDL_Haptic* SDL_HapticOpenFromJoystick(void *j) {
+    (void)j;
+    return NULL;
+}
 
-/* --- MessageBox --- */
-static inline int    SDL_ShowSimpleMessageBox(uint32_t f, const char *t, const char *m, SDL_Window *w)
-    { (void)f; (void)t; (void)m; (void)w; return 0; }
+static inline int SDL_HapticRumbleInit(SDL_Haptic *h) {
+    (void)h;
+    return -1;
+}
 
-/* --- Joystick/GameController --- */
-static inline int    SDL_NumJoysticks(void) { return 0; }
-static inline int    SDL_IsGameController(int i) { (void)i; return 0; }
-static inline SDL_GameController* SDL_GameControllerOpen(int i) { (void)i; return 0; }
-static inline void   SDL_GameControllerClose(SDL_GameController *g) { (void)g; }
-static inline int    SDL_GameControllerGetAttached(SDL_GameController *g) { (void)g; return 0; }
-static inline int16_t SDL_GameControllerGetAxis(SDL_GameController *g, int axis) { (void)g; (void)axis; return 0; }
-static inline uint8_t SDL_GameControllerGetButton(SDL_GameController *g, int btn) { (void)g; (void)btn; return 0; }
-static inline SDL_GameControllerType SDL_GameControllerTypeForIndex(int idx) { (void)idx; return SDL_CONTROLLER_TYPE_UNKNOWN; }
-static inline int    SDL_GameControllerRumble(SDL_GameController *g, uint16_t lo, uint16_t hi, uint32_t ms) { (void)g; (void)lo; (void)hi; (void)ms; return -1; }
+static inline void SDL_HapticClose(SDL_Haptic *h) {
+    (void)h;
+}
 
-/* --- Haptic --- */
-static inline SDL_Haptic* SDL_HapticOpen(int idx) { (void)idx; return 0; }
-static inline SDL_Haptic* SDL_HapticOpenFromJoystick(void *j) { (void)j; return 0; }
-static inline int    SDL_HapticRumbleInit(SDL_Haptic *h) { (void)h; return -1; }
-static inline void   SDL_HapticClose(SDL_Haptic *h) { (void)h; }
+/* ---------------- GAME CONTROLLER ----------------- */
 
-/* --- Filesystem --- */
-static inline char*  SDL_GetPrefPath(const char *org, const char *app) { (void)org; (void)app; return 0; }
-static inline void   SDL_free(void *p) { (void)p; }
+static inline int SDL_GameControllerGetAttached(SDL_GameController *c) {
+    (void)c;
+    return 0;
+}
+
+static inline int SDL_GameControllerTypeForIndex(int idx) {
+    (void)idx;
+    return 0;
+}
+
+static inline int SDL_GameControllerRumble(SDL_GameController *c, uint16_t low, uint16_t high, uint32_t dur) {
+    (void)c; (void)low; (void)high; (void)dur;
+    return -1;
+}
+
+/* -------------------- MESSAGE BOX ----------------- */
+
+#define SDL_MESSAGEBOX_ERROR        0x00000010u
+#define SDL_MESSAGEBOX_WARNING      0x00000020u
+#define SDL_MESSAGEBOX_INFORMATION  0x00000040u
+
+static inline int SDL_ShowSimpleMessageBox(uint32_t flags, const char *title, const char *message, void *window) {
+    (void)flags;
+    (void)window;
+    if (title && message) {
+        fprintf(stderr, "[%s] %s\n", title, message);
+    }
+    return 0;
+}
+
+/* -------------------- TOUCH EVENTS ---------------- */
+
+static inline int SDL_GetNumTouchFingers(long long touchID) {
+    (void)touchID;
+    return 0; /* Brak multi-touch na Amidze */
+}
 
 #ifdef __cplusplus
 }
