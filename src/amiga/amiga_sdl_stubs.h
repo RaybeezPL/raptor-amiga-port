@@ -1,27 +1,4 @@
-/*
- * amiga_sdl_stubs.h - Minimal SDL2 type/macro stubs for AmigaOS 3.x port.
- *
- * Provides enough SDL2 definitions to compile Raptor without a real SDL2.
- * Active only when USE_SDL_STUBS is defined.
- *
- * Targeting: RTG (Picasso96) boards exclusively.  Game opens its own
- * 320x200x8 custom screen (never Workbench).
- *
- * RTG strategy:
- *  - Picasso96API.library opened by name to detect RTG; no p96*() calls.
- *  - Screen/window opened via standard BestModeID()/OpenScreenTags()/
- *    OpenWindowTags() which Picasso96 patches transparently.
- *  - Blit: WriteChunkyPixels() (gfx.lib v50+) with SetAPen/WritePixel
- *    fallback for older systems.
- *  - Palette: LoadRGB32() patched by Picasso96 for CLUT updates.
- *
- * Shared globals:
- *  All Amiga-specific globals (library bases, window/screen ptrs, joystick
- *  state, event queue, audio state) are declared extern here and defined
- *  exactly once in amiga_stubs_impl.cpp (AMIGA_STUBS_OWNER).
- *  This prevents per-TU copies that broke joystick state sharing between
- *  i_video.cpp (SDL_PumpEvents) and joyapi.cpp (GetButton/Axis).
- */
+/* Minimal SDL2 type/macro stubs for AmigaOS 3.x port. Active with USE_SDL_STUBS. Targets RTG (Picasso96) 320x200x8 custom screen. Uses WriteChunkyPixels for blitting and LoadRGB32 for palette. Shared globals are defined in amiga_stubs_impl.cpp. */
 
 #ifndef AMIGA_SDL_STUBS_H
 #define AMIGA_SDL_STUBS_H
@@ -33,7 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 
-/* AmigaOS Intuition / Graphics for real screen+window support               */
+/* AmigaOS Intuition/Graphics support. */
 
 #ifdef __AMIGA__
 #include <proto/exec.h>
@@ -44,36 +21,28 @@
 #include <proto/lowlevel.h>
 #include <libraries/lowlevel.h>
 
-/* -------------------------------------------------------------------------
- * Global storage pattern:
- *   AMIGA_STUBS_OWNER (defined in amiga_stubs_impl.cpp) -> actual definition
- *   All other TUs                                        -> extern declaration
- * This guarantees a single instance of every shared variable.
- * ------------------------------------------------------------------------- */
+/* Global storage pattern: AMIGA_STUBS_OWNER defines actual instance, others use extern to guarantee a single instance. */
 #ifdef AMIGA_STUBS_OWNER
-#  define AMIGA_STUBS_DECL          /* plain definition */
-#  define AMIGA_STUBS_INIT(v) = v   /* with initialiser */
+#  define AMIGA_STUBS_DECL          /* Plain definition. */
+#  define AMIGA_STUBS_INIT(v) = v   /* With initializer. */
 #else
 #  define AMIGA_STUBS_DECL    extern
-#  define AMIGA_STUBS_INIT(v)       /* no initialiser in extern decl */
+#  define AMIGA_STUBS_INIT(v)       /* No initializer in extern decl. */
 #endif
 
-/* Library bases */
+/* Library bases. */
 AMIGA_STUBS_DECL struct IntuitionBase *IntuitionBase AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL struct GfxBase       *GfxBase       AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL struct Library       *LowLevelBase  AMIGA_STUBS_INIT(NULL);
 
-/* Joystick state - polled once per frame in SDL_PumpEvents(), read by
- * SDL_GameControllerGetButton/Axis() from any TU. Must be shared. */
+/* Shared joystick state polled in SDL_PumpEvents and read by controller APIs. */
 AMIGA_STUBS_DECL ULONG AmigaJoyState AMIGA_STUBS_INIT(0);
 
-/* Picasso96API.library - opened by name for RTG detection only.
- * Never called through (no LVO offsets needed). */
+/* Picasso96API.library used for RTG detection only (no function calls). */
 AMIGA_STUBS_DECL struct Library *P96Base      AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL int             AmigaUsingP96 AMIGA_STUBS_INIT(0);
 
-/* BestModeID() tag values from <graphics/displayinfo.h> - inlined so we
- * don't depend on that header being present. */
+/* Inlined BestModeID tags to avoid header dependency. */
 #ifndef BIDTAG_DesiredWidth
 #define BIDTAG_DesiredWidth     (TAG_USER + 0x0000UL)
 #endif
@@ -93,27 +62,21 @@ AMIGA_STUBS_DECL int             AmigaUsingP96 AMIGA_STUBS_INIT(0);
 #define INVALID_ID              0xFFFFFFFFUL
 #endif
 
-/* Game fixed native resolution - always 320x200x8 for RTG. */
+/* Fixed game resolution for RTG (320x200x8). */
 #define AMIGA_GAME_WIDTH   320
 #define AMIGA_GAME_HEIGHT  200
 #define AMIGA_GAME_DEPTH   8
 
-/* RTG screen / window - single instance shared across all TUs. */
+/* Single RTG screen/window instance shared across all TUs. */
 AMIGA_STUBS_DECL struct Screen  *AmigaGameScreen    AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL struct Window  *AmigaGameWindow    AMIGA_STUBS_INIT(NULL);
 
-/* Pending chunky blit buffer set by SDL_LowerBlit(), consumed by
- * SDL_RenderPresent() - mirrors real SDL2 LowerBlit/Present flow. */
+/* Pending chunky blit buffer set by SDL_LowerBlit and consumed by SDL_RenderPresent. */
 AMIGA_STUBS_DECL const uint8_t *AmigaPendingChunky AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL int            AmigaPendingW       AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int            AmigaPendingH       AMIGA_STUBS_INIT(0);
 
-/*
- * Amiga_OpenP96: try to open Picasso96API.library, purely to detect whether
- * an RTG board/driver is present on this system. Returns 1 if RTG is
- * available, 0 otherwise (base AGA/ECS Intuition custom screen will be used
- * as a fallback in that case).
- */
+/* Opens Picasso96API.library to detect RTG presence. Returns 1 if available, 0 for AGA/ECS fallback. */
 static inline int Amiga_OpenP96(void)
 {
     if (P96Base != NULL) {
@@ -123,7 +86,7 @@ static inline int Amiga_OpenP96(void)
     printf("[AMIGA] Attempting to open Picasso96API.library (RTG detection)...\n");
     fflush(stdout);
 
-    /* Raw OpenLibrary() call by name/version - no SDK header dependency. */
+    /* Raw OpenLibrary call without SDK header dependencies. */
     P96Base = OpenLibrary((CONST_STRPTR)"Picasso96API.library", 0);
 
     if (P96Base) {
@@ -150,13 +113,7 @@ static inline void Amiga_CloseP96(void)
     AmigaUsingP96 = 0;
 }
 
-/*
- * Amiga_FindBestModeID: locate the best matching display ModeID for our
- * fixed 320x200x8 game resolution. On an RTG system with Picasso96 active,
- * BestModeID() will happily return one of the RTG board's own chunky
- * ModeIDs (Picasso96 registers these with graphics.library); on a plain
- * AGA/ECS system it returns a standard chipset ModeID instead.
- */
+/* Locates the best display ModeID for 320x200x8 resolution. Returns RTG or standard chipset ModeID. */
 static inline ULONG Amiga_FindBestModeID(int w, int h, int depth)
 {
     ULONG modeid = BestModeID(
@@ -172,12 +129,7 @@ static inline ULONG Amiga_FindBestModeID(int w, int h, int depth)
     return modeid;
 }
 
-/*
- * Amiga_OpenGameScreen: opens our dedicated custom 320x200x8-bit screen
- * (RTG-backed if Picasso96 is present, otherwise plain AGA/ECS chipset
- * screen at the closest matching mode). This screen is never Workbench -
- * we always create our own custom screen for the game.
- */
+/* Opens a dedicated 320x200x8 custom screen (RTG or AGA/ECS). */
 static inline struct Screen* Amiga_OpenGameScreen(int w, int h, int depth)
 {
     ULONG modeid;
@@ -233,21 +185,7 @@ static inline void Amiga_CloseGameScreen(void)
     }
 }
 
-/*
- * Amiga_BlitScreen: raw chunky pixel blit of an 8-bit paletted buffer
- * (I_VideoBuffer, 320x200) directly onto the game window's RastPort.
- *
- * Preferred path: WriteChunkyPixels() - a *standard* graphics.library call
- * (v50+, present whenever RTG software such as Picasso96/CyberGraphX has
- * patched graphics.library, which is always true on an RTG system). It
- * writes an 8-bit-per-pixel chunky array straight into the bitmap, exactly
- * matching our 320x200x8 chunky screen buffer - no palette conversion, no
- * intermediate ARGB surface required.
- *
- * Fallback path (graphics.library < v50 / WriteChunkyPixels unavailable):
- * a raw per-pixel copy via SetAPen()+WritePixel(). Slow, but keeps the game
- * functionally working on any system (e.g. plain AGA fallback).
- */
+/* Blits an 8-bit chunky buffer directly to the window's RastPort using WriteChunkyPixels. */
 static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
 {
     if (!win || !win->RPort || !chunky) return;
@@ -258,13 +196,7 @@ static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
                       (UBYTE *)chunky, 320);
 }
 
-/*
- * Amiga_ApplyPalette: pushes an SDL_Color[] palette (0-255 range per
- * channel) to the hardware/RTG screen using the standard graphics.library
- * LoadRGB32() call. Works correctly for both AGA and RTG (Picasso96)
- * screens - Picasso96 patches LoadRGB32() to update its own CLUT when the
- * ViewPort belongs to an RTG screen.
- */
+/* Applies an SDL_Color palette to the screen using LoadRGB32. */
 static inline void Amiga_ApplyPalette(struct Screen *scr, const void *sdlcolors, int first, int n)
 {
     struct RawColor { uint8_t r, g, b, a; };
@@ -288,10 +220,7 @@ static inline void Amiga_ApplyPalette(struct Screen *scr, const void *sdlcolors,
     LoadRGB32(&scr->ViewPort, table);
 }
 
-/*
- * Amiga_HideSystemPointer / Amiga_ShowSystemPointer: hide or restore the
- * native Amiga hardware sprite mouse pointer on our game window.
- */
+/* Hides or restores the native Amiga hardware sprite pointer. */
 static inline void Amiga_HideSystemPointer(void)
 {
     if (!AmigaGameWindow) return;
@@ -306,17 +235,17 @@ static inline void Amiga_ShowSystemPointer(void)
     }
 }
 
-#endif /* __AMIGA__ (main AmigaOS block - library bases, globals, helper functions) */
+#endif /* End of main AmigaOS block. */
 
-/* Byte order / Endianness                                                   */
+/* Byte order definitions. */
 
 #define SDL_LIL_ENDIAN  1234
 #define SDL_BIG_ENDIAN  4321
 
-/* Motorola 68k is Big Endian */
+/* Motorola 68k is Big Endian. */
 #define SDL_BYTEORDER   SDL_BIG_ENDIAN
 
-/* Byte-swap functions for Big Endian reading Little Endian data */
+/* Byte-swap functions for Big Endian. */
 static inline uint16_t SDL_Swap16(uint16_t x)
 {
     return (uint16_t)((x << 8) | (x >> 8));
@@ -330,13 +259,13 @@ static inline uint32_t SDL_Swap32(uint32_t x)
             (x >> 24));
 }
 
-/* On Big Endian: SwapLE must byte-swap, SwapBE is no-op */
+/* SwapLE swaps on Big Endian, SwapBE is no-op. */
 #define SDL_SwapLE16(x) SDL_Swap16(x)
 #define SDL_SwapLE32(x) SDL_Swap32(x)
 #define SDL_SwapBE16(x) (x)
 #define SDL_SwapBE32(x) (x)
 
-/* Basic SDL types                                                           */
+/* Basic SDL types. */
 
 typedef uint8_t   Uint8;
 typedef int8_t    Sint8;
@@ -350,7 +279,7 @@ typedef int       SDL_bool;
 #define SDL_FALSE 0
 #define SDL_TRUE  1
 
-/* SDL version macros                                                        */
+/* SDL version macros. */
 
 #define SDL_MAJOR_VERSION 2
 #define SDL_MINOR_VERSION 0
@@ -361,7 +290,7 @@ typedef int       SDL_bool;
      (SDL_MAJOR_VERSION == (x) && SDL_MINOR_VERSION > (y)) || \
      (SDL_MAJOR_VERSION == (x) && SDL_MINOR_VERSION == (y) && SDL_PATCHLEVEL >= (z)))
 
-/* SDL_Init subsystem flags (stubs)                                          */
+/* SDL_Init subsystem flags. */
 
 #define SDL_INIT_TIMER          0x00000001u
 #define SDL_INIT_AUDIO          0x00000010u
@@ -371,9 +300,9 @@ typedef int       SDL_bool;
 #define SDL_INIT_GAMECONTROLLER 0x00002000u
 #define SDL_INIT_EVENTS         0x00004000u
 
-/* Audio format constants                                                    */
+/* Audio format constants. */
 
-#define AUDIO_S16SYS  0x8010  /* Signed 16-bit, system byte order */
+#define AUDIO_S16SYS  0x8010  /* Signed 16-bit, system byte order. */
 #define SDL_AUDIO_ALLOW_FREQUENCY_CHANGE 0x00000001
 
 typedef uint32_t SDL_AudioDeviceID;
@@ -389,21 +318,19 @@ typedef struct SDL_AudioSpec {
     void *userdata;
 } SDL_AudioSpec;
 
-/* Video structures                                                          */
-/* Now with real struct bodies so we can hold Amiga window/screen pointers.   */
+/* Video structures with Amiga-specific pointers. */
 
 typedef struct SDL_Window {
     int w, h;
 #ifdef __AMIGA__
-    struct Window *amiga_window;   /* Real Intuition window pointer */
-    struct Screen *amiga_screen;   /* Dedicated custom RTG screen this window is on */
+    struct Window *amiga_window;   /* Real Intuition window pointer. */
+    struct Screen *amiga_screen;   /* Dedicated custom RTG screen. */
 #endif
 } SDL_Window;
 
 typedef struct SDL_Renderer {
-    SDL_Window *window;            /* Back-pointer to owning window */
-    int logical_w, logical_h;      /* Set via SDL_RenderSetLogicalSize(); 0 = unset
-                                     * (falls back to the real window/output size). */
+    SDL_Window *window;            /* Back-pointer to owning window. */
+    int logical_w, logical_h;      /* Logical size set via SDL_RenderSetLogicalSize. */
 } SDL_Renderer;
 
 typedef struct SDL_Texture {
@@ -433,7 +360,7 @@ typedef struct SDL_PixelFormat {
 
 typedef struct SDL_Surface {
     uint32_t flags;
-    SDL_PixelFormat *format;    /* Proper type, not void* */
+    SDL_PixelFormat *format;    /* Proper format pointer type. */
     int w, h;
     int pitch;
     void *pixels;
@@ -455,7 +382,7 @@ typedef struct SDL_RendererInfo {
     int max_texture_height;
 } SDL_RendererInfo;
 
-/* Window flags */
+/* Window flags. */
 #define SDL_WINDOW_FULLSCREEN          0x00000001u
 #define SDL_WINDOW_SHOWN               0x00000004u
 #define SDL_WINDOW_RESIZABLE           0x00000020u
@@ -463,22 +390,22 @@ typedef struct SDL_RendererInfo {
 #define SDL_WINDOW_ALLOW_HIGHDPI       0x00002000u
 #define SDL_WINDOW_BORDERLESS          0x00000010u
 
-/* Window position */
+/* Window position. */
 #define SDL_WINDOWPOS_UNDEFINED        0x1FFF0000u
 #define SDL_WINDOWPOS_CENTERED         0x2FFF0000u
 
-/* Renderer flags */
+/* Renderer flags. */
 #define SDL_RENDERER_SOFTWARE          0x00000001u
 #define SDL_RENDERER_ACCELERATED       0x00000002u
 #define SDL_RENDERER_PRESENTVSYNC      0x00000004u
 #define SDL_RENDERER_TARGETTEXTURE     0x00000008u
 
-/* Texture access */
+/* Texture access. */
 #define SDL_TEXTUREACCESS_STATIC    0
 #define SDL_TEXTUREACCESS_STREAMING 1
 #define SDL_TEXTUREACCESS_TARGET    2
 
-/* Pixel format enum */
+/* Pixel format enum. */
 #define SDL_PIXELFORMAT_ARGB8888  0x16362004u
 #define SDL_PIXELFORMAT_RGBA8888  0x16462004u
 #define SDL_PIXELFORMAT_RGB888    0x16161804u
@@ -486,9 +413,9 @@ typedef struct SDL_RendererInfo {
 
 #define SDL_ALPHA_OPAQUE 255
 
-/* Event structures (stubs)                                                  */
+/* Event structures. */
 
-/* Event types */
+/* Event types. */
 #define SDL_QUIT                 0x100
 #define SDL_KEYDOWN              0x300
 #define SDL_KEYUP                0x301
@@ -505,7 +432,7 @@ typedef struct SDL_RendererInfo {
 #define SDL_FINGERUP             0x701
 #define SDL_WINDOWEVENT          0x200
 
-/* Window events */
+/* Window events. */
 #define SDL_WINDOWEVENT_EXPOSED     3
 #define SDL_WINDOWEVENT_MOVED       4
 #define SDL_WINDOWEVENT_RESIZED     5
@@ -515,16 +442,7 @@ typedef struct SDL_RendererInfo {
 #define SDL_WINDOWEVENT_FOCUS_GAINED 12
 #define SDL_WINDOWEVENT_FOCUS_LOST   13
 
-/* Keysym / Scancode
- *
- * These follow the standard SDL2 USB-HID-based scancode numbering (i.e. the
- * exact values real SDL2's SDL_SCANCODE_* enum uses). This matters because
- * src/kbdapi.cpp's I_HandleKeyboardEvent() / ScanCodeMap[] table indexes
- * directly into these numeric values (e.g. ScanCodeMap[4] == 'A' key), so
- * whatever produces SDL_Event key.keysym.scancode values (see the native
- * Amiga IDCMP raw-key translation further below) MUST emit these same
- * numbers for the existing keyboard code to work correctly.
- */
+/* Keysyms and scancodes mapping to standard SDL2 USB-HID numbering. */
 #define SDL_SCANCODE_A          4
 #define SDL_SCANCODE_B          5
 #define SDL_SCANCODE_C          6
@@ -691,10 +609,10 @@ typedef union SDL_Event {
     SDL_TouchFingerEvent tfinger;
 } SDL_Event;
 
-/* Shared Amiga globals that reference SDL_Event (placed after typedef)      */
+/* Shared Amiga event globals. */
 
 #ifdef __AMIGA__
-/* Event queue, mouse state - single instance owned by amiga_stubs_impl.cpp */
+/* Event queue and mouse state. */
 #define AMIGA_SDL_EVENT_QUEUE_SIZE 64
 AMIGA_STUBS_DECL SDL_Event AmigaEventQueue[AMIGA_SDL_EVENT_QUEUE_SIZE];
 AMIGA_STUBS_DECL int       AmigaEventQueueHead AMIGA_STUBS_INIT(0);
@@ -704,12 +622,12 @@ AMIGA_STUBS_DECL int       AmigaMouseY         AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int       AmigaMouseButtons   AMIGA_STUBS_INIT(0);
 #endif /* __AMIGA__ */
 
-/* Gamecontroller / Haptic stubs                                             */
+/* GameController and Haptic stubs. */
 
 typedef struct SDL_GameController SDL_GameController;
 typedef struct SDL_Haptic SDL_Haptic;
 
-/* Controller buttons */
+/* Controller buttons. */
 #define SDL_CONTROLLER_BUTTON_A             0
 #define SDL_CONTROLLER_BUTTON_B             1
 #define SDL_CONTROLLER_BUTTON_X             2
@@ -725,7 +643,7 @@ typedef struct SDL_Haptic SDL_Haptic;
 #define SDL_CONTROLLER_BUTTON_DPAD_LEFT     13
 #define SDL_CONTROLLER_BUTTON_DPAD_RIGHT    14
 
-/* Controller axes */
+/* Controller axes. */
 #define SDL_CONTROLLER_AXIS_LEFTX           0
 #define SDL_CONTROLLER_AXIS_LEFTY           1
 #define SDL_CONTROLLER_AXIS_RIGHTX          2
@@ -733,7 +651,7 @@ typedef struct SDL_Haptic SDL_Haptic;
 #define SDL_CONTROLLER_AXIS_TRIGGERLEFT     4
 #define SDL_CONTROLLER_AXIS_TRIGGERRIGHT    5
 
-/* Controller types */
+/* Controller types. */
 typedef enum {
     SDL_CONTROLLER_TYPE_UNKNOWN = 0,
     SDL_CONTROLLER_TYPE_XBOX360,
@@ -744,35 +662,32 @@ typedef enum {
     SDL_CONTROLLER_TYPE_PS5
 } SDL_GameControllerType;
 
-/* SDL Hint constants                                                        */
+/* SDL Hint constants. */
 
 #define SDL_HINT_RENDER_SCALE_QUALITY "SDL_RENDER_SCALE_QUALITY"
 #define SDL_HINT_WINDOWS_DISABLE_THREAD_NAMING "SDL_WINDOWS_DISABLE_THREAD_NAMING"
 
-/* Utility macros                                                            */
+/* Utility macros. */
 
 #define SDL_max(a, b) ((a) > (b) ? (a) : (b))
 #define SDL_min(a, b) ((a) < (b) ? (a) : (b))
 
-/* putenv compatibility for noixemul                                         */
+/* putenv compatibility for noixemul. */
 
-/* noixemul may not provide putenv; stub it out for Amiga */
+/* Stub putenv for Amiga if missing. */
 #ifdef __AMIGA__
 #ifndef putenv
 static inline int putenv(char *string) { (void)string; return 0; }
 #endif
 #endif
 
-/* SDL function stubs - TO BE IMPLEMENTED in amiga_*.cpp                     */
-/*                                                                           */
-/* These are declared as static inline so that the Amiga                     */
-/* implementation files can provide the real versions later.                  */
+/* Inline SDL function stubs. */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* --- Init / Quit --- */
+/* Init and Quit */
 static inline int SDL_Init(uint32_t flags)
 {
     (void)flags;
@@ -802,16 +717,12 @@ static inline void   SDL_QuitSubSystem(uint32_t flags) { (void)flags; }
 
 static inline void SDL_Quit(void) {
 #ifdef __AMIGA__
-    /* Idempotent guard: jeśli wszystkie biblioteki już zamknięte (np. przy
-     * drugim wywołaniu przez atexit/EXIT_Clean po ShutDown()), wyjdź od razu.
-     * Zapobiega podwójnemu zamknięciu bibliotek i podwójnemu printf. */
+    /* Idempotent guard to prevent double-closing libraries and redundant output. */
     if (!AmigaGameWindow && !AmigaGameScreen &&
         !IntuitionBase && !GfxBase && !LowLevelBase && !P96Base)
         return;
 
-    /* Restore the native Amiga system pointer before destroying the game
-     * window and closing libraries.  This is the single canonical "show"
-     * call that matches the single "hide" call in SDL_CreateWindow(). */
+    /* Restores the native pointer before destroying window and closing libraries. */
     Amiga_ShowSystemPointer();
     printf("[AMIGA] SDL_Quit: system pointer restored, closing libraries\n"); fflush(stdout);
     Amiga_CloseGameScreen();
@@ -832,15 +743,11 @@ static inline void SDL_Quit(void) {
 #endif
 }
 
-/* --- Error --- */
+/* Error */
 static inline const char* SDL_GetError(void) { return "SDL stubs - not implemented"; }
 
-/* --- Timer --- */
-/*
- * SDL_GetTicks: returns milliseconds since first call.
- * Uses AmigaOS DateStamp() for a working (50Hz resolution) timer.
- * For production, replace with ReadEClock() for higher precision.
- */
+/* Timer */
+/* Returns milliseconds since first call using AmigaOS DateStamp. */
 #ifdef __AMIGA__
 #include <proto/dos.h>
 #include <proto/exec.h>
@@ -855,8 +762,8 @@ static inline uint32_t SDL_GetTicks(void) {
     uint32_t now;
 
     DateStamp(&ds);
-    /* ds.ds_Days * 86400000 would overflow, but we only need relative time */
-    /* ds.ds_Minute is minutes since midnight, ds.ds_Tick is 1/50s ticks */
+    /* Calculate relative time avoiding ds_Days overflow. */
+    /* Convert minutes and ticks to milliseconds. */
     now = (uint32_t)ds.ds_Minute * 60000u + (uint32_t)ds.ds_Tick * 20u;
 
     if (first_call) {
@@ -865,7 +772,7 @@ static inline uint32_t SDL_GetTicks(void) {
     }
     return now - base_ticks;
 #else
-    /* Fallback for non-Amiga compilation testing */
+    /* Fallback for non-Amiga testing. */
     static uint32_t fake_ticks = 0;
     return fake_ticks++;
 #endif
@@ -874,7 +781,7 @@ static inline uint32_t SDL_GetTicks(void) {
 static inline void SDL_Delay(uint32_t ms) {
 #ifdef __AMIGA__
     if (ms > 0) {
-        /* Delay() takes ticks (1/50s = 20ms units) */
+        /* Delay takes ticks (1/50s = 20ms units). */
         uint32_t ticks = (ms + 19) / 20;
         if (ticks < 1) ticks = 1;
         Delay(ticks);
@@ -884,10 +791,10 @@ static inline void SDL_Delay(uint32_t ms) {
 #endif
 }
 
-/* --- Hints --- */
+/* Hints */
 static inline int    SDL_SetHint(const char *n, const char *v) { (void)n; (void)v; return 0; }
 
-/* --- Display info --- */
+/* Display info */
 static inline int    SDL_GetNumVideoDisplays(void) { return 1; }
 static inline int    SDL_GetDisplayBounds(int idx, SDL_Rect *rect) {
     (void)idx;
@@ -900,13 +807,7 @@ static inline int    SDL_GetCurrentDisplayMode(int idx, SDL_DisplayMode *mode) {
     return 0;
 }
 
-/* --- Window --- RTG (Picasso96) custom screen + borderless window          */
-/*                                                                           */
-/* Strictly targets RTG: opens a dedicated, custom 320x200x8 screen (never   */
-/* Workbench) via Picasso96-if-present / plain Intuition-if-not, then a      */
-/* borderless GimmeZeroZero window filling that screen for the game to draw  */
-/* into. See file header comment for the full inline/raw Picasso96 rationale.*/
-
+/* Creates a borderless window on a custom 320x200x8 screen. */
 static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
                                            int w, int h, uint32_t flags) {
     (void)x; (void)y; (void)flags;
@@ -921,14 +822,12 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
         return NULL;
     }
 
-    /* This port strictly targets our own 320x200 8-bit RTG screen,
-     * regardless of what window size the generic i_video.cpp layer asked
-     * for - the game's native resolution is fixed. */
+    /* Forces fixed native resolution. */
     win->w = AMIGA_GAME_WIDTH;
     win->h = AMIGA_GAME_HEIGHT;
 
 #ifdef __AMIGA__
-    /* Open intuition.library v39+ if not already open */
+    /* Opens intuition.library v39+. */
     if (!IntuitionBase) {
         IntuitionBase = (struct IntuitionBase *)OpenLibrary(
             (CONST_STRPTR)"intuition.library", 39);
@@ -941,7 +840,7 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
         printf("[AMIGA] Opened intuition.library v39 OK\n"); fflush(stdout);
     }
 
-    /* graphics.library is needed for BestModeID()/WriteChunkyPixels()/LoadRGB32() */
+    /* Opens graphics.library v39+. */
     if (!GfxBase) {
         GfxBase = (struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library", 39);
         if (!GfxBase) {
@@ -955,7 +854,7 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
         fflush(stdout);
     }
 
-    /* Force our own dedicated custom RTG screen - NEVER Workbench. */
+    /* Forces a dedicated custom screen. */
     struct Screen *scr = Amiga_OpenGameScreen(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
     if (!scr) {
         printf("[AMIGA] SDL_CreateWindow: Amiga_OpenGameScreen FAILED!\n");
@@ -1002,17 +901,10 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
            (void*)win->amiga_window, win->w, win->h, AmigaUsingP96);
     fflush(stdout);
 
-    /* Remember this window at header scope so the native IDCMP event pump
-     * (Amiga_PumpWindowEvents(), see the --- Events --- section below) can
-     * find its IDCMP UserPort message port and MouseX/MouseY fields without
-     * needing an SDL_Window* argument (SDL_PumpEvents() takes none). */
+    /* Stores window reference for event pumping. */
     AmigaGameWindow = win->amiga_window;
 
-    /* Hide the system Amiga pointer immediately after the game window opens.
-     * It remains hidden for the entire lifetime of the application and is
-     * restored only in SDL_Quit() / ShutDown(). This is the single, canonical
-     * hide call - SDL_SetRelativeMouseMode() is now a no-op for Amiga so it
-     * cannot accidentally re-show the pointer when returning to the menu. */
+    /* Hides the system pointer until SDL_Quit. */
     Amiga_HideSystemPointer();
     printf("[AMIGA] System pointer hidden (will be restored at SDL_Quit)\n");
     fflush(stdout);
@@ -1042,7 +934,7 @@ static inline void SDL_DestroyWindow(SDL_Window *w) {
 static inline uint32_t SDL_GetWindowID(SDL_Window *w) { (void)w; return 1; }
 static inline uint32_t SDL_GetWindowFlags(SDL_Window *w) { (void)w; return 0; }
 static inline int    SDL_GetWindowDisplayIndex(SDL_Window *w) { (void)w; return 0; }
-/* Our window is always an 8-bit chunky/CLUT surface - report INDEX8. */
+/* Reports INDEX8 pixel format. */
 static inline uint32_t SDL_GetWindowPixelFormat(SDL_Window *w) { (void)w; return SDL_PIXELFORMAT_INDEX8; }
 
 static inline void SDL_GetWindowSize(SDL_Window *w, int *pw, int *ph) {
@@ -1052,7 +944,7 @@ static inline void SDL_GetWindowSize(SDL_Window *w, int *pw, int *ph) {
 
 static inline void SDL_SetWindowSize(SDL_Window *w, int ww, int hh) {
     (void)ww; (void)hh;
-    /* Fixed 320x200 RTG game screen - resizing is a no-op by design. */
+    /* Resizing is a no-op by design. */
     if (w) { w->w = AMIGA_GAME_WIDTH; w->h = AMIGA_GAME_HEIGHT; }
 }
 
@@ -1064,7 +956,7 @@ static inline void SDL_SetWindowTitle(SDL_Window *w, const char *t) {
     if (!w || !t) return;
 #ifdef __AMIGA__
     if (w->amiga_window) {
-        /* (CONST_STRPTR)~0 = AmigaOS sentinel "don't change screen title" */
+        /* Uses sentinel to preserve screen title. */
         SetWindowTitles(w->amiga_window, (CONST_STRPTR)t, (CONST_STRPTR)~0);
         printf("[AMIGA] SDL_SetWindowTitle: '%s'\n", t); fflush(stdout);
     }
@@ -1073,10 +965,10 @@ static inline void SDL_SetWindowTitle(SDL_Window *w, const char *t) {
 
 static inline void SDL_SetWindowFullscreen(SDL_Window *w, uint32_t f) {
     (void)w; (void)f;
-    /* Already exclusive fullscreen on our own custom screen - no-op. */
+    /* Fullscreen is a no-op. */
 }
 
-/* --- Renderer --- Allocates real struct, links back to window             */
+/* Renderer handling */
 
 static inline SDL_Renderer* SDL_CreateRenderer(SDL_Window *w, int idx, uint32_t flags) {
     (void)idx; (void)flags;
@@ -1116,21 +1008,7 @@ static inline int SDL_GetRendererOutputSize(SDL_Renderer *r, int *w, int *h) {
     return 0;
 }
 
-/*
- * SDL_RenderSetLogicalSize: remembers the "logical" (game-space) render
- * resolution requested by i_video.cpp (SCREENWIDTH x actualheight, i.e.
- * 320x200 or 320x240 depending on aspect_ratio_correct). This is exactly
- * what real SDL2 does internally, and is essential for I_GetMousePos()/
- * I_SetMousePos() (src/i_video.cpp) to correctly translate between real
- * window pixel coordinates and the game's native 320x200 coordinate space
- * via SDL_RenderGetScale()/SDL_RenderGetViewport() below - previously
- * those two stubs ignored this entirely and always reported a hardcoded
- * scale of 1.0 / a fixed 320x200 viewport, which silently broke the
- * mouse-position math whenever logical_h != real window height (e.g. the
- * default aspect_ratio_correct=1 case, where logical height is 240 but
- * our fixed Amiga game window/screen is always the real native 200px
- * tall) - causing the reported mouse Y to be compressed/offset.
- */
+/* Sets logical resolution to enable proper coordinate scaling. */
 static inline int    SDL_RenderSetLogicalSize(SDL_Renderer *r, int w, int h) {
     if (r) { r->logical_w = w; r->logical_h = h; }
     return 0;
@@ -1140,22 +1018,7 @@ static inline int    SDL_RenderSetIntegerScale(SDL_Renderer *r, SDL_bool e) { (v
 static inline void   SDL_RenderClear(SDL_Renderer *r) { (void)r; }
 static inline int    SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *t, const SDL_Rect *s, const SDL_Rect *d) { (void)r; (void)t; (void)s; (void)d; return 0; }
 
-/*
- * SDL_RenderPresent: this is the per-frame "flip" call. On our RTG backend
- * there is no separate texture/renderer pipeline - the 8-bit chunky
- * screenbuffer (I_VideoBuffer, wrapped by the 8-bit SDL_Surface) is what
- * actually gets blitted onto the game window's RastPort, using either
- * WriteChunkyPixels() (preferred, standard graphics.library v50+ call, RTG
- * accelerated when Picasso96 is active) or the slow per-pixel fallback.
- *
- * SDL_LowerBlit() (called earlier this frame by I_FinishUpdate() in
- * i_video.cpp) has already cached a pointer to the source 8-bit chunky
- * buffer + dimensions in AmigaPendingChunky/W/H; here at "present" time we
- * actually push those pixels to the screen. This mirrors real SDL2
- * semantics (LowerBlit fills an intermediate surface, RenderPresent flips
- * it to the display) while doing the genuinely visible hardware blit at
- * the correct point in the frame.
- */
+/* Flips the cached chunky buffer to the screen. */
 static inline void SDL_RenderPresent(SDL_Renderer *r) {
     (void)r;
 #ifdef __AMIGA__
@@ -1170,40 +1033,7 @@ static inline void SDL_RenderPresent(SDL_Renderer *r) {
 static inline int    SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) { (void)r; (void)t; return 0; }
 static inline int    SDL_SetRenderDrawColor(SDL_Renderer *r, uint8_t rr, uint8_t g, uint8_t b, uint8_t a) { (void)r; (void)rr; (void)g; (void)b; (void)a; return 0; }
 
-/*
- * SDL_RenderGetViewport / SDL_RenderGetScale
- *
- * THE FIX for the reported mouse coordinate offset/misalignment bug:
- *
- * Previously these two stubs unconditionally returned a hardcoded
- * viewport of {0,0,320,200} and scale of {1.0,1.0}, completely ignoring
- * the "logical size" requested via SDL_RenderSetLogicalSize(renderer,
- * SCREENWIDTH, actualheight) in src/i_video.cpp's SetVideoMode(). Whenever
- * aspect_ratio_correct=1 (the DEFAULT setting, see VIDEO_LoadPrefs()),
- * actualheight is 240 instead of 200 (SCREENHEIGHT_4_3), so
- * I_GetMousePos()/I_SetMousePos() - which explicitly divide/multiply by
- * these scale values to translate between real window pixels and the
- * game's native 320x200 coordinate space - silently applied the WRONG
- * conversion (an implicit x1.2 Y stretch with no matching viewport
- * offset), producing exactly the vertical mouse-cursor drift/offset
- * described in the bug report.
- *
- * On real desktop SDL2 targets, the renderer actually letterboxes/scales
- * the drawn content to fit an arbitrarily-resizable window, so a nonzero
- * viewport offset + non-unity scale legitimately matter there. On this
- * Amiga RTG port however, the physical output is always a FIXED, NATIVE
- * 320x200 chunky screen (AMIGA_GAME_WIDTH/HEIGHT) that we blit into 1:1,
- * pixel-for-pixel, with no scaling or letterboxing step at all (see
- * Amiga_BlitScreen() above - it just calls WriteChunkyPixels() directly on
- * the exact source dimensions). So the correct/consistent viewport for us
- * is simply the *entire* fixed output (no pillarbox/letterbox offset),
- * and the correct per-axis scale is real-output-size / logical-size --
- * which correctly reduces to sx=1.0 (SCREENWIDTH==logical width always)
- * and sy=SCREENHEIGHT/actualheight (canceling out the *actualheight*
- * factor i_video.cpp's math re-applies), giving an exact identity mapping
- * back onto the native 0-319 / 0-199 pixel space regardless of the
- * aspect_ratio_correct setting - fixing the offset.
- */
+/* Calculates scale and viewport using physical and logical dimensions. */
 static inline int    SDL_RenderGetViewport(SDL_Renderer *r, SDL_Rect *rect) {
     (void)r;
     int outw = 320, outh = 200;
@@ -1223,7 +1053,7 @@ static inline int    SDL_RenderGetScale(SDL_Renderer *r, float *sx, float *sy) {
     return 0;
 }
 
-/* --- Texture --- Allocates real struct with dimensions                    */
+/* Texture handling */
 
 static inline SDL_Texture* SDL_CreateTexture(SDL_Renderer *r, uint32_t f, int a, int w, int h) {
     (void)r; (void)f; (void)a;
@@ -1236,7 +1066,7 @@ static inline void SDL_DestroyTexture(SDL_Texture *t) { free(t); }
 
 static inline int    SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *r, const void *p, int pi) { (void)t; (void)r; (void)p; (void)pi; return 0; }
 
-/* --- Surface --- */
+/* Surface handling */
 static inline SDL_Surface* SDL_CreateRGBSurface(uint32_t flags, int w, int h, int depth,
     uint32_t rm, uint32_t gm, uint32_t bm, uint32_t am) {
     (void)flags;
@@ -1245,14 +1075,14 @@ static inline SDL_Surface* SDL_CreateRGBSurface(uint32_t flags, int w, int h, in
     s->w = w; s->h = h;
     s->pitch = w * ((depth + 7) / 8);
     s->pixels = calloc(1, (size_t)(s->pitch * h));
-    /* Allocate a pixel format */
+    /* Allocate a pixel format. */
     SDL_PixelFormat *fmt = (SDL_PixelFormat*)calloc(1, sizeof(SDL_PixelFormat));
     if (fmt) {
         fmt->BitsPerPixel = (uint8_t)depth;
         fmt->BytesPerPixel = (uint8_t)((depth + 7) / 8);
         fmt->Rmask = rm; fmt->Gmask = gm; fmt->Bmask = bm; fmt->Amask = am;
         if (depth == 8) {
-            /* Allocate palette for 8-bit surfaces */
+            /* Allocate palette for 8-bit surfaces. */
             SDL_Palette *pal = (SDL_Palette*)calloc(1, sizeof(SDL_Palette));
             if (pal) {
                 pal->ncolors = 256;
@@ -1284,13 +1114,7 @@ static inline int SDL_FillRect(SDL_Surface *s, const SDL_Rect *r, uint32_t color
     return 0;
 }
 
-/*
- * SDL_SetPaletteColors: stores the palette into the SDL_Palette struct (as
- * before, for internal consistency with the rest of i_video.cpp), AND - on
- * Amiga - immediately pushes it to the real hardware/RTG screen via
- * Amiga_ApplyPalette()/LoadRGB32() so the 256-color palette is actually
- * applied on screen.
- */
+/* Updates the palette and applies it to the hardware screen. */
 static inline int SDL_SetPaletteColors(SDL_Palette *p, const SDL_Color *c, int first, int n) {
     if (p && p->colors && c) {
         int i;
@@ -1306,12 +1130,8 @@ static inline int SDL_SetPaletteColors(SDL_Palette *p, const SDL_Color *c, int f
 }
 
 static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst, SDL_Rect *dr) {
-    /*
-     * Palette-indexed 8-bit surface -> 32-bit ARGB surface conversion.
-     * This is the critical blit path used by I_FinishUpdate() every frame.
-     * src = 8-bit paletted screenbuffer, dst = 32-bit argbbuffer.
-     */
-    (void)dr; /* destination rect same as source rect for our usage */
+    /* Handles surface conversion or caching based on platform. */
+    (void)dr; /* Destination rect matches source rect. */
     if (!src || !dst || !src->pixels || !dst->pixels) return -1;
     if (!src->format || !src->format->palette || !src->format->palette->colors) return -1;
 
@@ -1325,7 +1145,7 @@ static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst
     uint8_t *srcpix = (uint8_t*)src->pixels;
     int srcpitch = src->pitch;
 
-/* Konwersja palety omijana na Amidze na rzecz surowego bufora chunky */
+/* Palette conversion skipped on Amiga in favor of raw chunky buffer. */
 #ifndef __AMIGA__
     SDL_Color *colors = src->format->palette->colors;
     uint32_t *dstpix = (uint32_t*)dst->pixels;
@@ -1338,16 +1158,12 @@ static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst
         for (x = 0; x < w; x++) {
             uint8_t idx = sp[x];
             SDL_Color c = colors[idx];
-            /* ARGB8888 layout: 0xAARRGGBB */
+            /* ARGB8888 layout. */
             dp[x] = (0xFFu << 24) | ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | (uint32_t)c.b;
         }
     }
 #else
-    /*
-     * Cache the source 8-bit chunky buffer pointer + dimensions for the
-     * actual RTG screen blit, which happens later at SDL_RenderPresent()
-     * time (the real "flip" point in the frame).
-     */
+    /* Caches the source buffer for the actual RTG blit in SDL_RenderPresent. */
     AmigaPendingChunky = srcpix + y0 * srcpitch + x0;
     AmigaPendingW = w;
     AmigaPendingH = h;
@@ -1367,51 +1183,9 @@ static inline int SDL_PixelFormatEnumToMasks(uint32_t format, int *bpp,
     return SDL_TRUE;
 }
 
-/* --- Audio: real ahi.device backend (double-buffered CMD_WRITE) ---        */
+/* Audio handling */
 
-/*
- * Implements the small subset of the SDL2 "simple"/global audio API that
- * src/fx.cpp (SND_InitSound(), via SDL_OpenAudioDevice() below, which just
- * forwards to SDL_OpenAudio()) and src/mputsf.cpp (TSF_Init(), which calls
- * SDL_OpenAudio() directly) need:
- *
- *      SDL_OpenAudio() / SDL_OpenAudioDevice() / SDL_CloseAudio()
- *      SDL_PauseAudio() / SDL_PauseAudioDevice()
- *      SDL_LockAudio()  / SDL_LockAudioDevice()
- *      SDL_UnlockAudio()/ SDL_UnlockAudioDevice()
- *
- * IMPORTANT - scope of this fix: this backend is ONLY ever reached on the
- * NORMAL (audio-enabled) path. When -nosound is passed on the command
- * line, src/fx.cpp's SND_InitSound() returns at its very first statement
- * (before calling SDL_Init(SDL_INIT_AUDIO) or any function in this file),
- * so none of the code below ever executes and ahi.device is never opened.
- * See the "if (g_nosound) { ...; return 1; }" early-out at the top of
- * SND_InitSound() in src/fx.cpp, and the -nosound/-nomusic argv parsing in
- * src/rap.cpp's main().
- *
- * Design: ahi.device is opened directly via OpenDevice("ahi.device", ...)
- * with a raw struct AHIRequest (defined locally below, since the minimal
- * devices/ahi.h shipped with this cross toolchain is missing the
- * io_Data/io_Length/io_Offset/ahir_Link fields required for CMD_WRITE
- * streaming). Only the raw device I/O interface is used - no ahi.library,
- * no AHI_AllocAudio()/AHI_Play()/AHI_LoadSound() convenience calls.
- *
- * Streaming uses classic double buffering (AHI developer guide, "Writing
- * To The Device" chapter): two AHIRequests, each owning one sample buffer,
- * chained via ahir_Link so ahi.device continues seamlessly from one buffer
- * into the next. A dedicated background task (CreateNewProcTags()) pumps
- * the buffers: it waits for the oldest outstanding request to complete,
- * refills it via the SDL_AudioCallback, and resends it chained after the
- * other (still in-flight) buffer.
- *
- * NO STDIO ON THE AUDIO TASK: a process created via CreateNewProcTags()
- * without NP_Output/NP_Input/NP_CloseOutput has no valid DOS console
- * filehandle - calling printf()/fflush() from AudioTaskEntry() or the
- * fill-buffer helper it calls would dereference a bad/foreign BPTR and
- * fault. All diagnostic logging below therefore happens only in
- * SDL_OpenAudio()/SDL_CloseAudio()/SDL_PauseAudio(), which always run on
- * the caller's (main) task.
- */
+/* Implements an audio API subset using ahi.device with double-buffered CMD_WRITE. Avoids STDIO in the background task. */
 #ifdef __AMIGA__
 
 #include <exec/types.h>
@@ -1426,26 +1200,20 @@ static inline int SDL_PixelFormatEnumToMasks(uint32_t format, int *bpp,
 
 #define AMIGA_AHINAME          "ahi.device"
 #define AMIGA_AHI_DEFAULT_UNIT 0
-#define AMIGA_AHIST_M16S 0x00000003UL /* 16 bit mono signed */
-#define AMIGA_AHIST_S16S 0x00000006UL /* 16 bit stereo signed */
+#define AMIGA_AHIST_M16S 0x00000003UL /* 16-bit mono signed. */
+#define AMIGA_AHIST_S16S 0x00000006UL /* 16-bit stereo signed. */
 
-/* AHI's 16.16 fixed-point type (normally "Fixed" from <graphics/gfx.h>). */
+/* AHI 16.16 fixed-point type. */
 typedef LONG AmigaAHIFixed;
 #define AMIGA_AHI_FIXED_1_0 ((AmigaAHIFixed)0x00010000L)
 
-/*
- * Local, ABI-correct replacement for <devices/ahi.h>'s struct AHIRequest.
- * Real ahi.device (per the AHI SDK/RKM) reserves a UWORD pad + FOUR ULONGs
- * of driver-private scratch space right after ahir_Version, and every
- * consumer/driver relies on ahir_Link existing for double-buffered
- * streaming - both are required and both are correctly sized here.
- */
+/* Local replacement for struct AHIRequest ensuring correct padding and driver-private space. */
 struct AmigaAHIRequest
 {
-    struct IOStdReq  ahir_Std;        /* io_Data/io_Length/io_Offset/io_Command/io_Error */
+    struct IOStdReq  ahir_Std;        /* io_Data/io_Length/io_Offset/io_Command/io_Error. */
     UWORD            ahir_Version;
     UWORD            ahir_Reserved;
-    ULONG            ahir_Private[4]; /* driver-private - hands off, must be 4 ULONGs */
+    ULONG            ahir_Private[4]; /* Driver-private space, must be 4 ULONGs. */
     ULONG            ahir_Type;
     ULONG            ahir_Frequency;
     AmigaAHIFixed    ahir_Volume;
@@ -1509,7 +1277,7 @@ static inline void AmigaAudio_FreeIOReqs(void)
     }
 }
 
-/* NO STDIO HERE - runs on the headless background audio task. */
+/* Background audio task - no STDIO allowed. */
 static inline void AmigaAudio_FillBuffer(UBYTE *dst, ULONG bytes)
 
 {
@@ -1535,10 +1303,10 @@ static inline void AmigaAudio_SetupRequest(struct AmigaAHIRequest *req, UBYTE *b
     req->ahir_Type      = g_AmigaAudio.ahiType;
     req->ahir_Frequency = (ULONG)g_AmigaAudio.freq;
     req->ahir_Volume    = AMIGA_AHI_FIXED_1_0;
-    req->ahir_Position  = 0x00000000; /* centered */
+    req->ahir_Position  = 0x00000000; /* Centered position. */
 }
 
-/* NO STDIO IN THIS FUNCTION - dedicated background audio task. */
+/* Dedicated background audio task - no STDIO allowed. */
 static inline void AmigaAudio_TaskEntry(void)
 
 {
@@ -1623,17 +1391,7 @@ static inline void SDL_CloseAudio(void)
     printf("[AMIGA][AUDIO] SDL_CloseAudio: done\n"); fflush(stdout);
 }
 
-/*
- * DIAGNOSIS / FIX: #8000000B (Line 1111/F-line emulator, FPU trap) crashing
- * exactly at OpenDevice(). This project is built with -m68060 -m68881
- * together; at -O2 GCC's register allocator may opportunistically spill a
- * plain integer/pointer value into an FPU register via an "fmove" that a
- * real 68060 doesn't implement in hardware (relying on FPSP emulation that
- * may not be resident/active for that opcode), producing an unhandled
- * trap that looks like it happens "at" OpenDevice(). Forcing this function
- * to compile at -O0 (Makefile.amiga's global -O2 cannot be changed per
- * project rules) removes the opportunity for that spill entirely.
- */
+/* Compiled with -O0 to prevent FPU traps from opportunistic register spills during OpenDevice. */
 __attribute__((optimize("O0")))
 static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obtained)
 {
@@ -1655,7 +1413,7 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
     g_AmigaAudio.channels = desired->channels > 0 ? desired->channels : 2;
     g_AmigaAudio.callback = desired->callback;
     g_AmigaAudio.userdata = desired->userdata;
-    g_AmigaAudio.paused   = 1; /* SDL2 semantics: audio starts paused */
+    g_AmigaAudio.paused   = 1; /* Audio starts paused. */
     g_AmigaAudio.ahiType  = (g_AmigaAudio.channels >= 2) ? AMIGA_AHIST_S16S : AMIGA_AHIST_M16S;
 
     {
@@ -1804,22 +1562,19 @@ static inline SDL_AudioDeviceID SDL_OpenAudioDevice(const char *d, int ic,
     (void)d; (void)ic; (void)changes;
     if (SDL_OpenAudio(desired, obtained) < 0)
         return 0;
-    return 1; /* non-zero device id == success, matching SDL2 semantics */
+    return 1; /* Non-zero device id indicates success. */
 }
 
 static inline void SDL_PauseAudio(int pause_on) { g_AmigaAudio.paused = pause_on ? 1 : 0; }
 static inline void SDL_PauseAudioDevice(SDL_AudioDeviceID d, int p) { (void)d; SDL_PauseAudio(p); }
 
-/* Disable()/Enable(): lightweight critical-section guard between the main
- * task (e.g. TinySoundFont tsf_channel_* calls) and the background audio
- * task's callback invocation - the traditional AmigaOS technique for a
- * tiny critical section like this one. */
+/* Lightweight critical-section guard using Disable/Enable. */
 static inline void SDL_LockAudio(void)   { Disable(); }
 static inline void SDL_UnlockAudio(void) { Enable(); }
 static inline void SDL_LockAudioDevice(SDL_AudioDeviceID d)   { (void)d; SDL_LockAudio(); }
 static inline void SDL_UnlockAudioDevice(SDL_AudioDeviceID d) { (void)d; SDL_UnlockAudio(); }
 
-#else /* !__AMIGA__ : non-Amiga stub/test-compile fallback, unchanged */
+#else /* Non-Amiga stub fallback. */
 
 static inline SDL_AudioDeviceID SDL_OpenAudioDevice(const char *d, int ic,
     const SDL_AudioSpec *desired, SDL_AudioSpec *obtained, int changes)
@@ -1838,9 +1593,7 @@ static inline void   SDL_UnlockAudio(void) {}
 
 #endif /* __AMIGA__ */
 
-/* --- Mouse button constants ---
- * (Moved above the native event pump below, since Amiga_PumpWindowEvents()
- * needs these already defined when translating IDCMP_MOUSEBUTTONS codes.) */
+/* Mouse button constants. */
 #define SDL_BUTTON_LEFT     1
 #define SDL_BUTTON_MIDDLE   2
 #define SDL_BUTTON_RIGHT    3
@@ -1849,26 +1602,12 @@ static inline void   SDL_UnlockAudio(void) {}
 #define SDL_BUTTON(X) (1 << ((X)-1))
 #endif
 
-/* SDL_ShowCursor() argument/return values (real SDL2 numbering). */
+/* SDL_ShowCursor argument/return values. */
 #define SDL_DISABLE 0
 #define SDL_ENABLE  1
 #define SDL_QUERY   -1
 
-/* --- Native Amiga IDCMP event pump --- feeds the SDL_Event queue          */
-/*                                                                           */
-/* This is the piece that was completely missing before: SDL_PumpEvents()   */
-/* and SDL_PollEvent() were both no-op stubs that never touched             */
-/* AmigaGameWindow->UserPort at all, so no keyboard, mouse or window event   */
-/* ever reached the game loop (I_GetEvent() in i_video.cpp), even though     */
-/* the window itself was correctly asking for IDCMP_RAWKEY |                */
-/* IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE | IDCMP_CLOSEWINDOW in               */
-/* SDL_CreateWindow() above.                                                 */
-/*                                                                           */
-/* Amiga_PumpWindowEvents() drains the window's IDCMP message port with the  */
-/* standard GetMsg()/ReplyMsg() Intuition event loop pattern and translates  */
-/* each IntuiMessage into an equivalent SDL_Event, pushed onto a small ring  */
-/* buffer. SDL_PollEvent() then just pops events back out of that buffer,   */
-/* exactly mirroring how real SDL2 works internally.                        */
+/* Drains IDCMP message port and translates IntuiMessages into SDL_Events. */
 
 #ifdef __AMIGA__
 static inline void Amiga_PushEvent(const SDL_Event *ev)
@@ -1900,9 +1639,7 @@ static inline int  Amiga_PopEvent(SDL_Event *out)       { (void)out; return 0; }
 #define IECODE_UP_PREFIX 0x80
 #endif
 
-/* Qualifier bits (normally in devices/inputevent.h). Defined raw/inline here
- * for the same reason as the BIDTAG_* values near the top of this file: we
- * don't want to depend on that header necessarily being present. */
+/* Inlined qualifier bits to avoid header dependency. */
 #ifndef IEQUALIFIER_LALT
 #define IEQUALIFIER_LSHIFT   0x0001
 #define IEQUALIFIER_RSHIFT   0x0002
@@ -1914,9 +1651,7 @@ static inline int  Amiga_PopEvent(SDL_Event *out)       { (void)out; return 0; }
 #define IEQUALIFIER_RCOMMAND 0x0080
 #endif
 
-/* Mouse button IDCMP codes (normally in intuition/intuition.h - defined
- * here as a fallback in case they aren't pulled in transitively). These
- * are the standard, stable Amiga raw mouse button codes. */
+/* Standard Amiga raw mouse button codes. */
 #ifndef SELECTDOWN
 #define SELECTDOWN   (0x68)
 #define SELECTUP     (0x68 | IECODE_UP_PREFIX)
@@ -1926,20 +1661,7 @@ static inline int  Amiga_PopEvent(SDL_Event *out)       { (void)out; return 0; }
 #define MIDDLEUP     (0x6A | IECODE_UP_PREFIX)
 #endif
 
-/*
- * Amiga raw keycode -> SDL USB-HID SDL_SCANCODE_* translation table.
- *
- * Index = raw key code (devices/rawkeycodes.h layout, standard Amiga 500/
- * 2000/3000 keyboard) with the IECODE_UP_PREFIX (0x80) release bit already
- * stripped off, so the whole keyboard fits in 0x00-0x67. A value of 0 means
- * "no mapping" (unused/reserved Amiga raw code, or a key with no sensible
- * PC-style equivalent, e.g. Amiga/Help keys).
- *
- * The resulting scancodes are consumed unmodified by the existing
- * src/kbdapi.cpp I_HandleKeyboardEvent()/ScanCodeMap[] logic, which is why
- * the SDL_SCANCODE_* values defined earlier in this file must (and do)
- * match real SDL2's numbering exactly.
- */
+/* Maps Amiga raw keycodes to SDL USB-HID scancodes. */
 static const uint8_t AmigaRawKeyToScancode[0x68] = {
     /* 0x00 */ SDL_SCANCODE_GRAVE,
     /* 0x01 */ SDL_SCANCODE_1,
@@ -2036,7 +1758,7 @@ static const uint8_t AmigaRawKeyToScancode[0x68] = {
     /* 0x5C */ 0,
     /* 0x5D */ 0,
     /* 0x5E */ 0,
-    /* 0x5F */ 0, /* Help */
+    /* 0x5F */ 0, /* Help. */
     /* 0x60 */ SDL_SCANCODE_LSHIFT,
     /* 0x61 */ SDL_SCANCODE_RSHIFT,
     /* 0x62 */ SDL_SCANCODE_CAPSLOCK,
@@ -2277,12 +1999,7 @@ static inline Uint8 SDL_GameControllerGetButton(SDL_GameController *gamecontroll
         const int fire_play = (AmigaJoyState & JPF_BUTTON_PLAY) ? 1 : 0;
         const int is_fire   = (fire_red || fire_play) ? 1 : 0;
 
-        /*
-         * Oba amigowe FIRE mają robić to samo.
-         * SDL_GameControllerGetButton ma zwracać rzeczywisty, stabilny stan
-         * przycisku, a nie sztucznie migający sygnał co drugą klatkę.
-         * Miganie przez AmigaFrameCount psuło ciągły odczyt fire podczas trzymania.
-         */
+        /* Maps both Amiga FIRE buttons to the same action, returning continuous stable state. */
         if (button == SDL_CONTROLLER_BUTTON_A) return is_fire ? 1 : 0;
         if (button == SDL_CONTROLLER_BUTTON_B) return is_fire ? 1 : 0;
     }
@@ -2302,11 +2019,11 @@ static inline Uint8 SDL_GameControllerGetButton(SDL_GameController *gamecontroll
     return 0;
 }
 
-/* Wstępne deklaracje typów dla atrapy */
+/* Forward declarations for stubs. */
 typedef struct SDL_Haptic SDL_Haptic;
 typedef struct SDL_GameController SDL_GameController;
 
-/* -------------------- HAPTIC ---------------------- */
+/* Haptic */
 
 static inline SDL_Haptic* SDL_HapticOpen(int idx) {
     (void)idx;
@@ -2327,7 +2044,7 @@ static inline void SDL_HapticClose(SDL_Haptic *h) {
     (void)h;
 }
 
-/* ---------------- GAME CONTROLLER ----------------- */
+/* Game Controller */
 
 static inline int SDL_GameControllerGetAttached(SDL_GameController *c) {
     (void)c;
@@ -2344,7 +2061,7 @@ static inline int SDL_GameControllerRumble(SDL_GameController *c, uint16_t low, 
     return -1;
 }
 
-/* -------------------- MESSAGE BOX ----------------- */
+/* Message Box */
 
 #define SDL_MESSAGEBOX_ERROR        0x00000010u
 #define SDL_MESSAGEBOX_WARNING      0x00000020u
@@ -2359,11 +2076,11 @@ static inline int SDL_ShowSimpleMessageBox(uint32_t flags, const char *title, co
     return 0;
 }
 
-/* -------------------- TOUCH EVENTS ---------------- */
+/* Touch Events */
 
 static inline int SDL_GetNumTouchFingers(long long touchID) {
     (void)touchID;
-    return 0; /* Brak multi-touch na Amidze */
+    return 0; /* No multi-touch on Amiga. */
 }
 
 #ifdef __cplusplus
