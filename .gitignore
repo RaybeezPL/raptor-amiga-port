@@ -7,3 +7,5 @@ build
 .vscode
 **/.DS_Storebuild.amiga/
 raptor
+
+build.amiga/
