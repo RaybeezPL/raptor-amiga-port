@@ -33,9 +33,7 @@
 #include <string.h>
 #include <stdio.h>
 
-/* ========================================================================= */
 /* AmigaOS Intuition / Graphics for real screen+window support               */
-/* ========================================================================= */
 
 #ifdef __AMIGA__
 #include <proto/exec.h>
@@ -310,11 +308,7 @@ static inline void Amiga_ShowSystemPointer(void)
 
 #endif /* __AMIGA__ (main AmigaOS block - library bases, globals, helper functions) */
 
-
-
-/* ========================================================================= */
 /* Byte order / Endianness                                                   */
-/* ========================================================================= */
 
 #define SDL_LIL_ENDIAN  1234
 #define SDL_BIG_ENDIAN  4321
@@ -342,9 +336,7 @@ static inline uint32_t SDL_Swap32(uint32_t x)
 #define SDL_SwapBE16(x) (x)
 #define SDL_SwapBE32(x) (x)
 
-/* ========================================================================= */
 /* Basic SDL types                                                           */
-/* ========================================================================= */
 
 typedef uint8_t   Uint8;
 typedef int8_t    Sint8;
@@ -358,9 +350,7 @@ typedef int       SDL_bool;
 #define SDL_FALSE 0
 #define SDL_TRUE  1
 
-/* ========================================================================= */
 /* SDL version macros                                                        */
-/* ========================================================================= */
 
 #define SDL_MAJOR_VERSION 2
 #define SDL_MINOR_VERSION 0
@@ -371,9 +361,7 @@ typedef int       SDL_bool;
      (SDL_MAJOR_VERSION == (x) && SDL_MINOR_VERSION > (y)) || \
      (SDL_MAJOR_VERSION == (x) && SDL_MINOR_VERSION == (y) && SDL_PATCHLEVEL >= (z)))
 
-/* ========================================================================= */
 /* SDL_Init subsystem flags (stubs)                                          */
-/* ========================================================================= */
 
 #define SDL_INIT_TIMER          0x00000001u
 #define SDL_INIT_AUDIO          0x00000010u
@@ -383,9 +371,7 @@ typedef int       SDL_bool;
 #define SDL_INIT_GAMECONTROLLER 0x00002000u
 #define SDL_INIT_EVENTS         0x00004000u
 
-/* ========================================================================= */
 /* Audio format constants                                                    */
-/* ========================================================================= */
 
 #define AUDIO_S16SYS  0x8010  /* Signed 16-bit, system byte order */
 #define SDL_AUDIO_ALLOW_FREQUENCY_CHANGE 0x00000001
@@ -403,10 +389,8 @@ typedef struct SDL_AudioSpec {
     void *userdata;
 } SDL_AudioSpec;
 
-/* ========================================================================= */
 /* Video structures                                                          */
 /* Now with real struct bodies so we can hold Amiga window/screen pointers.   */
-/* ========================================================================= */
 
 typedef struct SDL_Window {
     int w, h;
@@ -502,9 +486,7 @@ typedef struct SDL_RendererInfo {
 
 #define SDL_ALPHA_OPAQUE 255
 
-/* ========================================================================= */
 /* Event structures (stubs)                                                  */
-/* ========================================================================= */
 
 /* Event types */
 #define SDL_QUIT                 0x100
@@ -709,9 +691,7 @@ typedef union SDL_Event {
     SDL_TouchFingerEvent tfinger;
 } SDL_Event;
 
-/* ========================================================================= */
 /* Shared Amiga globals that reference SDL_Event (placed after typedef)      */
-/* ========================================================================= */
 
 #ifdef __AMIGA__
 /* Event queue, mouse state - single instance owned by amiga_stubs_impl.cpp */
@@ -724,9 +704,7 @@ AMIGA_STUBS_DECL int       AmigaMouseY         AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int       AmigaMouseButtons   AMIGA_STUBS_INIT(0);
 #endif /* __AMIGA__ */
 
-/* ========================================================================= */
 /* Gamecontroller / Haptic stubs                                             */
-/* ========================================================================= */
 
 typedef struct SDL_GameController SDL_GameController;
 typedef struct SDL_Haptic SDL_Haptic;
@@ -766,23 +744,17 @@ typedef enum {
     SDL_CONTROLLER_TYPE_PS5
 } SDL_GameControllerType;
 
-/* ========================================================================= */
 /* SDL Hint constants                                                        */
-/* ========================================================================= */
 
 #define SDL_HINT_RENDER_SCALE_QUALITY "SDL_RENDER_SCALE_QUALITY"
 #define SDL_HINT_WINDOWS_DISABLE_THREAD_NAMING "SDL_WINDOWS_DISABLE_THREAD_NAMING"
 
-/* ========================================================================= */
 /* Utility macros                                                            */
-/* ========================================================================= */
 
 #define SDL_max(a, b) ((a) > (b) ? (a) : (b))
 #define SDL_min(a, b) ((a) < (b) ? (a) : (b))
 
-/* ========================================================================= */
 /* putenv compatibility for noixemul                                         */
-/* ========================================================================= */
 
 /* noixemul may not provide putenv; stub it out for Amiga */
 #ifdef __AMIGA__
@@ -791,12 +763,10 @@ static inline int putenv(char *string) { (void)string; return 0; }
 #endif
 #endif
 
-/* ========================================================================= */
 /* SDL function stubs - TO BE IMPLEMENTED in amiga_*.cpp                     */
 /*                                                                           */
 /* These are declared as static inline so that the Amiga                     */
 /* implementation files can provide the real versions later.                  */
-/* ========================================================================= */
 
 #ifdef __cplusplus
 extern "C" {
@@ -930,14 +900,12 @@ static inline int    SDL_GetCurrentDisplayMode(int idx, SDL_DisplayMode *mode) {
     return 0;
 }
 
-/* ========================================================================= */
 /* --- Window --- RTG (Picasso96) custom screen + borderless window          */
 /*                                                                           */
 /* Strictly targets RTG: opens a dedicated, custom 320x200x8 screen (never   */
 /* Workbench) via Picasso96-if-present / plain Intuition-if-not, then a      */
 /* borderless GimmeZeroZero window filling that screen for the game to draw  */
 /* into. See file header comment for the full inline/raw Picasso96 rationale.*/
-/* ========================================================================= */
 
 static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
                                            int w, int h, uint32_t flags) {
@@ -1071,7 +1039,6 @@ static inline void SDL_DestroyWindow(SDL_Window *w) {
     free(w);
 }
 
-
 static inline uint32_t SDL_GetWindowID(SDL_Window *w) { (void)w; return 1; }
 static inline uint32_t SDL_GetWindowFlags(SDL_Window *w) { (void)w; return 0; }
 static inline int    SDL_GetWindowDisplayIndex(SDL_Window *w) { (void)w; return 0; }
@@ -1109,9 +1076,7 @@ static inline void SDL_SetWindowFullscreen(SDL_Window *w, uint32_t f) {
     /* Already exclusive fullscreen on our own custom screen - no-op. */
 }
 
-/* ========================================================================= */
 /* --- Renderer --- Allocates real struct, links back to window             */
-/* ========================================================================= */
 
 static inline SDL_Renderer* SDL_CreateRenderer(SDL_Window *w, int idx, uint32_t flags) {
     (void)idx; (void)flags;
@@ -1258,10 +1223,7 @@ static inline int    SDL_RenderGetScale(SDL_Renderer *r, float *sx, float *sy) {
     return 0;
 }
 
-
-/* ========================================================================= */
 /* --- Texture --- Allocates real struct with dimensions                    */
-/* ========================================================================= */
 
 static inline SDL_Texture* SDL_CreateTexture(SDL_Renderer *r, uint32_t f, int a, int w, int h) {
     (void)r; (void)f; (void)a;
@@ -1405,9 +1367,8 @@ static inline int SDL_PixelFormatEnumToMasks(uint32_t format, int *bpp,
     return SDL_TRUE;
 }
 
-/* ========================================================================= */
 /* --- Audio: real ahi.device backend (double-buffered CMD_WRITE) ---        */
-/* ========================================================================= */
+
 /*
  * Implements the small subset of the SDL2 "simple"/global audio API that
  * src/fx.cpp (SND_InitSound(), via SDL_OpenAudioDevice() below, which just
@@ -1877,7 +1838,6 @@ static inline void   SDL_UnlockAudio(void) {}
 
 #endif /* __AMIGA__ */
 
-
 /* --- Mouse button constants ---
  * (Moved above the native event pump below, since Amiga_PumpWindowEvents()
  * needs these already defined when translating IDCMP_MOUSEBUTTONS codes.) */
@@ -1894,8 +1854,6 @@ static inline void   SDL_UnlockAudio(void) {}
 #define SDL_ENABLE  1
 #define SDL_QUERY   -1
 
-
-/* ========================================================================= */
 /* --- Native Amiga IDCMP event pump --- feeds the SDL_Event queue          */
 /*                                                                           */
 /* This is the piece that was completely missing before: SDL_PumpEvents()   */
@@ -1911,7 +1869,6 @@ static inline void   SDL_UnlockAudio(void) {}
 /* each IntuiMessage into an equivalent SDL_Event, pushed onto a small ring  */
 /* buffer. SDL_PollEvent() then just pops events back out of that buffer,   */
 /* exactly mirroring how real SDL2 works internally.                        */
-/* ========================================================================= */
 
 #ifdef __AMIGA__
 static inline void Amiga_PushEvent(const SDL_Event *ev)
@@ -2308,7 +2265,6 @@ static inline Sint16 SDL_GameControllerGetAxis(SDL_GameController *gamecontrolle
 #endif
     return 0;
 }
-
 
 static inline Uint8 SDL_GameControllerGetButton(SDL_GameController *gamecontroller, int button)
 {
