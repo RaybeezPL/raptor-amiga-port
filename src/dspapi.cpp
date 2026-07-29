@@ -1,16 +1,43 @@
 #include <stdint.h>
 #include <stdio.h>
+#include "SDL.h"
 #include "common.h"
 #include "dspapi.h"
 #include "fx.h"
 #include "entypes.h"
 
-int dsp_init;
-int dsp_freq;
-int dsp_channelnum;
-int dsp_cnt;
-int dsp_rsmp;
-int dsp_samp[2];
+
+int dsp_init = 0;
+int dsp_freq = 11025;
+int dsp_channelnum = 8;
+int dsp_cnt = 0;
+int dsp_rsmp = 0;
+int dsp_samp[2] = {0, 0};
+
+
+/* Pomocnicza pewna konwersja Little-Endian do Host (m68k/Amiga) */
+static inline uint16_t SwapLE16(uint16_t val)
+{
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+    return (uint16_t)((val << 8) | (val >> 8));
+#else
+    return val;
+#endif
+}
+
+
+static inline uint32_t SwapLE32(uint32_t val)
+{
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+    return ((val << 24) |
+            ((val << 8) & 0x00FF0000u) |
+            ((val >> 8) & 0x0000FF00u) |
+            (val >> 24));
+#else
+    return val;
+#endif
+}
+
 
 uint16_t pitchtable[256] = {
     0x0040, 0x0040, 0x0041, 0x0042, 0x0042, 0x0043,
@@ -58,6 +85,7 @@ uint16_t pitchtable[256] = {
     0x03D4, 0x03DF, 0x03EA, 0x03F5
 };
 
+
 uint8_t pantable[256] = {
     0x0E, 0x13, 0x19, 0x1D, 0x22, 0x26, 0x2A, 0x2F, 0x33, 0x37, 0x3B, 0x3F,
     0x41, 0x45, 0x49, 0x4C, 0x50, 0x53, 0x55, 0x59, 0x5C, 0x5E, 0x61, 0x65,
@@ -86,350 +114,339 @@ uint8_t pantable[256] = {
 
 struct channel_t {
     dsp_t *dsp;
-
     char *data;
-
     int handle;
     int priority;
-
     int samples;
-
-    // int phase;
     int phase_inc;
     int phase_sub;
     int phase_sub_inc;
-    
     int voltable1[256];
     int voltable2[256];
 };
 
-channel_t dsp_channels[8];
+
+static channel_t dsp_channels[8];
+
 
 /***************************************************************************
 DSP_Init() -
  ***************************************************************************/
-void 
-DSP_Init(
-    int channels, 
-    int freq
-)
+void DSP_Init(int channels, int freq)
 {
     int i;
-    
+
     if (dsp_init)
         return;
 
     if (channels < 1)
         channels = 1;
     if (channels > 8)
-        channels = 0;
+        channels = 8;
 
     dsp_channelnum = channels;
-    dsp_freq = freq;
+    dsp_freq = (freq > 0) ? freq : 11025;
 
-    for (i = 0; i < dsp_channelnum; i++)
-    {
-        auto chan = &dsp_channels[i];
-        chan->samples = 0;
+    for (i = 0; i < 8; i++) {
+        dsp_channels[i].samples = 0;
+        dsp_channels[i].dsp = NULL;
+        dsp_channels[i].data = NULL;
+        dsp_channels[i].handle = -1;
+        dsp_channels[i].priority = -2147483647 - 1;
+        dsp_channels[i].phase_inc = 0;
+        dsp_channels[i].phase_sub = 0;
+        dsp_channels[i].phase_sub_inc = 0;
     }
 
     dsp_samp[0] = 0;
     dsp_samp[1] = 0;
     dsp_rsmp = 0;
-
+    dsp_cnt = 0;
     dsp_init = 1;
 }
+
 
 /***************************************************************************
 DSP_DeInit() -
  ***************************************************************************/
-void 
-DSP_DeInit(
-    void
-)
+void DSP_DeInit(void)
 {
-    if (!dsp_init)
-        return;
+    int i;
 
+    for (i = 0; i < 8; i++) {
+        dsp_channels[i].samples = 0;
+        dsp_channels[i].dsp = NULL;
+        dsp_channels[i].data = NULL;
+        dsp_channels[i].handle = -1;
+        dsp_channels[i].priority = -2147483647 - 1;
+        dsp_channels[i].phase_inc = 0;
+        dsp_channels[i].phase_sub = 0;
+        dsp_channels[i].phase_sub_inc = 0;
+    }
+
+    dsp_samp[0] = 0;
+    dsp_samp[1] = 0;
+    dsp_rsmp = 0;
     dsp_init = 0;
 }
+
 
 /***************************************************************************
 DSP_Mix() -
  ***************************************************************************/
-void 
-DSP_Mix(
-    int16_t *buffer, 
-    int len
-)
+void DSP_Mix(int16_t *buffer, int len)
 {
     channel_t *chan;
     int i, l, r, j;
-    int16_t *buf_start = buffer;
-    static int dsp_mix_probe = 0;
-    
-    if (!dsp_init)
+
+    if (!dsp_init || !buffer || len <= 0)
         return;
 
-    for (i = 0; i < len; i++)
-    {
+    if (fx_freq <= 0)
+        fx_freq = dsp_freq;
+
+    for (i = 0; i < len; i++) {
         dsp_rsmp += dsp_freq;
-        
-        while (dsp_rsmp >= fx_freq)
-        {
+
+        while (dsp_rsmp >= fx_freq) {
             dsp_rsmp -= fx_freq;
             l = 0;
             r = 0;
-            
-            for (j = 0; j < dsp_channelnum; j++)
-            {
+
+            for (j = 0; j < dsp_channelnum; j++) {
                 chan = &dsp_channels[j];
-                
-                if (chan->samples)
-                {
+
+                if (chan->samples > 0 && chan->data != NULL) {
                     l += chan->voltable1[(uint8_t)*chan->data];
                     r += chan->voltable2[(uint8_t)*chan->data];
+
                     chan->phase_sub += chan->phase_sub_inc;
-                    
-                    if (chan->phase_sub >= 256)
-                    {
-                        chan->phase_sub &= 255;
+                    if (chan->phase_sub >= 256) {
+                        chan->phase_sub -= 256;
                         chan->data++;
                     }
-                    
+
                     chan->data += chan->phase_inc;
                     chan->samples--;
+
+                    if (chan->samples <= 0) {
+                        chan->samples = 0;
+                        chan->dsp = NULL;
+                        chan->data = NULL;
+                        chan->handle = -1;
+                        chan->priority = -2147483647 - 1;
+                        chan->phase_inc = 0;
+                        chan->phase_sub = 0;
+                        chan->phase_sub_inc = 0;
+                    }
                 }
             }
-            
+
             if (l < -128)
                 l = -128;
             else if (l > 127)
                 l = 127;
-            
+
             if (r < -128)
                 r = -128;
             else if (r > 127)
                 r = 127;
-            
+
             dsp_samp[0] = l * 128;
             dsp_samp[1] = r * 128;
         }
+
         l = buffer[0] + dsp_samp[0];
         r = buffer[1] + dsp_samp[1];
-        
-        if (l < INT16_MIN)
-            l = INT16_MIN;
-        else if (l > INT16_MAX)
-            l = INT16_MAX;
-        
-        if (r < INT16_MIN)
-            r = INT16_MIN;
-        else if (r > INT16_MAX)
-            r = INT16_MAX;
-        
-        buffer[0] = l;
-        buffer[1] = r;
 
+        if (l < -32768)
+            l = -32768;
+        else if (l > 32767)
+            l = 32767;
+
+        if (r < -32768)
+            r = -32768;
+        else if (r > 32767)
+            r = 32767;
+
+        buffer[0] = (int16_t)l;
+        buffer[1] = (int16_t)r;
         buffer += 2;
     }
-
-    if (dsp_mix_probe < 5) {
-        int nz = 0, k;
-        for (k = 0; k < 16 && k < len * 2; k++)
-            if (buf_start[k]) nz++;
-        printf("[DSP_Mix] probe#%d len=%d non-zero/first-8-frames=%d\n",
-            dsp_mix_probe, len, nz);
-        fflush(stdout);
-        dsp_mix_probe++;
-    }
 }
+
 
 /***************************************************************************
 DSP_PatchIsPlaying() -
  ***************************************************************************/
-int 
-DSP_PatchIsPlaying(
-    int handle
-)
+int DSP_PatchIsPlaying(int handle)
 {
-    int i, stat;
+    int i, stat = 0;
+
     handle &= FXHAND_MASK;
-    stat = 0;
-    
+
     SND_Lock();
-    
-    for (i = 0; i < dsp_channelnum; i++)
-    {
-        if (dsp_channels[i].samples && dsp_channels[i].handle == handle)
-        {
+    for (i = 0; i < dsp_channelnum; i++) {
+        if (dsp_channels[i].samples > 0 && dsp_channels[i].handle == handle) {
             stat = 1;
             break;
         }
     }
-    
     SND_Unlock();
-    
+
     return stat;
 }
+
 
 /***************************************************************************
 DSP_VolTable() -
  ***************************************************************************/
-void 
-DSP_VolTable(
-    int *table, 
-    int vol
-)
+void DSP_VolTable(int *table, int vol)
 {
-    int val;
-    int step;
-    int sub_step;
-    int accm;
-    int i;
+    int val, step, sub_step, accm, i;
 
-    val = - (vol / 2);
+    val = -(vol / 2);
     step = vol >> 8;
     sub_step = vol & 255;
     accm = sub_step >> 1;
-    
-    for (i = 0; i < 256; i++)
-    {
+
+    for (i = 0; i < 256; i++) {
         table[i] = val;
         val += step;
         accm += sub_step;
-        
-        while (accm >= 256)
-        {
+        while (accm >= 256) {
             val++;
             accm -= 256;
         }
     }
 }
 
+
 /***************************************************************************
 DSP_StartPatch() -
  ***************************************************************************/
-int 
-DSP_StartPatch(
-    dsp_t *dsp, 
-    int sep, 
-    int pitch, 
-    int volume, 
-    int priority
-)
+int DSP_StartPatch(dsp_t *dsp, int sep, int pitch, int volume, int priority)
 {
     channel_t *chan = NULL;
-    int i, lowpriority, samples, best, step, lvol, rvol;
-    int handle = (dsp_cnt++) & FXHAND_MASK;
+    int i, step, lvol, rvol;
+    int handle;
+    uint16_t fmt;
+    uint32_t len;
+    uint16_t freq;
+    int samples;
+    int dsp_f;
+    int replace_idx;
+    int lowest_priority;
 
-    printf("[DSP_StartPatch] dsp=%p sep=%d pitch=%d vol=%d pri=%d\n",
-        (void*)dsp, sep, pitch, volume, priority);
-    if (dsp)
-        printf("[DSP_StartPatch]  fmt=%d len=%ld\n",
-            (int)LE_SHORT(dsp->format), (long)LE_LONG(dsp->length));
-    fflush(stdout);
-
-    if (LE_SHORT(dsp->format) != 3 || LE_LONG(dsp->length) <= 32)
+    if (!dsp_init || !dsp)
         return -1;
 
+    handle = (dsp_cnt++) & FXHAND_MASK;
+
+    fmt = SwapLE16(dsp->format);
+    len = SwapLE32(dsp->length);
+    freq = SwapLE16(dsp->freq);
+
+    if (fmt != 3 || len <= 32 || freq == 0)
+        return -1;
+
+    if (volume < 0)
+        volume = 0;
+    if (volume > 255)
+        volume = 255;
+
+    if (sep < 0)
+        sep = 0;
+    if (sep > 255)
+        sep = 255;
+
+    samples = (int)len - 32;
+    if (samples <= 0)
+        return -1;
+
+    dsp_f = (dsp_freq > 0) ? dsp_freq : 11025;
+    step = (int)((pitchtable[pitch & 255] * (uint32_t)freq + (uint32_t)(dsp_f / 2)) / (uint32_t)dsp_f);
+    if (step <= 0)
+        step = 1;
+
+    lvol = (pantable[255 - (sep & 255)] * volume) / 256;
+    rvol = (pantable[sep & 255] * volume) / 256;
+
     SND_Lock();
-    
-    for (i = 0; i < dsp_channelnum; i++)
-    {
-        if (!dsp_channels[i].samples)
-        {
+
+    for (i = 0; i < dsp_channelnum; i++) {
+        if (dsp_channels[i].samples <= 0) {
             chan = &dsp_channels[i];
             break;
         }
     }
-    
-    if (!chan) // No free channels
-    {
-        lowpriority = 0;
-        samples = INT32_MAX;
-        best = 0;
-        
-        for (i = 0; i < dsp_channelnum; i++)
-        {
-            if (dsp_channels[i].priority > lowpriority)
-            {
-                lowpriority = dsp_channels[i].priority;
-                best = i;
-            }
-            else if (dsp_channels[i].priority == lowpriority
-                && dsp_channels[i].samples < samples)
-            {
-                samples = dsp_channels[i].samples;
-                best = i;
+
+    if (!chan) {
+        replace_idx = 0;
+        lowest_priority = dsp_channels[0].priority;
+
+        for (i = 1; i < dsp_channelnum; i++) {
+            if (dsp_channels[i].priority < lowest_priority) {
+                lowest_priority = dsp_channels[i].priority;
+                replace_idx = i;
             }
         }
-        
-        if (lowpriority < priority || lowpriority == 0)
-        {
+
+        if (priority < lowest_priority) {
             SND_Unlock();
             return -1;
         }
 
-        if (lowpriority == priority && dsp_channels[best].dsp != dsp)
-        {
-            for (i = 0; i < dsp_channelnum; i++)
-            {
-                if (dsp_channels[i].dsp == dsp)
-                {
-                    best = i;
-                    break;
-                }
-            }
-        }
-
-        chan = &dsp_channels[best];
+        chan = &dsp_channels[replace_idx];
     }
-
-    samples = LE_LONG(dsp->length) - 32;
-    step = (pitchtable[pitch] * LE_SHORT(dsp->freq) + dsp_freq / 2) / dsp_freq; // .8
-
-    lvol = (pantable[255 - sep] * volume) / 127;
-    rvol = (pantable[sep] * volume) / 127;
 
     DSP_VolTable(chan->voltable1, lvol);
     DSP_VolTable(chan->voltable2, rvol);
 
-    chan->dsp = dsp;
-    chan->data = dsp->data + 16;
-    chan->phase_sub_inc = step & 255;
-    chan->phase_sub = chan->phase_sub_inc >> 1;
-    chan->phase_inc = step >> 8;
-    chan->priority = priority;
+    /* DMX raw-PCM patch layout hypothesis: 8-byte header (format/freq/length)
+     * + 16 bytes leading silence padding + real samples + 16 bytes trailing
+     * padding. "length" field includes the 32 bytes of total padding (hence
+     * samples = len - 32 above), but the real sample data starts right after
+     * the 8-byte header + 16-byte leading pad = offset 24, not 32. */
+    chan->data = ((char *)dsp) + 24;
+    chan->samples = samples;
     chan->handle = handle;
-    chan->samples = (samples << 8) / step;
+    chan->priority = priority;
+    chan->phase_inc = step >> 8;
+    chan->phase_sub_inc = step & 255;
+    chan->phase_sub = 0;
+    chan->dsp = dsp;
 
     SND_Unlock();
-    
+
     return handle | FXHAND_DSP;
 }
+
 
 /***************************************************************************
 DSP_StopPatch() -
  ***************************************************************************/
-void 
-DSP_StopPatch(
-    int handle
-)
+void DSP_StopPatch(int handle)
 {
     int i;
+
     handle &= FXHAND_MASK;
-    
+
     SND_Lock();
-    
-    for (i = 0; i < dsp_channelnum; i++)
-    {
-        if (dsp_channels[i].samples && dsp_channels[i].handle == handle)
-        {
+
+    for (i = 0; i < dsp_channelnum; i++) {
+        if (dsp_channels[i].samples > 0 && dsp_channels[i].handle == handle) {
             dsp_channels[i].samples = 0;
+            dsp_channels[i].dsp = NULL;
+            dsp_channels[i].data = NULL;
+            dsp_channels[i].handle = -1;
+            dsp_channels[i].priority = -2147483647 - 1;
+            dsp_channels[i].phase_inc = 0;
+            dsp_channels[i].phase_sub = 0;
+            dsp_channels[i].phase_sub_inc = 0;
             break;
         }
     }
-    
+
     SND_Unlock();
 }

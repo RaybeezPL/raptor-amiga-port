@@ -23,12 +23,8 @@ static int fx_init = 0;
 static int lockcount;
 int fx_freq = 44100;
 
-/* FX_Fill instrumentation counters (audio thread writes, main thread reads at shutdown) */
-       volatile unsigned long fx_fill_calls   = 0;
-static volatile int           fx_fill_last_len = 0;
-static volatile unsigned long fx_fill_nonzero  = 0;
-
 int music_song = -1;
+
 int fx_gus;
 int fx_channels;
 int sys_midi, winmm_mpu_device, core_dls_synth, core_midi_port, alsaclient, alsaport;
@@ -40,7 +36,6 @@ int sys_midi, winmm_mpu_device, core_dls_synth, core_midi_port, alsaclient, alsa
 int g_nosound = 0;
 int g_nomusic = 0;
 
-
 typedef struct
 {
     int item;         // GLB ITEM
@@ -51,7 +46,7 @@ typedef struct
     int vol;          // VOLUME
     int gcache;       // CACHE FOR IN GAME USE ?
     int odig;         // TRUE = ONLY PLAY DIGITAL
-}DFX;
+} DFX;
 
 DFX fx_items[FX_LAST_SND];
 int fx_loaded;
@@ -72,42 +67,40 @@ char cards[M_LAST][23] = {
 };
 
 /***************************************************************************
-FX_Fill() -
+FX_Fill() - Audio callback invoked by the AHI backend (background task).
+Must stay as cheap as possible: no STDIO, no float math, no unnecessary
+loops. Any change here should be re-checked against the 68060 performance
+requirements described in the porting notes.
  ***************************************************************************/
-static void 
-FX_Fill(
-    void *userdata, 
-    Uint8 *stream, 
-    int len
-)
+void FX_Fill(void *userdata, uint8_t *stream, int len)
 {
-    memset(stream, 0, len);
-    int16_t *stream16 = (int16_t*)stream;
-    len /= 4;
+    (void)userdata;
 
-    fx_fill_calls++;
-    fx_fill_last_len = len;
-
-    MUS_Mix(stream16, len);
-    GSS_Mix(stream16, len);
-    DSP_Mix(stream16, len);
-
-    {
-        int i, any = 0;
-        for (i = 0; i < 32 && i < len * 2; i++) {
-            if (stream16[i] != 0) { any = 1; break; }
-        }
-        if (any) fx_fill_nonzero++;
+    if (g_nosound || !stream || len <= 0) {
+        if (stream && len > 0) memset(stream, 0, len);
+        return;
     }
+
+    /* Czyszczenie bufora (wyjściowe stereo S16 = 0) */
+    memset(stream, 0, len);
+
+    /* 1 ramka stereo S16 (2 ch * 2 B) = 4 B. Liczba ramek = len / 4 */
+    int frames = len / 4;
+    if (frames <= 0) return;
+
+    if (music_volume > 0 && !g_nomusic) {
+        MUS_Mix((int16_t*)stream, frames);
+    }
+
+    GSS_Mix((int16_t*)stream, frames);
+
+    DSP_Mix((int16_t*)stream, frames);
 }
 
 /***************************************************************************
 SND_InitSound () - Does bout all i can think of for Music/FX initing
  ***************************************************************************/
-int 
-SND_InitSound(
-    void
-)
+int SND_InitSound(void)
 {
     int music_card, fx_card, fx_chans;
     char *genmidi = NULL;
@@ -136,7 +129,6 @@ SND_InitSound(
 
     if (SDL_Init(SDL_INIT_AUDIO) < 0)
         return 0;
-
 
     spec.freq = fx_freq;
     spec.format = AUDIO_S16SYS;
@@ -207,7 +199,6 @@ SND_InitSound(
         MUS_Init(music_card, 0);
         MUS_SetVolume(music_volume);
     }
-
 
     fx_volume = INI_GetPreferenceLong("SoundFX", "Volume", 127);
     fx_card = INI_GetPreferenceLong("SoundFX", "CardType", 0);
@@ -283,44 +274,25 @@ SND_InitSound(
 
     fx_init = 1;
 
-    /* [PROBE 1] SND_InitSound summary - verify config was read correctly on Amiga */
-    printf("[SFX PROBE] SND_InitSound done: fx_volume=%d fx_card=%d fx_device=%d "
-           "fx_channels=%d dig_flag=%d fx_freq=%d\n",
-           fx_volume, fx_card, fx_device, fx_channels, dig_flag, fx_freq);
-    fflush(stdout);
-
     return 1;
 }
 
 /***************************************************************************
 SND_DeInit () -
  ***************************************************************************/
-void SND_DeInit(
-    void
-)
+void SND_DeInit(void)
 {
     if (!fx_init)
         return;
 
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
     fx_init = 0;
-
-    /* [FX_Fill PROBE] printed once after audio subsystem teardown, on the main task.
-     * By this point the AHI background task (started in SDL_OpenAudio) has been
-     * stopped by SDL_QuitSubSystem, so the audio callback can no longer run and
-     * reading the volatile counters here is race-free. */
-    printf("[FX_Fill PROBE] calls=%lu last_len=%d nonzero_blocks=%lu\n",
-           fx_fill_calls, fx_fill_last_len, fx_fill_nonzero);
-    fflush(stdout);
 }
 
 /***************************************************************************
 SND_Setup() - Inits SND System  called after SND_InitSound() and GLB_Init
  ***************************************************************************/
-void 
-SND_Setup(
-    void
-)
+void SND_Setup(void)
 {
     int loop;
     DFX *lib;
@@ -744,29 +716,12 @@ SND_Setup(
         else
             lib->item = -1;
     }
-
-    /* [PROBE 2] SND_Setup summary - verify GLB item IDs resolved correctly.
-     * fx_device (SND_DIGITAL=4) is added to each raw GLB_GetItemID base.
-     * If items show as -1, GLB_GetItemID returned 0 (name not found).
-     * If items are wrong values, the +fx_device offset is misaligned. */
-    printf("[SFX PROBE] SND_Setup done: fx_device=%d fx_loaded=%d\n",
-           fx_device, fx_loaded);
-    printf("[SFX PROBE]   FX_GUN    item=0x%x  FX_AIREXPLO item=0x%x  FX_JETSND item=0x%x\n",
-           fx_items[FX_GUN].item, fx_items[FX_AIREXPLO].item, fx_items[FX_JETSND].item);
-    printf("[SFX PROBE]   FX_BONUS  item=0x%x  FX_LASER    item=0x%x  FX_EXPLO  item=0x%x\n",
-           fx_items[FX_BONUS].item, fx_items[FX_LASER].item, fx_items[FX_GEXPLO].item);
-    printf("[SFX PROBE]   FX_MON1   item=0x%x  FX_BOSS1    item=0x%x  FX_THEME  item=0x%x\n",
-           fx_items[FX_MON1].item, fx_items[FX_BOSS1].item, fx_items[FX_THEME].item);
-    fflush(stdout);
 }
 
 /***************************************************************************
 SND_FreeFX () - Frees up Fx's
  ***************************************************************************/
-void 
-SND_FreeFX(
-    void
-)
+void SND_FreeFX(void)
 {
     int loop;
     DFX *lib;
@@ -785,10 +740,7 @@ SND_FreeFX(
 /***************************************************************************
 SND_CacheFX () Caches all FX's
  ***************************************************************************/
-void 
-SND_CacheFX(
-    void
-)
+void SND_CacheFX(void)
 {
     int loop;
     DFX *lib;
@@ -805,10 +757,7 @@ SND_CacheFX(
 /***************************************************************************
 SND_CacheGFX () Caches in Game FX's
  ***************************************************************************/
-void 
-SND_CacheGFX(
-    void
-)
+void SND_CacheGFX(void)
 {
     int loop;
     DFX *lib;
@@ -827,10 +776,7 @@ SND_CacheGFX(
 /***************************************************************************
 SND_CacheIFX () Caches intro and menu FX
  ***************************************************************************/
-void 
-SND_CacheIFX(
-    void
-)
+void SND_CacheIFX(void)
 {
     int loop;
     DFX *lib;
@@ -847,17 +793,18 @@ SND_CacheIFX(
 }
 
 /***************************************************************************
-SFX_Playing () -
+SFX_Playing () - Sprawdza czy dany dźwięk wciąż odtwarza się na backendzie
  ***************************************************************************/
-int 
-SFX_Playing(
-    int handle
-)
+int SFX_Playing(int handle)
 {
+    if (handle == -1)
+        return 0;
+
     switch (handle & FXHAND_TMASK)
     {
     case FXHAND_GSS1:
         return GSS_PatchIsPlaying(handle);
+    
     case FXHAND_DSP:
         return DSP_PatchIsPlaying(handle);
     }
@@ -868,35 +815,9 @@ SFX_Playing(
 /***************************************************************************
 SFX_PlayPatch () -
  ***************************************************************************/
-int 
-SFX_PlayPatch(
-    char* patch, 
-    int pitch, 
-    int sep, 
-    int vol, 
-    int priority
-)
+int SFX_PlayPatch(char* patch, int pitch, int sep, int vol, int priority)
 {
-    /* [PROBE 3] SFX_PlayPatch - confirm patch pointer is valid and format type.
-     * patch==NULL means GLB_LockItem returned NULL (item ID wrong or not cached).
-     * type should be 3 for DSP digital audio; 1/2 = GSS/OPL; 0 = no data. */
-    static int probe3_count = 0;
-    if (probe3_count < 20)
-    {
-        probe3_count++;
-        if (!patch)
-        {
-            printf("[SFX PROBE] SFX_PlayPatch #%d: patch=NULL! pitch=%d sep=%d vol=%d pri=%d\n",
-                   probe3_count, pitch, sep, vol, priority);
-            fflush(stdout);
-            return -1;
-        }
-        int probe_type = LE_SHORT(*(int16_t*)patch);
-        printf("[SFX PROBE] SFX_PlayPatch #%d: patch=%p type=%d pitch=%d sep=%d vol=%d pri=%d\n",
-               probe3_count, (void*)patch, probe_type, pitch, sep, vol, priority);
-        fflush(stdout);
-    }
-    else if (!patch)
+    if (!patch)
         return -1;
 
     int type = LE_SHORT(*(int16_t*)patch);
@@ -919,10 +840,7 @@ SFX_PlayPatch(
 /***************************************************************************
 SFX_StopPatch () -
  ***************************************************************************/
-void 
-SFX_StopPatch(
-    int handle
-)
+void SFX_StopPatch(int handle)
 {
     switch (handle & FXHAND_TMASK)
     {
@@ -939,11 +857,7 @@ SFX_StopPatch(
 /***************************************************************************
 SND_Patch () - Test patch to see if it will be played by SND_Play
  ***************************************************************************/
-void 
-SND_Patch(
-    int type,              // INPUT : DFX type patch to play
-    int xpos               // INPUT : 127=center
-)
+void SND_Patch(int type, int xpos)
 {
     char *patch;
     int rnd, numsnds, volume;
@@ -992,12 +906,7 @@ SND_Patch(
 /***************************************************************************
 SND_3DPatch () - playes a patch in 3d for player during game play
  ***************************************************************************/
-void 
-SND_3DPatch(
-    int type,              // INPUT : DFX type patch to play
-    int x,                 // INPUT : x sprite center
-    int y                  // INPUT : y sprite center
-)
+void SND_3DPatch(int type, int x, int y)
 {
     int rnd;
     int numsnds, xpos;
@@ -1075,10 +984,7 @@ SND_3DPatch(
 /***************************************************************************
 SND_IsPatchPlaying() - Returns TRUE if patch is playing
  ***************************************************************************/
-int 
-SND_IsPatchPlaying(
-    int type                 // INPUT : position in fxitems
-)
+int SND_IsPatchPlaying(int type)
 {
     DFX *curfld;
     
@@ -1093,10 +999,7 @@ SND_IsPatchPlaying(
 /***************************************************************************
 SND_StopPatch () - Stops Type patch
  ***************************************************************************/
-void 
-SND_StopPatch(
-    int type               // INPUT : DFX type patch to play
-)
+void SND_StopPatch(int type)
 {
     DFX *curfld;
     
@@ -1113,10 +1016,7 @@ SND_StopPatch(
 /***************************************************************************
 SND_StopPatches () - Stops all currently playing patches
  ***************************************************************************/
-void 
-SND_StopPatches(
-    void
-)
+void SND_StopPatches(void)
 {
     int loop;
     DFX *curfld;
@@ -1144,12 +1044,7 @@ SND_StopPatches(
 /***************************************************************************
 SND_PlaySong() - Plays song associated with song id
  ***************************************************************************/
-void 
-SND_PlaySong(
-    int item,             // INPUT : Song GLB item
-    int chainflag,        // INPUT : Chain Song to ItSelf
-    int fadeflag          // INPUT : Fade Song Out
-)
+void SND_PlaySong(int item, int chainflag, int fadeflag)
 {
     char *song;
     
@@ -1186,10 +1081,7 @@ SND_PlaySong(
 /***************************************************************************
 SND_IsSongPlaying () - Is current song playing
  ***************************************************************************/
-int 
-SND_IsSongPlaying(
-    void
-) 
+int SND_IsSongPlaying(void) 
 {
     return MUS_SongPlaying();
 }
@@ -1197,10 +1089,7 @@ SND_IsSongPlaying(
 /***************************************************************************
 SND_FadeOutSong () - Fades current song out and stops playing music
  ***************************************************************************/
-void 
-SND_FadeOutSong(
-    void
-)
+void SND_FadeOutSong(void)
 {
     if (music_song != -1)
     {
@@ -1221,10 +1110,7 @@ SND_FadeOutSong(
 /***************************************************************************
 SND_Lock () -
  ***************************************************************************/
-void 
-SND_Lock(
-    void
-)
+void SND_Lock(void)
 {
     if (!lockcount)
         SDL_LockAudioDevice(fx_dev);
@@ -1235,10 +1121,7 @@ SND_Lock(
 /***************************************************************************
 SND_Unlock () -
  ***************************************************************************/
-void 
-SND_Unlock(
-    void
-)
+void SND_Unlock(void)
 {
     lockcount--;
     

@@ -82,7 +82,7 @@ extern int g_nomusic;
 #include "SDL.h"
 
 extern SDL_AudioDeviceID fx_dev;
-extern volatile unsigned long fx_fill_calls;
+
 
 int SND_InitSound(void);
 void SND_DeInit(void);

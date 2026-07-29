@@ -1320,9 +1320,41 @@ static void SetVideoMode(void)
         texture_upscaled = NULL;
     }
 
-    fprintf(stderr, "[VIDEO]   SDL_CreateRenderer(flags=0x%x)...\n", renderer_flags); fflush(stderr);
+    // --- DIAGNOSTIC PATCH (temporary): isolate SDL_CreateRenderer freeze on Amiga. ---
+    // Forces the software render driver hint and drops all flags except
+    // SDL_RENDERER_SOFTWARE for this call, so we can tell whether the hang is
+    // caused by backend/flag selection inside SDL_CreateRenderer() itself.
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
+    renderer_flags = SDL_RENDERER_SOFTWARE;
+
+    fprintf(stderr, "[VIDEO]   SDL_CreateRenderer(flags=0x%x) [DIAG: forced SOFTWARE, driver hint=software]...\n",
+            renderer_flags);
+    fflush(stderr);
+
     renderer = SDL_CreateRenderer(screen, -1, renderer_flags);
-    fprintf(stderr, "[VIDEO]   SDL_CreateRenderer -> %p\n", (void*)renderer); fflush(stderr);
+
+    if (renderer == NULL)
+    {
+        fprintf(stderr, "[VIDEO]   SDL_CreateRenderer -> NULL, SDL_GetError()=\"%s\"\n", SDL_GetError());
+        fflush(stderr);
+    }
+    else
+    {
+        SDL_RendererInfo diag_rinfo;
+        if (SDL_GetRendererInfo(renderer, &diag_rinfo) == 0)
+        {
+            fprintf(stderr, "[VIDEO]   SDL_CreateRenderer -> %p OK, name=\"%s\" flags=0x%x\n",
+                    (void*)renderer, diag_rinfo.name, diag_rinfo.flags);
+        }
+        else
+        {
+            fprintf(stderr, "[VIDEO]   SDL_CreateRenderer -> %p OK (SDL_GetRendererInfo failed)\n",
+                    (void*)renderer);
+        }
+        fflush(stderr);
+    }
+    // --- END DIAGNOSTIC PATCH ---
+
 
     // If we could not find a matching render driver,
     // try again without hardware acceleration.
@@ -1349,36 +1381,54 @@ static void SetVideoMode(void)
                 SDL_GetError());
     }
 
+    fprintf(stderr, "[VIDEO]   past renderer==NULL check, renderer=%p\n", (void*)renderer); fflush(stderr);
+
     // Important: Set the "logical size" of the rendering context. At the same
     // time this also defines the aspect ratio that is preserved while scaling
     // and stretching the texture into the window.
 
     //if (aspect_ratio_correct || integer_scaling)
     //{
+        fprintf(stderr, "[VIDEO]   before SDL_RenderSetLogicalSize(renderer=%p, %d, %d)\n",
+                (void*)renderer, SCREENWIDTH, actualheight); fflush(stderr);
         SDL_RenderSetLogicalSize(renderer,
                                  SCREENWIDTH,
                                  actualheight);
+        fprintf(stderr, "[VIDEO]   after SDL_RenderSetLogicalSize\n"); fflush(stderr);
     //}
 
     // Force integer scales for resolution-independent rendering.
 
 #if SDL_VERSION_ATLEAST(2, 0, 5)
+    fprintf(stderr, "[VIDEO]   before SDL_RenderSetIntegerScale(renderer=%p, %d)\n",
+            (void*)renderer, (int)integer_scaling); fflush(stderr);
     SDL_RenderSetIntegerScale(renderer, (SDL_bool)integer_scaling);
+    fprintf(stderr, "[VIDEO]   after SDL_RenderSetIntegerScale\n"); fflush(stderr);
 #endif
 
     // Blank out the full screen area in case there is any junk in
     // the borders that won't otherwise be overwritten.
 
+    fprintf(stderr, "[VIDEO]   before SDL_SetRenderDrawColor(renderer=%p)\n", (void*)renderer); fflush(stderr);
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    fprintf(stderr, "[VIDEO]   after SDL_SetRenderDrawColor\n"); fflush(stderr);
+
+    fprintf(stderr, "[VIDEO]   before SDL_RenderClear(renderer=%p)\n", (void*)renderer); fflush(stderr);
     SDL_RenderClear(renderer);
+    fprintf(stderr, "[VIDEO]   after SDL_RenderClear\n"); fflush(stderr);
+
+    fprintf(stderr, "[VIDEO]   before SDL_RenderPresent(renderer=%p)\n", (void*)renderer); fflush(stderr);
     SDL_RenderPresent(renderer);
+    fprintf(stderr, "[VIDEO]   after SDL_RenderPresent\n"); fflush(stderr);
 
     // Create the 8-bit paletted and the 32-bit RGBA screenbuffer surfaces.
 
     if (screenbuffer != NULL)
     {
+        fprintf(stderr, "[VIDEO]   before SDL_FreeSurface(screenbuffer=%p)\n", (void*)screenbuffer); fflush(stderr);
         SDL_FreeSurface(screenbuffer);
         screenbuffer = NULL;
+        fprintf(stderr, "[VIDEO]   after SDL_FreeSurface(screenbuffer)\n"); fflush(stderr);
     }
 
     if (screenbuffer == NULL)
@@ -1392,6 +1442,7 @@ static void SetVideoMode(void)
         if (!screenbuffer || !screenbuffer->pixels)
             EXIT_Error("Failed to allocate 8-bit screenbuffer!");
         SDL_FillRect(screenbuffer, NULL, 0);
+        fprintf(stderr, "[VIDEO]   after SDL_FillRect(screenbuffer)\n"); fflush(stderr);
     }
 
     // Format of argbbuffer must match the screen pixel format because we
@@ -1399,8 +1450,10 @@ static void SetVideoMode(void)
 
     if (argbbuffer != NULL)
     {
+        fprintf(stderr, "[VIDEO]   before SDL_FreeSurface(argbbuffer=%p)\n", (void*)argbbuffer); fflush(stderr);
         SDL_FreeSurface(argbbuffer);
         argbbuffer = NULL;
+        fprintf(stderr, "[VIDEO]   after SDL_FreeSurface(argbbuffer)\n"); fflush(stderr);
     }
 
     if (argbbuffer == NULL)
@@ -1416,31 +1469,41 @@ static void SetVideoMode(void)
         if (!argbbuffer || !argbbuffer->pixels)
             EXIT_Error("Failed to allocate ARGB buffer!");
         SDL_FillRect(argbbuffer, NULL, 0);
+        fprintf(stderr, "[VIDEO]   after SDL_FillRect(argbbuffer)\n"); fflush(stderr);
     }
 
     if (texture != NULL)
     {
+        fprintf(stderr, "[VIDEO]   before SDL_DestroyTexture(texture=%p)\n", (void*)texture); fflush(stderr);
         SDL_DestroyTexture(texture);
+        fprintf(stderr, "[VIDEO]   after SDL_DestroyTexture\n"); fflush(stderr);
     }
 
     // Set the scaling quality for rendering the intermediate texture into
     // the upscaled texture to "nearest", which is gritty and pixelated and
     // resembles software scaling pretty well.
 
+    fprintf(stderr, "[VIDEO]   before SDL_SetHint(RENDER_SCALE_QUALITY, nearest)\n"); fflush(stderr);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
+    fprintf(stderr, "[VIDEO]   after SDL_SetHint(RENDER_SCALE_QUALITY)\n"); fflush(stderr);
 
     // Create the intermediate texture that the RGBA surface gets loaded into.
     // The SDL_TEXTUREACCESS_STREAMING flag means that this texture's content
     // is going to change frequently.
 
+    fprintf(stderr, "[VIDEO]   before SDL_CreateTexture(renderer=%p, fmt=0x%08x, %dx%d)\n",
+            (void*)renderer, pixel_format, SCREENWIDTH, SCREENHEIGHT); fflush(stderr);
     texture = SDL_CreateTexture(renderer,
                                 pixel_format,
                                 SDL_TEXTUREACCESS_STREAMING,
                                 SCREENWIDTH, SCREENHEIGHT);
+    fprintf(stderr, "[VIDEO]   after SDL_CreateTexture -> %p\n", (void*)texture); fflush(stderr);
 
     // Initially create the upscaled texture for rendering to screen
 
+    fprintf(stderr, "[VIDEO]   before CreateUpscaledTexture(true)\n"); fflush(stderr);
     CreateUpscaledTexture(true);
+    fprintf(stderr, "[VIDEO]   after CreateUpscaledTexture, SetVideoMode() exit\n"); fflush(stderr);
 }
 
 void I_InitGraphics(uint8_t *pal)

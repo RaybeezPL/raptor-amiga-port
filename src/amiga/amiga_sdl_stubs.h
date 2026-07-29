@@ -666,6 +666,8 @@ typedef enum {
 
 #define SDL_HINT_RENDER_SCALE_QUALITY "SDL_RENDER_SCALE_QUALITY"
 #define SDL_HINT_WINDOWS_DISABLE_THREAD_NAMING "SDL_WINDOWS_DISABLE_THREAD_NAMING"
+/* Added for diagnostic SDL_CreateRenderer freeze investigation (i_video.cpp). */
+#define SDL_HINT_RENDER_DRIVER "SDL_RENDER_DRIVER"
 
 /* Utility macros. */
 
@@ -971,14 +973,14 @@ static inline void SDL_SetWindowFullscreen(SDL_Window *w, uint32_t f) {
 /* Renderer handling */
 
 static inline SDL_Renderer* SDL_CreateRenderer(SDL_Window *w, int idx, uint32_t flags) {
+    /* Minimal elimination test: return a static, pre-existing renderer object.
+       No calloc, no complex local ops. Only sets the window field. */
+    static SDL_Renderer fake_renderer;
     (void)idx; (void)flags;
-    printf("[AMIGA] SDL_CreateRenderer: window=%p idx=%d flags=0x%x\n",
-           (void*)w, idx, flags);
+    printf("[AMIGA] SDL_CreateRenderer: returning static renderer %p\n", (void*)&fake_renderer);
     fflush(stdout);
-
-    SDL_Renderer *r = (SDL_Renderer*)calloc(1, sizeof(SDL_Renderer));
-    if (r) r->window = w;
-    return r;
+    fake_renderer.window = w;
+    return &fake_renderer;
 }
 
 static inline void SDL_DestroyRenderer(SDL_Renderer *r) {
@@ -988,6 +990,7 @@ static inline void SDL_DestroyRenderer(SDL_Renderer *r) {
 
 static inline int SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info) {
     (void)r;
+
     if (info) {
         info->name = "amiga_rtg";
         info->flags = 0;
@@ -1413,7 +1416,7 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
     g_AmigaAudio.channels = desired->channels > 0 ? desired->channels : 2;
     g_AmigaAudio.callback = desired->callback;
     g_AmigaAudio.userdata = desired->userdata;
-    g_AmigaAudio.paused   = 1; /* Audio starts paused. */
+    g_AmigaAudio.paused   = 0; /* Audio starts playing. */
     g_AmigaAudio.ahiType  = (g_AmigaAudio.channels >= 2) ? AMIGA_AHIST_S16S : AMIGA_AHIST_M16S;
 
     {
@@ -1565,8 +1568,13 @@ static inline SDL_AudioDeviceID SDL_OpenAudioDevice(const char *d, int ic,
     return 1; /* Non-zero device id indicates success. */
 }
 
-static inline void SDL_PauseAudio(int pause_on) { g_AmigaAudio.paused = pause_on ? 1 : 0; }
-static inline void SDL_PauseAudioDevice(SDL_AudioDeviceID d, int p) { (void)d; SDL_PauseAudio(p); }
+static inline void SDL_PauseAudio(int pause_on) { 
+    g_AmigaAudio.paused = pause_on ? 1 : 0; 
+}
+static inline void SDL_PauseAudioDevice(SDL_AudioDeviceID d, int p) { 
+    (void)d; 
+    SDL_PauseAudio(p); 
+}
 
 /* Lightweight critical-section guard using Disable/Enable. */
 static inline void SDL_LockAudio(void)   { Disable(); }
@@ -2048,7 +2056,11 @@ static inline void SDL_HapticClose(SDL_Haptic *h) {
 
 static inline int SDL_GameControllerGetAttached(SDL_GameController *c) {
     (void)c;
+#ifdef __AMIGA__
+    return 1;
+#else
     return 0;
+#endif
 }
 
 static inline int SDL_GameControllerTypeForIndex(int idx) {

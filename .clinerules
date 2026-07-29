@@ -1,15 +1,65 @@
+## Amiga 68060, RTG & AHI Coding Rules
+
+### Project target
+- This repository is an Amiga-only fork of Raptor.
+- Target platform: AmigaOS 3.2 on m68k Amiga systems with 68060 + FPU.
+- Preferred graphics path is RTG.
+- Preferred audio path is AHI.
+- Sound effects (SFX) are a higher priority than music.
+
+### Build assumptions
+- Keep build flags consistent with the existing Amiga build unless there is a tested reason to change them.
+- Do not change CPU/FPU/compiler flags casually in Makefiles or scripts.
+- Any build-flag change must be validated by a full clean rebuild and a runtime test.
+
+### RTG rules
+- Prefer the existing SDL-stub/RTG path already used by this port.
+- Do not introduce classic chipset-specific rendering paths (copper, blitter, planar bitplanes) into this RTG-focused fork.
+- If direct RTG bitmap access is truly needed, use Picasso96/CyberGraphX APIs carefully and release/cleanup resources correctly.
+- Prefer simpler and safer high-level paths over raw direct bitmap access unless there is a proven need.
+
+### AHI rules
+- Use AHI through the normal Amiga device model: open required libraries/devices first, create and manage requests explicitly, and clean up correctly on shutdown.
+- Prioritize SFX support first; music support is secondary.
+- `-nosound` must skip audio initialization completely and remain the fastest startup/debug path.
+- `-nomusic` must keep SFX enabled while disabling music logic.
+- Do not assume sample format, signedness, or sample rate until confirmed from the current Raptor source code and game data.
+- Prefer small, testable audio changes over broad rewrites.
+
+### AmigaOS coding rules
+- Open required libraries before making OS calls and close them cleanly on shutdown.
+- Use the existing Amiga-specific code paths where practical, but it is acceptable to modify common source files when this simplifies the Amiga-only fork.
+- Small, testable, low-risk changes are preferred over large refactors.
+- Keep code readable and explicit; avoid hidden assumptions.
+
 ## Scope rules for Amiga port
 
-- This project task is the Amiga 68k port only: AmigaOS 3.2, 68060/FPU, Picasso96 RTG, AHI audio.
-- Do not search outside the repository.
-- Do not search in `android/`, `build/`, `.cmake/`, generated Visual Studio/CMake files, logs, or compiled artifacts.
-- Prefer searching only in:
-  - `src/amiga/`
+- This project is the Amiga 68k port only: AmigaOS 3.2, 68060/FPU, RTG graphics, AHI audio.
+- Do not search outside this repository.
+- Do not search in generated or irrelevant paths such as:
+  - `build/`
+  - `build.amiga/`
+  - `CMakeFiles/`
+  - `CMakeCache.txt`
+  - `cmake_install.cmake`
+  - generated `Makefile`
+  - logs
+  - binaries
+  - compiled artefacts
+  - removed/non-target platform files if they still appear in history or references
+- Prefer searching in:
+  - `src/` and all subdirectories
+  - `src/amiga/` for platform-specific code
+- When debugging audio, prioritize:
   - `src/fx.cpp`
   - `src/fx.h`
+  - `src/musapi.cpp`
+  - `src/dspapi.cpp`
+  - `src/swdapi.cpp`
   - `src/rap.cpp`
-  - other `src/*.cpp` and `src/*.h` only if directly referenced by the above files.
-- When debugging audio, search only for:
+  - `src/amiga/`
+  - and any source/header files directly referenced by them
+- When searching for audio integration, focus on:
   - `SDL_OpenAudio`
   - `SDL_OpenAudioDevice`
   - `OpenDevice(`
