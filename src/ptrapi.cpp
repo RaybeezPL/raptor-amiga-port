@@ -24,6 +24,11 @@ static int cursoroffsetx, cursoroffsety;
 static int ptrerase;
 static int ptrclip;
 static int cursorxnew, cursorynew;
+/* Set by PTR_SetPos, consumed by PTR_MouseHandler. On Amiga,
+ * SDL_WarpMouseInWindow is a no-op, so PTR_SetPos can't sync the
+ * physical mouse. This flag prevents PTR_MouseHandler from
+ * overwriting the programmatic cursor position on the next cycle. */
+static int ptr_pos_set;
 int ptractive;
 int cursorloopx, cursorloopy;
 int cursorx, cursory;
@@ -85,6 +90,15 @@ PTR_MouseHandler(
 {
     static int old_x = -1;
     static int old_y;
+    
+    /* On Amiga, SDL_WarpMouseInWindow is a no-op, so PTR_SetPos can't
+     * sync the physical mouse position. Skip one mouse-read cycle after
+     * PTR_SetPos so the programmatic cursor position survives. */
+    if (ptr_pos_set)
+    {
+        ptr_pos_set = 0;
+        return;
+    }
     
     I_GetMousePos(&cur_mx, &cur_my);
     
@@ -571,6 +585,11 @@ PTR_SetPos(
     cur_my = y;
     old_joy_x = x;
     old_joy_y = y;
+    
+    /* Prevent PTR_MouseHandler from overwriting this position on the
+     * next I_GetEvent cycle (needed on Amiga where SDL_WarpMouseInWindow
+     * is a no-op and the physical mouse can't be synced). */
+    ptr_pos_set = 1;
     
     if (ptractive)
         ptrupdate = 1;

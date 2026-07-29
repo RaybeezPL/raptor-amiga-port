@@ -2117,6 +2117,46 @@ WIN_MainMenu(
     {
         SWD_Dialog(&dlg);
         I_GetNeedResize(false);
+
+#ifdef __AMIGA__
+        if (joy_ipt_MenuNew)
+        {
+            if (StickY > 0 || Down)
+            {
+                if (JOY_IsScroll(0) == 1)
+                    dlg.keypress = SC_DOWN;
+            }
+
+            if (StickY < 0 || Up)
+            {
+                if (JOY_IsScroll(0) == 1)
+                    dlg.keypress = SC_UP;
+            }
+
+            if (AButton)
+            {
+                JOY_IsKey(AButton);
+                dlg.keypress = SC_ENTER;
+            }
+
+            if (Back || BButton)
+            {
+                JOY_IsKey(Back);
+                dlg.keypress = SC_ESC;
+            }
+        }
+
+        /* joy_ipt_MenuNew: when joystick FIRE (or AButton) sets SC_ENTER
+         * after SWD_Dialog() already ran, SWD_Dialog didn't see any field
+         * hotkey match (no field has hotkey == SC_ENTER in the main menu SWD).
+         * Convert the pending SC_ENTER into F_SELECT here so the highlighted
+         * option activates instead of falling through to nothing. */
+        if (joy_ipt_MenuNew && dlg.keypress == SC_ENTER)
+        {
+            dlg.cur_act = S_FLD_COMMAND;
+            dlg.cur_cmd = F_SELECT;
+        }
+#endif
         
         if (dlg.keypress == SC_D || YButton)                                    
         {

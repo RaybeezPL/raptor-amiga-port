@@ -46,13 +46,17 @@ IPT_GetButtons(
     void
 )
 {
-    static int lasttick;
-    int now = SDL_GetTicks();
-    
-    if (now - lasttick < 1000 / 26)
-        return;
-    
-    lasttick += 1000 / 26;
+    /* TEST: Amiga input lag regression — remove the 26 Hz frame limiter.
+     * The original code throttled input polling to ~26 FPS (1000/26 ms per
+     * call).  On the Amiga port this introduces a 1-2 frame delay between
+     * a keypress/joystick move and the game responding, making both keyboard
+     * and joystick control feel sluggish.  Removing the rate-limiter lets
+     * IPT_GetButtons() run at the full game loop rate (~50-70 Hz) so input
+     * is sampled every frame.
+     *
+     * If this patch fixes the input lag, the limiter was the primary cause
+     * of the regression and should remain removed permanently for the Amiga
+     * 68k RTG build. */
     
     if (!ipt_start)
         return;
@@ -451,11 +455,13 @@ IPT_MovePlayer(
         
         case I_JOYSTICK:
 #ifdef __AMIGA__
-            /* Na Amidze joystick i klawiatura działają równolegle.
-             * Klawiatura (strzałki) idzie pierwsza; joystick nadpisuje
-             * g_addx/g_addy tylko gdy wykryje ruch. */
+            /* Keyboard always runs for arrow-key support.
+             * Joystick runs ONLY when it has active directional input,
+             * so its decay (else) branches don't cut keyboard
+             * acceleration in half every frame. */
             IPT_GetKeyBoard();
-            IPT_GetJoyStick();
+            if (Left || Right || Up || Down || StickX != 0 || StickY != 0)
+                IPT_GetJoyStick();
 #else
             IPT_GetJoyStick();
 #endif
@@ -569,6 +575,13 @@ IPT_LoadPrefs(
 #endif
     haptic = INI_GetPreferenceLong("Setup", "Haptic", 1);
     joy_ipt_MenuNew = INI_GetPreferenceLong("Setup", "joy_ipt_MenuNew", 0);
+#ifdef __AMIGA__
+    /* Amiga: always use joy_ipt_MenuNew mode so D-pad/analog stick navigates
+     * menus with discrete steps (like keyboard arrows) instead of floating
+     * the crosshair like a mouse.  This also disables PTR_JoyHandler() which
+     * was the source of the analog cursor drift in menus. */
+    joy_ipt_MenuNew = 1;
+#endif
     
     k_Up = INI_GetPreferenceLong("Keyboard", "MoveUp", SC_UP);
     k_Down = INI_GetPreferenceLong("Keyboard", "MoveDn", SC_DOWN);
