@@ -113,6 +113,12 @@ I_HandleJoystickEvent(
 			StickY = SDL_GameControllerGetAxis(ControllerHandles[ControllerIndex], SDL_CONTROLLER_AXIS_LEFTY) / 8000;
 			TriggerLeft = SDL_GameControllerGetAxis(ControllerHandles[ControllerIndex], SDL_CONTROLLER_AXIS_TRIGGERLEFT) / 8000;
 			TriggerRight = SDL_GameControllerGetAxis(ControllerHandles[ControllerIndex], SDL_CONTROLLER_AXIS_TRIGGERRIGHT) / 8000;
+
+#ifdef __AMIGA__
+			/* Amiga: exactly one emulated controller exists - force the loop
+			 * to end after this iteration to save 68k cycles. */
+			ControllerIndex = MAX_CONTROLLERS;
+#endif
 		}
 		
 		if (sdlevent->type == SDL_CONTROLLERBUTTONUP) 

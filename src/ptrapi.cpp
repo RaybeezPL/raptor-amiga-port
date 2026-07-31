@@ -26,9 +26,13 @@ static int ptrclip;
 static int cursorxnew, cursorynew;
 /* Set by PTR_SetPos, consumed by PTR_MouseHandler. On Amiga,
  * SDL_WarpMouseInWindow is a no-op, so PTR_SetPos can't sync the
- * physical mouse. This flag prevents PTR_MouseHandler from
- * overwriting the programmatic cursor position on the next cycle. */
+ * physical mouse. While this flag is set, PTR_MouseHandler keeps the
+ * programmatic cursor position until the PHYSICAL mouse actually moves
+ * (compared against ptr_phys_x/ptr_phys_y). This lets keyboard/joystick
+ * menu selection (e.g. the hangar) survive until the user touches the
+ * real mouse - "last active device wins", like on PC. */
 static int ptr_pos_set;
+static int ptr_phys_x, ptr_phys_y;
 int ptractive;
 int cursorloopx, cursorloopy;
 int cursorx, cursory;
@@ -92,12 +96,24 @@ PTR_MouseHandler(
     static int old_y;
     
     /* On Amiga, SDL_WarpMouseInWindow is a no-op, so PTR_SetPos can't
-     * sync the physical mouse position. Skip one mouse-read cycle after
-     * PTR_SetPos so the programmatic cursor position survives. */
+     * sync the physical mouse position. Keep the programmatic cursor
+     * position after PTR_SetPos until the physical mouse actually moves;
+     * then clear the flag and let the real mouse take over again. */
     if (ptr_pos_set)
     {
+#ifdef __AMIGA__
+        int phys_x, phys_y;
+        
+        I_GetMousePos(&phys_x, &phys_y);
+        
+        if (phys_x == ptr_phys_x && phys_y == ptr_phys_y)
+            return;
+        
+        ptr_pos_set = 0;
+#else
         ptr_pos_set = 0;
         return;
+#endif
     }
     
     I_GetMousePos(&cur_mx, &cur_my);
@@ -586,10 +602,14 @@ PTR_SetPos(
     old_joy_x = x;
     old_joy_y = y;
     
-    /* Prevent PTR_MouseHandler from overwriting this position on the
-     * next I_GetEvent cycle (needed on Amiga where SDL_WarpMouseInWindow
-     * is a no-op and the physical mouse can't be synced). */
+    /* Prevent PTR_MouseHandler from overwriting this position (needed on
+     * Amiga where SDL_WarpMouseInWindow is a no-op and the physical mouse
+     * can't be synced).  Remember the current physical mouse position -
+     * the programmatic position holds until the real mouse moves. */
     ptr_pos_set = 1;
+#ifdef __AMIGA__
+    I_GetMousePos(&ptr_phys_x, &ptr_phys_y);
+#endif
     
     if (ptractive)
         ptrupdate = 1;

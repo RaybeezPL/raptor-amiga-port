@@ -94,10 +94,24 @@ IPT_GetButtons(
         buttons[3] = 1;
 
 #ifdef __AMIGA__
-    /* Oba przyciski FIRE joysticka -> Fire (buttons[0] = jak CTRL).
-     * AButton = RED|BLUE (z SDL_GameControllerGetButton), BButton = 0. */
-    if (AButton || BButton)
-        buttons[0] = 1;
+    /* Amiga: joystick buttons work in parallel with the keyboard.
+     * A = RED (fire button 1), B = BLUE/PLAY (fire button 2 on 2-button
+     * joysticks and CD32 pads).  Mapping follows j_lookup ([JoyStick]
+     * section of setup.ini): A -> Fire, B -> Fire Special by default. */
+    if (AButton)
+        buttons[j_lookup[0]] = 1;
+    if (BButton)
+        buttons[j_lookup[1]] = 1;
+    
+    /* Amiga: mouse buttons are always active in-game too, regardless of
+     * the selected control device (m_lookup = [Mouse] in setup.ini):
+     * LMB -> Fire, RMB -> Fire Special, MMB -> Change Special. */
+    if (mouseb1)
+        buttons[m_lookup[0]] = 1;
+    if (mouseb2)
+        buttons[m_lookup[1]] = 1;
+    if (mouseb3)
+        buttons[m_lookup[2]] = 1;
 #endif
 }
 
@@ -462,6 +476,26 @@ IPT_MovePlayer(
             IPT_GetKeyBoard();
             if (Left || Right || Up || Down || StickX != 0 || StickY != 0)
                 IPT_GetJoyStick();
+            
+            /* Amiga: mouse steering in-game, parallel to keyboard+joystick.
+             * "Last active device wins": mouse control (absolute cursor-to-
+             * player positioning, original I_MOUSE mode) engages only when
+             * the physical mouse actually moved since the previous frame or
+             * a mouse button is held.  cur_mx/cur_my are refreshed every
+             * frame by PTR_MouseHandler() in I_GetEvent(). */
+            {
+                static int old_cur_mx = -1;
+                static int old_cur_my = -1;
+                
+                if (cur_mx != old_cur_mx || cur_my != old_cur_my ||
+                    mouseb1 || mouseb2 || mouseb3)
+                {
+                    IPT_GetMouse();
+                }
+                
+                old_cur_mx = cur_mx;
+                old_cur_my = cur_my;
+            }
 #else
             IPT_GetJoyStick();
 #endif

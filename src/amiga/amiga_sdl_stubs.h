@@ -617,8 +617,8 @@ typedef union SDL_Event {
 AMIGA_STUBS_DECL SDL_Event AmigaEventQueue[AMIGA_SDL_EVENT_QUEUE_SIZE];
 AMIGA_STUBS_DECL int       AmigaEventQueueHead AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int       AmigaEventQueueTail AMIGA_STUBS_INIT(0);
-AMIGA_STUBS_DECL int       AmigaMouseX         AMIGA_STUBS_INIT(0);
-AMIGA_STUBS_DECL int       AmigaMouseY         AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int       AmigaMouseX         AMIGA_STUBS_INIT(160); /* start centered on the 320x200 game screen */
+AMIGA_STUBS_DECL int       AmigaMouseY         AMIGA_STUBS_INIT(100);
 AMIGA_STUBS_DECL int       AmigaMouseButtons   AMIGA_STUBS_INIT(0);
 #endif /* __AMIGA__ */
 
@@ -703,6 +703,11 @@ static inline int SDL_Init(uint32_t flags)
         {
             printf("[AMIGA] SDL_Init: lowlevel.library v40 opened OK (joystick enabled)\n");
             fflush(stdout);
+
+            /* Switch port 1 to game-controller mode so CD32 pad buttons
+             * (PLAY etc.) can be read.  Plain 1/2-button joysticks keep
+             * working normally - the extra buttons simply read as 0. */
+            SetJoyPortAttrs(1, SJA_TYPE_GAMECTLR, TAG_DONE);
         }
         else
         {
@@ -1792,6 +1797,7 @@ AMIGA_STUBS_DECL Uint8 AmigaKeyboardState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0
 #define JPF_JOY_RIGHT (1<<0)
 #define JPF_BUTTON_PLAY (1<<17)
 #define JPF_BUTTON_RED (1<<22)
+#define JPF_BUTTON_BLUE (1<<23) /* 2nd joystick button / right mouse button line */
 #endif
 
 static inline void Amiga_InjectKeyboardEvent(int scancode, int pressed) {
@@ -1895,7 +1901,10 @@ static inline void SDL_PumpEvents(void) {
             Amiga_InjectKeyboardEvent(SDL_SCANCODE_RIGHT, (joy & JPF_JOY_RIGHT) != 0);
         }
         
-        ULONG fire_mask = JPF_BUTTON_RED | JPF_BUTTON_PLAY;
+        /* Only RED (fire 1) is injected as RETURN = "select" in menus.
+         * BLUE/PLAY is the separate B button (cancel in menus, Fire
+         * Special in game) - injecting it too would conflict. */
+        ULONG fire_mask = JPF_BUTTON_RED;
         int prev_fire = (AmigaJoyStatePrev & fire_mask) ? 1 : 0;
         int curr_fire = (joy & fire_mask) ? 1 : 0;
         if (curr_fire != prev_fire) {
@@ -1964,7 +1973,14 @@ static inline int SDL_SetRelativeMouseMode(SDL_bool enabled) { (void)enabled; re
 static inline void SDL_WarpMouseInWindow(SDL_Window *window, int x, int y) { (void)window; (void)x; (void)y; }
 static inline int SDL_ShowCursor(int toggle) { (void)toggle; return 0; }
 
-static inline int SDL_NumJoysticks(void) { return 1; }
+static inline int SDL_NumJoysticks(void) {
+#ifdef __AMIGA__
+    /* Report the emulated controller only when lowlevel.library is available. */
+    return LowLevelBase ? 1 : 0;
+#else
+    return 1;
+#endif
+}
 static inline SDL_bool SDL_IsGameController(int idx) { (void)idx; return SDL_TRUE; }
 static inline SDL_GameController* SDL_GameControllerOpen(int idx) { (void)idx; return (SDL_GameController*)1; }
 static inline void SDL_GameControllerClose(SDL_GameController *gc) { (void)gc; }
@@ -2005,11 +2021,12 @@ static inline Uint8 SDL_GameControllerGetButton(SDL_GameController *gamecontroll
     {
         const int fire_red  = (AmigaJoyState & JPF_BUTTON_RED)  ? 1 : 0;
         const int fire_play = (AmigaJoyState & JPF_BUTTON_PLAY) ? 1 : 0;
-        const int is_fire   = (fire_red || fire_play) ? 1 : 0;
+        const int fire_blue = (AmigaJoyState & JPF_BUTTON_BLUE) ? 1 : 0;
 
-        /* Maps both Amiga FIRE buttons to the same action, returning continuous stable state. */
-        if (button == SDL_CONTROLLER_BUTTON_A) return is_fire ? 1 : 0;
-        if (button == SDL_CONTROLLER_BUTTON_B) return is_fire ? 1 : 0;
+        /* Separate button actions: RED (fire 1) = A, 2nd joystick button
+         * (BLUE) or CD32 PLAY = B.  The game maps A=Fire, B=Fire Special. */
+        if (button == SDL_CONTROLLER_BUTTON_A) return fire_red ? 1 : 0;
+        if (button == SDL_CONTROLLER_BUTTON_B) return (fire_blue || fire_play) ? 1 : 0;
     }
 
     if (button == SDL_CONTROLLER_BUTTON_DPAD_UP)
@@ -2057,9 +2074,12 @@ static inline void SDL_HapticClose(SDL_Haptic *h) {
 static inline int SDL_GameControllerGetAttached(SDL_GameController *c) {
     (void)c;
 #ifdef __AMIGA__
-    return 1;
+    /* The Amiga emulated controller is always attached while
+     * lowlevel.library is open.  Without this the game's joystick
+     * state polling (I_HandleJoystickEvent) was dead code. */
+    return LowLevelBase ? 1 : 0;
 #else
-    return 0;
+    return 1;
 #endif
 }
 
