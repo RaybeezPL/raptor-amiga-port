@@ -1419,6 +1419,53 @@ main(
 
     }
 
+#ifdef __AMIGA__
+    /* AmigaOS ToolTypes: when launched from a Workbench icon, parameters
+     * arrive without a leading dash and may be wrapped in parentheses to
+     * indicate "inactive". We only honor the active (non-parenthesized)
+     * form. Example icon ToolTypes:
+     *   NOSOUND      <- active
+     *   (NOMUSIC)    <- inactive (ignored)
+     *   (NOJOY)      <- inactive (ignored)
+     */
+    {
+        /* Helper macro to test active tooltype (plain keyword in argv) */
+        #define RAP_TOOLTYPE_ACTIVE(key) \
+            (RAP_StrCaseEqual(argv[loop], key))
+
+        /* Re-scan argv for plain keywords (no dash) that act as tooltypes.
+         * The CLI loop above already handles "-nosound" etc., but Workbench
+         * tooltypes like "NOSOUND" (no dash) need their own pass so we can
+         * also detect and skip parenthesized inactive forms. */
+        for (loop = 1; loop < argc; loop++)
+        {
+            /* Skip any argument wrapped in parentheses - those are
+             * intentionally inactive tooltypes. */
+            if (argv[loop][0] == '(')
+                continue;
+
+            if (RAP_StrCaseEqual(argv[loop], "nosound"))
+            {
+                g_nosound = 1;
+                printf("NOSOUND tooltype: audio disabled\n");
+            }
+            else if (RAP_StrCaseEqual(argv[loop], "nomusic"))
+            {
+                g_nomusic = 1;
+                printf("NOMUSIC tooltype: music disabled\n");
+            }
+            else if (RAP_StrCaseEqual(argv[loop], "nojoy"))
+            {
+                extern int AmigaJoyDisabled;
+                AmigaJoyDisabled = 1;
+                printf("NOJOY tooltype: joystick polling disabled\n");
+            }
+        }
+
+        #undef RAP_TOOLTYPE_ACTIVE
+    }
+#endif
+
 
     if (argv[1])
     {
