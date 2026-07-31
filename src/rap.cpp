@@ -1403,6 +1403,19 @@ main(
             g_nomusic = 1;
             printf("-nomusic specified: music disabled (sound FX still enabled)\n");
         }
+#ifdef __AMIGA__
+        /* -nojoy kills all joystick polling. Mostly a debug escape hatch:
+         * if a machine shows phantom fire/direction presses, running with
+         * -nojoy tells us within seconds whether the game port is the
+         * source, without needing a special build. */
+        else if (RAP_StrCaseEqual(argv[loop], "-nojoy") ||
+                 RAP_StrCaseEqual(argv[loop], "nojoy"))
+        {
+            extern int AmigaJoyDisabled;
+            AmigaJoyDisabled = 1;
+            printf("-nojoy specified: joystick polling disabled\n");
+        }
+#endif
 
     }
 

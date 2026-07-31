@@ -35,6 +35,11 @@ AMIGA_STUBS_DECL struct IntuitionBase *IntuitionBase AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL struct GfxBase       *GfxBase       AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL struct Library       *LowLevelBase  AMIGA_STUBS_INIT(NULL);
 
+/* Set by the -nojoy command line switch (rap.cpp) to hard-disable all
+ * joystick polling. Handy for tracking down phantom input on real
+ * hardware without recompiling anything. */
+AMIGA_STUBS_DECL int AmigaJoyDisabled AMIGA_STUBS_INIT(0);
+
 /* Shared joystick state polled in SDL_PumpEvents and read by controller APIs. */
 AMIGA_STUBS_DECL ULONG AmigaJoyState AMIGA_STUBS_INIT(0);
 
@@ -704,10 +709,26 @@ static inline int SDL_Init(uint32_t flags)
             printf("[AMIGA] SDL_Init: lowlevel.library v40 opened OK (joystick enabled)\n");
             fflush(stdout);
 
-            /* Switch port 1 to game-controller mode so CD32 pad buttons
-             * (PLAY etc.) can be read.  Plain 1/2-button joysticks keep
-             * working normally - the extra buttons simply read as 0. */
-            SetJoyPortAttrs(1, SJA_TYPE_GAMECTLR, TAG_DONE);
+            /* Pin the port to plain joystick mode. The first attempt at
+             * this passed SJA_TYPE_GAMECTLR as the tag itself - that value
+             * is 1, which utility/tagitem.h defines as TAG_IGNORE, so the
+             * request was silently dropped and the unterminated tag list
+             * made the library parse random stack garbage as attributes.
+             *
+             * Leaving autosense in charge didn't work either: until the
+             * first real wiggle it can't decide what's plugged in, and on
+             * real hardware (A2000, A1200/piStorm) the port reports junk
+             * in the meantime - phantom buttons that skipped the intro
+             * logos and froze the menu until the joystick was touched.
+             * WinUAE never showed any of this because its emulated port
+             * politely returns 0.
+             *
+             * Joystick mode is the safe default every classic Amiga game
+             * uses: directions and fire are plain digital lines, no serial
+             * shift register involved. A CD32 pad still works as a normal
+             * 2-button stick here; only the extra pad buttons are lost,
+             * and this game doesn't use them anyway. */
+            SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_JOYSTK, TAG_DONE);
         }
         else
         {
@@ -1787,6 +1808,9 @@ static const uint8_t AmigaRawKeyToScancode[0x68] = {
 #endif
 
 AMIGA_STUBS_DECL ULONG AmigaJoyStatePrev AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaJoyRawPrev   AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaJoyPhantomMask AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int   AmigaJoySeeded    AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL Uint32 AmigaFrameCount AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL Uint8 AmigaKeyboardState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0});
 
@@ -1883,37 +1907,87 @@ static inline void SDL_PumpEvents(void) {
 #ifdef __AMIGA__
     Amiga_PumpWindowEvents();
 
-    if (LowLevelBase) {
-        ULONG joy = ReadJoyPort(1);
-        
-        ULONG changed = joy ^ AmigaJoyStatePrev;
-        
-        if (changed & JPF_JOY_UP) {
-            Amiga_InjectKeyboardEvent(SDL_SCANCODE_UP, (joy & JPF_JOY_UP) != 0);
+    if (LowLevelBase && !AmigaJoyDisabled) {
+        /* Trust the digital lines only: directions + fire (RED). Those
+         * are pulled high and driven low, exactly like the mouse button,
+         * so an empty port reads a clean "nothing pressed" on any board.
+         * BLUE (2nd button) and PLAY ride the potentiometer inputs, which
+         * float on real hardware and report random "pressed" states -
+         * that phantom input is what skipped the intro logos and froze
+         * the menu until the joystick was wiggled. The game keeps Fire
+         * Special on keyboard/mouse for joystick-only players. */
+        const ULONG joy_mask = JPF_JOY_UP | JPF_JOY_DOWN | JPF_JOY_LEFT |
+                               JPF_JOY_RIGHT | JPF_BUTTON_RED;
+        ULONG raw = ReadJoyPort(1) & joy_mask;
+
+        /* A stick can't physically go up+down or left+right at once.
+         * If the port says otherwise it's noise, not input. */
+        if (((raw & (JPF_JOY_UP | JPF_JOY_DOWN)) == (JPF_JOY_UP | JPF_JOY_DOWN)) ||
+            ((raw & (JPF_JOY_LEFT | JPF_JOY_RIGHT)) == (JPF_JOY_LEFT | JPF_JOY_RIGHT)))
+            raw = 0;
+
+        /* Cheap debounce: a new port state only counts when two reads in
+         * a row agree. An empty or floating port flickers between values
+         * from one poll to the next, while a real joystick holds its
+         * state steady. Costs one frame of input latency, which nobody
+         * can feel at 50 Hz. */
+        if (raw != AmigaJoyRawPrev) {
+            AmigaJoyRawPrev = raw;
+        } else {
+            /* Phantom filtering. On a real Amiga the port can report a
+             * non-zero idle state (floating lines, autosense leftovers),
+             * and the game reads AmigaJoyState directly as button booleans
+             * - so a stuck phantom bit looked like a permanently held
+             * button: it skipped the intro logos (IMS_IsAck) and froze the
+             * menu inside JOY_Wait() until the user touched the joystick.
+             * Rule: any bit that was already set at the first stable read
+             * stays masked out until it has been seen CLEAR at least once.
+             * A real button always gets released sooner or later, phantom
+             * garbage does not. */
+            if (!AmigaJoySeeded) {
+                AmigaJoySeeded = 1;
+                AmigaJoyPhantomMask = raw;
+                printf("[AMIGA] Joystick baseline: ReadJoyPort(1)=0x%08lx (phantom mask=0x%08lx)\n",
+                       (unsigned long)raw, (unsigned long)AmigaJoyPhantomMask);
+                fflush(stdout);
+            }
+            AmigaJoyPhantomMask &= raw;
+
+            ULONG joy = raw & ~AmigaJoyPhantomMask;
+
+            ULONG changed = joy ^ AmigaJoyStatePrev;
+
+            if (changed & JPF_JOY_UP) {
+                Amiga_InjectKeyboardEvent(SDL_SCANCODE_UP, (joy & JPF_JOY_UP) != 0);
+            }
+            if (changed & JPF_JOY_DOWN) {
+                Amiga_InjectKeyboardEvent(SDL_SCANCODE_DOWN, (joy & JPF_JOY_DOWN) != 0);
+            }
+            if (changed & JPF_JOY_LEFT) {
+                Amiga_InjectKeyboardEvent(SDL_SCANCODE_LEFT, (joy & JPF_JOY_LEFT) != 0);
+            }
+            if (changed & JPF_JOY_RIGHT) {
+                Amiga_InjectKeyboardEvent(SDL_SCANCODE_RIGHT, (joy & JPF_JOY_RIGHT) != 0);
+            }
+
+            /* Only RED (fire 1) is injected as RETURN = "select" in menus.
+             * BLUE/PLAY is the separate B button (cancel in menus, Fire
+             * Special in game) - injecting it too would conflict. */
+            ULONG fire_mask = JPF_BUTTON_RED;
+            int prev_fire = (AmigaJoyStatePrev & fire_mask) ? 1 : 0;
+            int curr_fire = (joy & fire_mask) ? 1 : 0;
+            if (curr_fire != prev_fire) {
+                Amiga_InjectKeyboardEvent(SDL_SCANCODE_RETURN, curr_fire);
+            }
+
+            AmigaJoyState = joy;
+            AmigaJoyStatePrev = joy;
         }
-        if (changed & JPF_JOY_DOWN) {
-            Amiga_InjectKeyboardEvent(SDL_SCANCODE_DOWN, (joy & JPF_JOY_DOWN) != 0);
-        }
-        if (changed & JPF_JOY_LEFT) {
-            Amiga_InjectKeyboardEvent(SDL_SCANCODE_LEFT, (joy & JPF_JOY_LEFT) != 0);
-        }
-        if (changed & JPF_JOY_RIGHT) {
-            Amiga_InjectKeyboardEvent(SDL_SCANCODE_RIGHT, (joy & JPF_JOY_RIGHT) != 0);
-        }
-        
-        /* Only RED (fire 1) is injected as RETURN = "select" in menus.
-         * BLUE/PLAY is the separate B button (cancel in menus, Fire
-         * Special in game) - injecting it too would conflict. */
-        ULONG fire_mask = JPF_BUTTON_RED;
-        int prev_fire = (AmigaJoyStatePrev & fire_mask) ? 1 : 0;
-        int curr_fire = (joy & fire_mask) ? 1 : 0;
-        if (curr_fire != prev_fire) {
-            Amiga_InjectKeyboardEvent(SDL_SCANCODE_RETURN, curr_fire);
-        }
-        
-        AmigaJoyState = joy;
-        AmigaJoyStatePrev = joy;
         AmigaFrameCount++;
+    } else if (AmigaJoyDisabled) {
+        /* -nojoy on the command line: keep the reported state clean so
+         * nothing downstream can mistake a dead port for input. */
+        AmigaJoyState = 0;
     }
 #endif
 }
@@ -1975,8 +2049,9 @@ static inline int SDL_ShowCursor(int toggle) { (void)toggle; return 0; }
 
 static inline int SDL_NumJoysticks(void) {
 #ifdef __AMIGA__
-    /* Report the emulated controller only when lowlevel.library is available. */
-    return LowLevelBase ? 1 : 0;
+    /* Report the emulated controller only when lowlevel.library is
+     * available and the user didn't kill it with -nojoy. */
+    return (LowLevelBase && !AmigaJoyDisabled) ? 1 : 0;
 #else
     return 1;
 #endif
@@ -2023,8 +2098,11 @@ static inline Uint8 SDL_GameControllerGetButton(SDL_GameController *gamecontroll
         const int fire_play = (AmigaJoyState & JPF_BUTTON_PLAY) ? 1 : 0;
         const int fire_blue = (AmigaJoyState & JPF_BUTTON_BLUE) ? 1 : 0;
 
-        /* Separate button actions: RED (fire 1) = A, 2nd joystick button
-         * (BLUE) or CD32 PLAY = B.  The game maps A=Fire, B=Fire Special. */
+        /* RED (fire 1) = A. The B button stays unmapped for now: BLUE and
+         * PLAY are read through the floating pot lines, which made them
+         * indistinguishable from noise on real hardware, so SDL_PumpEvents
+         * masks them out before they ever reach AmigaJoyState. Fire
+         * Special remains available on keyboard/mouse. */
         if (button == SDL_CONTROLLER_BUTTON_A) return fire_red ? 1 : 0;
         if (button == SDL_CONTROLLER_BUTTON_B) return (fire_blue || fire_play) ? 1 : 0;
     }
