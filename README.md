@@ -24,26 +24,34 @@ The goals of this port are:
 
 ## Current status
 
-Current milestone tag: **`v0.7.0-amiga-preview1`**
+Current version: **BETA 0.8.1 NOSOUND**
 
-Implemented or already working:
+Working:
 
-- Native **m68k AmigaOS cross-build**
-- Successful Amiga executable linking
-- SDL replacement layer for the Amiga port
-- RTG video path for **320x200x8-bit** output
-- Visible graphics output on Amiga-side test builds
-- Intro playback visible on screen
-- Basic Amiga-specific backend integration groundwork
-- Repository cleaned up with **`main`** as the primary development branch
+- Native **m68k AmigaOS cross-build** (68060 + FPU)
+- Full gameplay on real hardware (A2000, A1200 + PiStorm/Emu68) and WinUAE
+- Keyboard, mouse and joystick/CD32 pad input working simultaneously
+- RTG video path for **320x200x8-bit** output on a dedicated screen
+- **`RTGMODE=8X2L` display mode** for PiStorm/Emu68 (640x240x8 screen,
+  horizontal pixel doubling in software) - fixes the squeezed half-screen
+  image on those drivers
+- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/RTGMODE) via the
+  official WBStartup + icon.library mechanism
+- Clean startup banner and parameter output on Shell/CLI; on Workbench
+  launches no console window is opened at all (nothing is left behind
+  when the game exits)
+- Phantom middle-mouse-button filtering in 8X2L mode (fixes intro/demo
+  skipping and erratic steering on some machines)
+
 
 Work still in progress:
 
-- Stable **keyboard and mouse input**
-- Full **AHI audio playback**
-- Further optimization of the RTG rendering path
-- Extended testing on real Amiga hardware
-- Gameplay validation beyond boot / intro / early menu flow
+- **AHI audio playback** - the game currently must be started with
+  `-nosound` (see README_AMIGA.md)
+
+For detailed requirements, controls, parameters and troubleshooting see
+**README_AMIGA.md** - the main port documentation.
+
 
 ## Target configuration
 
@@ -52,7 +60,10 @@ Recommended baseline target:
 - **CPU:** Motorola 68060 or PiStorm/Emu68 equivalent
 - **Graphics:** RTG board with Picasso96 support
 - **Display mode:** 320x200, 8-bit paletted
-- **RAM:** 32 MB Fast RAM minimum
+- **RAM:** 4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
+  (the game itself uses ~3 MB of Fast RAM; on RTG the screen bitmap
+  lives in graphics card memory, so Chip RAM is only needed by the OS)
+
 - **OS:** AmigaOS 3.2
 - **Audio:** AHI
 

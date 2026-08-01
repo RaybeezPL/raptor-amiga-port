@@ -18,8 +18,10 @@
 #include <proto/graphics.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
+#include <graphics/displayinfo.h>
 #include <proto/lowlevel.h>
 #include <libraries/lowlevel.h>
+
 
 /* Global storage pattern: AMIGA_STUBS_OWNER defines actual instance, others use extern to guarantee a single instance. */
 #ifdef AMIGA_STUBS_OWNER
@@ -46,6 +48,34 @@ AMIGA_STUBS_DECL ULONG AmigaJoyState AMIGA_STUBS_INIT(0);
 /* Picasso96API.library used for RTG detection only (no function calls). */
 AMIGA_STUBS_DECL struct Library *P96Base      AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL int             AmigaUsingP96 AMIGA_STUBS_INIT(0);
+
+/* RTG display mode, selected at runtime via the RTGMODE keyword
+ * (CLI "-rtgmode=..." or icon ToolType "RTGMODE=...", parsed in rap.cpp):
+ *   0 = native 320x200x8   - default; 1:1 WriteChunkyPixels blit.
+ *   1 = 640x240x8 (8X2L)   - pixels doubled horizontally in software
+ *                            (320 -> 640 per row), blitted 1:1 vertically
+ *                            starting at the top of the screen.
+ * Mode 1 is a workaround for RTG drivers that cannot display a native
+ * 320x200x8 screen correctly (e.g. PiStorm/Emu68 VideoCore, where the
+ * low-res 8-bit mode ends up squeezed to half the screen width).
+ * 640x240 matches the driver's native buffer geometry (640 bytes/row,
+ * up to 240 rows), so the driver does not need to crop or rescale the
+ * bitmap - modes with other heights (640x400, 640x480) got their lower
+ * part cut off on PiStorm/Emu68. */
+AMIGA_STUBS_DECL int AmigaRtgMode AMIGA_STUBS_INIT(0);
+
+/* Physical screen parameters actually opened (filled in by
+ * Amiga_OpenGameScreen). The game always draws to a logical 320x200
+ * chunky buffer; only the final blit knows the physical mode. */
+AMIGA_STUBS_DECL int AmigaPhysW     AMIGA_STUBS_INIT(320);
+AMIGA_STUBS_DECL int AmigaPhysH     AMIGA_STUBS_INIT(200);
+AMIGA_STUBS_DECL int AmigaPhysDepth AMIGA_STUBS_INIT(8);
+
+/* Software pixel-doubling buffer used by the RTGMODE=8X2L blit path
+ * (640x200x8 = 128000 bytes are needed). */
+AMIGA_STUBS_DECL uint8_t AmigaBlitBuf[256 * 1024];
+
+
 
 /* Inlined BestModeID tags to avoid header dependency. */
 #ifndef BIDTAG_DesiredWidth
@@ -88,22 +118,14 @@ static inline int Amiga_OpenP96(void)
         return 1;
     }
 
-    printf("[AMIGA] Attempting to open Picasso96API.library (RTG detection)...\n");
-    fflush(stdout);
-
     /* Raw OpenLibrary call without SDK header dependencies. */
     P96Base = OpenLibrary((CONST_STRPTR)"Picasso96API.library", 0);
 
     if (P96Base) {
-        printf("[AMIGA] Picasso96API.library opened OK - RTG board detected.\n");
-        fflush(stdout);
         AmigaUsingP96 = 1;
         return 1;
     }
 
-    printf("[AMIGA] Picasso96API.library NOT found - falling back to standard "
-           "Intuition custom screen (no RTG acceleration).\n");
-    fflush(stdout);
     AmigaUsingP96 = 0;
     return 0;
 }
@@ -111,7 +133,6 @@ static inline int Amiga_OpenP96(void)
 static inline void Amiga_CloseP96(void)
 {
     if (P96Base) {
-        printf("[AMIGA] Closing Picasso96API.library\n"); fflush(stdout);
         CloseLibrary(P96Base);
         P96Base = NULL;
     }
@@ -127,17 +148,31 @@ static inline ULONG Amiga_FindBestModeID(int w, int h, int depth)
         BIDTAG_Depth,         (ULONG)depth,
         TAG_DONE);
 
-    printf("[AMIGA] BestModeID(%dx%dx%d) -> 0x%08lx\n", w, h, depth,
-           (unsigned long)modeid);
-    fflush(stdout);
-
     return modeid;
 }
 
-/* Opens a dedicated 320x200x8 custom screen (RTG or AGA/ECS). */
+
+/* Resolves the requested RTG mode (AmigaRtgMode) into concrete screen
+ * parameters: native 320x200x8 by default, 640x240x8 for the 8X2L
+ * horizontal pixel doubling letterbox mode. */
+static inline void Amiga_RtgModeConfig(int *w, int *h, int *depth)
+{
+    switch (AmigaRtgMode) {
+        case 1:  *w = 640; *h = 240; *depth = 8;  break;
+        default: *w = AMIGA_GAME_WIDTH; *h = AMIGA_GAME_HEIGHT;
+                 *depth = AMIGA_GAME_DEPTH; break;
+    }
+}
+
+
+
+/* Opens the custom game screen in the mode selected by AmigaRtgMode,
+ * falling back to the native 320x200x8 mode when the requested mode is
+ * unavailable, so the game always starts. */
 static inline struct Screen* Amiga_OpenGameScreen(int w, int h, int depth)
 {
     ULONG modeid;
+    int attempt;
 
     if (AmigaGameScreen) {
         return AmigaGameScreen;
@@ -145,61 +180,119 @@ static inline struct Screen* Amiga_OpenGameScreen(int w, int h, int depth)
 
     Amiga_OpenP96();
 
-    modeid = Amiga_FindBestModeID(w, h, depth);
-    if (modeid == INVALID_ID) {
-        printf("[AMIGA] BestModeID() failed to find a matching mode! "
-               "Trying INVALID_ID anyway (Intuition may pick a default).\n");
-        fflush(stdout);
-    }
+    /* Two attempts max: first the requested mode, then the native
+     * 320x200x8 fallback. */
 
-    printf("[AMIGA] Opening custom %dx%dx%d game screen (ModeID=0x%08lx, "
-           "RTG=%d)...\n", w, h, depth, (unsigned long)modeid, AmigaUsingP96);
-    fflush(stdout);
+    for (attempt = 0; attempt < 2; attempt++)
+    {
+        Amiga_RtgModeConfig(&w, &h, &depth);
 
-    AmigaGameScreen = OpenScreenTags(NULL,
-        SA_Width,      (ULONG)w,
-        SA_Height,     (ULONG)h,
-        SA_Depth,      (ULONG)depth,
-        SA_DisplayID,  modeid,
-        SA_Quiet,      TRUE,
-        SA_ShowTitle,  FALSE,
-        SA_Draggable,  FALSE,
-        SA_Exclusive,  TRUE,
-        SA_Type,       CUSTOMSCREEN,
-        TAG_DONE);
+        modeid = Amiga_FindBestModeID(w, h, depth);
+        if (modeid == INVALID_ID && AmigaRtgMode != 0) {
+            /* Requested mode not found: retry with the native mode. */
+            AmigaRtgMode = 0;
+            continue;
+        }
 
-    if (!AmigaGameScreen) {
-        printf("[AMIGA] Amiga_OpenGameScreen: OpenScreenTags FAILED!\n");
-        fflush(stdout);
+        AmigaGameScreen = OpenScreenTags(NULL,
+            SA_Width,      (ULONG)w,
+            SA_Height,     (ULONG)h,
+            SA_Depth,      (ULONG)depth,
+            SA_DisplayID,  modeid,
+            SA_Quiet,      TRUE,
+            SA_ShowTitle,  FALSE,
+            SA_Draggable,  FALSE,
+            SA_Exclusive,  TRUE,
+            SA_Type,       CUSTOMSCREEN,
+            TAG_DONE);
+
+        if (AmigaGameScreen) {
+            break;
+        }
+
+        if (AmigaRtgMode != 0) {
+            /* Could not open the requested screen: retry native. */
+            AmigaRtgMode = 0;
+            continue;
+        }
+
         return NULL;
     }
 
-    printf("[AMIGA] Custom game screen opened at %p\n", (void*)AmigaGameScreen);
-    fflush(stdout);
+    if (!AmigaGameScreen) {
+        return NULL;
+    }
+
+    AmigaPhysW     = w;
+    AmigaPhysH     = h;
+    AmigaPhysDepth = depth;
+
+    /* Clear the whole screen to black once: the blit may not cover
+     * every physical row/column in the scaled modes. */
+    SetRast(&AmigaGameScreen->RastPort, 0);
 
     return AmigaGameScreen;
 }
 
+
+
+
 static inline void Amiga_CloseGameScreen(void)
 {
     if (AmigaGameScreen) {
-        printf("[AMIGA] Closing custom game screen %p\n", (void*)AmigaGameScreen);
-        fflush(stdout);
         CloseScreen(AmigaGameScreen);
         AmigaGameScreen = NULL;
     }
 }
 
-/* Blits an 8-bit chunky buffer directly to the window's RastPort using WriteChunkyPixels. */
+
+/* Blits the game's logical 320x200 frame to the physical screen,
+ * handling the RTGMODE horizontal pixel doubling. 'chunky' is always
+ * the game's 8-bit chunky buffer (320 bytes/row). */
 static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
 {
     if (!win || !win->RPort || !chunky) return;
 
+    if (AmigaRtgMode == 1)
+    {
+        /* 8X2L (640x240x8): double every pixel horizontally into a
+         * 640x200 frame in AmigaBlitBuf, then blit 1:1 starting at the
+         * top of the screen (no letterbox/offset). The driver's own
+         * scaling stretches the 240-row screen to the display height. */
+        const uint8_t *src = chunky;
+        uint8_t *dst = AmigaBlitBuf;
+        int x, y;
+        for (y = 0; y < AMIGA_GAME_HEIGHT; y++)
+        {
+            uint16_t *row = (uint16_t *)dst;
+            for (x = 0; x < AMIGA_GAME_WIDTH; x += 2)
+            {
+                uint8_t p0 = src[x + 0];
+                uint8_t p1 = src[x + 1];
+                row[x + 0] = (uint16_t)((p0 << 8) | p0);
+                row[x + 1] = (uint16_t)((p1 << 8) | p1);
+            }
+            src += AMIGA_GAME_WIDTH;
+            dst += 640;
+        }
+        WriteChunkyPixels(win->RPort,
+                          win->BorderLeft,
+                          win->BorderTop,
+                          win->BorderLeft + 639,
+                          win->BorderTop + 199,
+                          AmigaBlitBuf, 640);
+        return;
+    }
+
+
+    /* Native 320x200x8: original 1:1 chunky blit. */
     WriteChunkyPixels(win->RPort,
                       win->BorderLeft, win->BorderTop,
                       win->BorderLeft + 319, win->BorderTop + 199,
                       (UBYTE *)chunky, 320);
 }
+
+
 
 /* Applies an SDL_Color palette to the screen using LoadRGB32. */
 static inline void Amiga_ApplyPalette(struct Screen *scr, const void *sdlcolors, int first, int n)
@@ -706,9 +799,6 @@ static inline int SDL_Init(uint32_t flags)
         LowLevelBase = OpenLibrary((CONST_STRPTR)"lowlevel.library", 40);
         if (LowLevelBase)
         {
-            printf("[AMIGA] SDL_Init: lowlevel.library v40 opened OK (joystick enabled)\n");
-            fflush(stdout);
-
             /* Pin the port to plain joystick mode. The first attempt at
              * this passed SJA_TYPE_GAMECTLR as the tag itself - that value
              * is 1, which utility/tagitem.h defines as TAG_IGNORE, so the
@@ -730,11 +820,6 @@ static inline int SDL_Init(uint32_t flags)
              * and this game doesn't use them anyway. */
             SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_JOYSTK, TAG_DONE);
         }
-        else
-        {
-            printf("[AMIGA] SDL_Init: lowlevel.library v40 NOT available (joystick disabled)\n");
-            fflush(stdout);
-        }
     }
 
 #endif
@@ -752,7 +837,6 @@ static inline void SDL_Quit(void) {
 
     /* Restores the native pointer before destroying window and closing libraries. */
     Amiga_ShowSystemPointer();
-    printf("[AMIGA] SDL_Quit: system pointer restored, closing libraries\n"); fflush(stdout);
     Amiga_CloseGameScreen();
     Amiga_CloseP96();
     if (IntuitionBase) {
@@ -838,15 +922,10 @@ static inline int    SDL_GetCurrentDisplayMode(int idx, SDL_DisplayMode *mode) {
 /* Creates a borderless window on a custom 320x200x8 screen. */
 static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
                                            int w, int h, uint32_t flags) {
-    (void)x; (void)y; (void)flags;
-
-    printf("[AMIGA] SDL_CreateWindow: title='%s' requested size=%dx%d flags=0x%x\n",
-           title ? title : "(null)", w, h, flags);
-    fflush(stdout);
+    (void)x; (void)y; (void)flags; (void)title; (void)w; (void)h;
 
     SDL_Window *win = (SDL_Window*)calloc(1, sizeof(SDL_Window));
     if (!win) {
-        printf("[AMIGA] SDL_CreateWindow: calloc FAILED!\n"); fflush(stdout);
         return NULL;
     }
 
@@ -860,49 +939,39 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
         IntuitionBase = (struct IntuitionBase *)OpenLibrary(
             (CONST_STRPTR)"intuition.library", 39);
         if (!IntuitionBase) {
-            printf("[AMIGA] SDL_CreateWindow: Cannot open intuition.library v39!\n");
-            fflush(stdout);
             free(win);
             return NULL;
         }
-        printf("[AMIGA] Opened intuition.library v39 OK\n"); fflush(stdout);
     }
 
     /* Opens graphics.library v39+. */
     if (!GfxBase) {
         GfxBase = (struct GfxBase *)OpenLibrary((CONST_STRPTR)"graphics.library", 39);
         if (!GfxBase) {
-            printf("[AMIGA] SDL_CreateWindow: Cannot open graphics.library v39!\n");
-            fflush(stdout);
             free(win);
             return NULL;
         }
-        printf("[AMIGA] Opened graphics.library v39 OK (version=%u)\n",
-               (unsigned)GfxBase->LibNode.lib_Version);
-        fflush(stdout);
     }
 
     /* Forces a dedicated custom screen. */
     struct Screen *scr = Amiga_OpenGameScreen(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
     if (!scr) {
-        printf("[AMIGA] SDL_CreateWindow: Amiga_OpenGameScreen FAILED!\n");
-        fflush(stdout);
         free(win);
         return NULL;
     }
     win->amiga_screen = scr;
 
-    printf("[AMIGA] Opening borderless %dx%d window on custom game screen...\n",
-           win->w, win->h);
-    fflush(stdout);
-
+    /* The Intuition window covers the whole physical screen; the SDL
+     * window size stays at the logical 320x200 so the game code sees
+     * exactly the same dimensions regardless of RTGMODE. */
     win->amiga_window = OpenWindowTags(NULL,
         WA_Left,          0,
         WA_Top,           0,
-        WA_Width,         (ULONG)win->w,
-        WA_Height,        (ULONG)win->h,
-        WA_InnerWidth,    (ULONG)win->w,
-        WA_InnerHeight,   (ULONG)win->h,
+        WA_Width,         (ULONG)AmigaPhysW,
+        WA_Height,        (ULONG)AmigaPhysH,
+        WA_InnerWidth,    (ULONG)AmigaPhysW,
+        WA_InnerHeight,   (ULONG)AmigaPhysH,
+
         WA_CustomScreen,  (ULONG)scr,
         WA_Borderless,    TRUE,
         WA_Backdrop,      TRUE,
@@ -918,32 +987,24 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y,
         TAG_DONE);
 
     if (!win->amiga_window) {
-        printf("[AMIGA] SDL_CreateWindow: OpenWindowTags FAILED!\n");
-        fflush(stdout);
         Amiga_CloseGameScreen();
         free(win);
         return NULL;
     }
-
-    printf("[AMIGA] Borderless game window opened at %p (%dx%d inner) on RTG=%d screen\n",
-           (void*)win->amiga_window, win->w, win->h, AmigaUsingP96);
-    fflush(stdout);
 
     /* Stores window reference for event pumping. */
     AmigaGameWindow = win->amiga_window;
 
     /* Hides the system pointer until SDL_Quit. */
     Amiga_HideSystemPointer();
-    printf("[AMIGA] System pointer hidden (will be restored at SDL_Quit)\n");
-    fflush(stdout);
 #endif /* __AMIGA__ */
 
     return win;
 }
 
+
 static inline void SDL_DestroyWindow(SDL_Window *w) {
     if (!w) return;
-    printf("[AMIGA] SDL_DestroyWindow: %p\n", (void*)w); fflush(stdout);
 #ifdef __AMIGA__
     if (w->amiga_window) {
         if (AmigaGameWindow == w->amiga_window) {
@@ -951,13 +1012,13 @@ static inline void SDL_DestroyWindow(SDL_Window *w) {
         }
         CloseWindow(w->amiga_window);
         w->amiga_window = NULL;
-        printf("[AMIGA] Game window closed\n"); fflush(stdout);
     }
     Amiga_CloseGameScreen();
     w->amiga_screen = NULL;
 #endif
     free(w);
 }
+
 
 static inline uint32_t SDL_GetWindowID(SDL_Window *w) { (void)w; return 1; }
 static inline uint32_t SDL_GetWindowFlags(SDL_Window *w) { (void)w; return 0; }
@@ -986,9 +1047,9 @@ static inline void SDL_SetWindowTitle(SDL_Window *w, const char *t) {
     if (w->amiga_window) {
         /* Uses sentinel to preserve screen title. */
         SetWindowTitles(w->amiga_window, (CONST_STRPTR)t, (CONST_STRPTR)~0);
-        printf("[AMIGA] SDL_SetWindowTitle: '%s'\n", t); fflush(stdout);
     }
 #endif
+
 }
 
 static inline void SDL_SetWindowFullscreen(SDL_Window *w, uint32_t f) {
@@ -1003,16 +1064,14 @@ static inline SDL_Renderer* SDL_CreateRenderer(SDL_Window *w, int idx, uint32_t 
        No calloc, no complex local ops. Only sets the window field. */
     static SDL_Renderer fake_renderer;
     (void)idx; (void)flags;
-    printf("[AMIGA] SDL_CreateRenderer: returning static renderer %p\n", (void*)&fake_renderer);
-    fflush(stdout);
     fake_renderer.window = w;
     return &fake_renderer;
 }
 
 static inline void SDL_DestroyRenderer(SDL_Renderer *r) {
-    printf("[AMIGA] SDL_DestroyRenderer: %p\n", (void*)r); fflush(stdout);
     free(r);
 }
+
 
 static inline int SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info) {
     (void)r;
@@ -1197,6 +1256,8 @@ static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst
     AmigaPendingW = w;
     AmigaPendingH = h;
 #endif
+
+
 
     return 0;
 }
@@ -1394,8 +1455,6 @@ static inline void SDL_CloseAudio(void)
     if (!g_AmigaAudio.initialized)
         return;
 
-    printf("[AMIGA][AUDIO] SDL_CloseAudio: shutting down\n"); fflush(stdout);
-
     g_AmigaAudio.taskShouldQuit = 1;
     {
         int spins = 0;
@@ -1416,8 +1475,6 @@ static inline void SDL_CloseAudio(void)
     AmigaAudio_FreeBuffers();
 
     memset(&g_AmigaAudio, 0, sizeof(g_AmigaAudio));
-
-    printf("[AMIGA][AUDIO] SDL_CloseAudio: done\n"); fflush(stdout);
 }
 
 /* Compiled with -O0 to prevent FPU traps from opportunistic register spills during OpenDevice. */
@@ -1432,12 +1489,6 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
     if (!desired)
         return -1;
 
-    printf("[AMIGA][AUDIO] SDL_OpenAudio: ENTRY desired->freq=%d desired->format=0x%04x "
-           "desired->channels=%d desired->samples=%u desired->callback=%p desired->userdata=%p\n",
-           desired->freq, (unsigned)desired->format, desired->channels,
-           (unsigned)desired->samples, (void *)desired->callback, desired->userdata);
-    fflush(stdout);
-
     g_AmigaAudio.freq     = desired->freq > 0 ? desired->freq : 44100;
     g_AmigaAudio.channels = desired->channels > 0 ? desired->channels : 2;
     g_AmigaAudio.callback = desired->callback;
@@ -1450,12 +1501,6 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
         g_AmigaAudio.bufferBytes = frames * (ULONG)g_AmigaAudio.channels * sizeof(short);
     }
 
-    printf("[AMIGA][AUDIO] SDL_OpenAudio: using freq=%d channels=%d ahiType=%s bufferBytes=%lu\n",
-           g_AmigaAudio.freq, g_AmigaAudio.channels,
-           (g_AmigaAudio.ahiType == AMIGA_AHIST_S16S) ? "AHIST_S16S" : "AHIST_M16S",
-           (unsigned long)g_AmigaAudio.bufferBytes);
-    fflush(stdout);
-
     {
         int i;
         for (i = 0; i < AMIGA_AUDIO_NUM_BUFFERS; i++)
@@ -1463,8 +1508,6 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
             g_AmigaAudio.buffer[i] = (UBYTE *)AllocMem(g_AmigaAudio.bufferBytes, MEMF_PUBLIC | MEMF_CLEAR);
             if (!g_AmigaAudio.buffer[i])
             {
-                printf("[AMIGA][AUDIO] SDL_OpenAudio: AllocMem failed for buffer %d\n", i);
-                fflush(stdout);
                 AmigaAudio_FreeBuffers();
                 return -1;
             }
@@ -1474,7 +1517,6 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
     g_AmigaAudio.port = CreateMsgPort();
     if (!g_AmigaAudio.port)
     {
-        printf("[AMIGA][AUDIO] SDL_OpenAudio: CreateMsgPort failed\n"); fflush(stdout);
         AmigaAudio_FreeBuffers();
         return -1;
     }
@@ -1486,8 +1528,6 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
             g_AmigaAudio.req[i] = (struct AmigaAHIRequest *)CreateIORequest(g_AmigaAudio.port, sizeof(struct AmigaAHIRequest));
             if (!g_AmigaAudio.req[i])
             {
-                printf("[AMIGA][AUDIO] SDL_OpenAudio: CreateIORequest failed for req %d\n", i);
-                fflush(stdout);
                 AmigaAudio_FreeIOReqs();
                 AmigaAudio_FreeBuffers();
                 return -1;
@@ -1505,34 +1545,18 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
         BYTE odErr;
         extern struct ExecBase *SysBase;
 
-        printf("[AMIGA][AUDIO] SDL_OpenAudio: SysBase=0x%08lx\n", (unsigned long)SysBase);
-        fflush(stdout);
-
         if (!SysBase)
         {
-            printf("[AMIGA][AUDIO] SDL_OpenAudio: FATAL - SysBase is NULL, aborting audio init.\n");
-            fflush(stdout);
             AmigaAudio_FreeIOReqs();
             AmigaAudio_FreeBuffers();
             return -1;
         }
 
-        printf("[AMIGA][AUDIO] SDL_OpenAudio: about to call OpenDevice()\n");
-        fflush(stdout);
-
         odErr = OpenDevice((CONST_STRPTR)AMIGA_AHINAME, AMIGA_AHI_DEFAULT_UNIT,
                             (struct IORequest *)g_AmigaAudio.req[0], 0);
 
-        printf("[AMIGA][AUDIO] SDL_OpenAudio: OpenDevice(\"%s\", unit=%d) returned %d (0=success)\n",
-               AMIGA_AHINAME, AMIGA_AHI_DEFAULT_UNIT, (int)odErr);
-        fflush(stdout);
-
         if (odErr != 0)
         {
-            printf("[AMIGA][AUDIO] SDL_OpenAudio: OpenDevice FAILED (io_Error=%d) - "
-                   "ahi.device could not be opened. Check DEVS:AHI mode/driver config.\n",
-                   (int)g_AmigaAudio.req[0]->ahir_Std.io_Error);
-            fflush(stdout);
             AmigaAudio_FreeIOReqs();
             AmigaAudio_FreeBuffers();
             return -1;
@@ -1542,9 +1566,6 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
 
     g_AmigaAudio.req[1]->ahir_Std.io_Device = g_AmigaAudio.req[0]->ahir_Std.io_Device;
     g_AmigaAudio.req[1]->ahir_Std.io_Unit   = g_AmigaAudio.req[0]->ahir_Std.io_Unit;
-
-    printf("[AMIGA][AUDIO] ahi.device opened OK (unit %d)\n", AMIGA_AHI_DEFAULT_UNIT);
-    fflush(stdout);
 
     g_AmigaAudio.taskShouldQuit = 0;
     g_AmigaAudio.taskRunning = 0;
@@ -1558,15 +1579,12 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
 
     if (!g_AmigaAudio.audioTask)
     {
-        printf("[AMIGA][AUDIO] SDL_OpenAudio: CreateNewProcTags failed\n"); fflush(stdout);
         CloseDevice((struct IORequest *)g_AmigaAudio.req[0]);
         g_AmigaAudio.devopen = 0;
         AmigaAudio_FreeIOReqs();
         AmigaAudio_FreeBuffers();
         return -1;
     }
-
-    printf("[AMIGA][AUDIO] Background audio task started\n"); fflush(stdout);
 
     g_AmigaAudio.initialized = 1;
 
@@ -1594,12 +1612,12 @@ static inline SDL_AudioDeviceID SDL_OpenAudioDevice(const char *d, int ic,
     return 1; /* Non-zero device id indicates success. */
 }
 
-static inline void SDL_PauseAudio(int pause_on) { 
-    g_AmigaAudio.paused = pause_on ? 1 : 0; 
+static inline void SDL_PauseAudio(int pause_on) {
+    g_AmigaAudio.paused = pause_on ? 1 : 0;
 }
-static inline void SDL_PauseAudioDevice(SDL_AudioDeviceID d, int p) { 
-    (void)d; 
-    SDL_PauseAudio(p); 
+static inline void SDL_PauseAudioDevice(SDL_AudioDeviceID d, int p) {
+    (void)d;
+    SDL_PauseAudio(p);
 }
 
 /* Lightweight critical-section guard using Disable/Enable. */
@@ -1827,8 +1845,9 @@ AMIGA_STUBS_DECL Uint8 AmigaKeyboardState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0
 static inline void Amiga_InjectKeyboardEvent(int scancode, int pressed) {
     if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES) return;
     AmigaKeyboardState[scancode] = pressed ? 1 : 0;
-    
+
     SDL_Event ev;
+
     memset(&ev, 0, sizeof(ev));
     ev.type = pressed ? SDL_KEYDOWN : SDL_KEYUP;
     ev.key.keysym.scancode = scancode;
@@ -1836,6 +1855,7 @@ static inline void Amiga_InjectKeyboardEvent(int scancode, int pressed) {
     ev.key.keysym.mod = 0;
     Amiga_PushEvent(&ev);
 }
+
 
 static inline void Amiga_PumpWindowEvents(void)
 {
@@ -1860,6 +1880,7 @@ static inline void Amiga_PumpWindowEvents(void)
         {
             int pressed = !(code & IECODE_UP_PREFIX);
             code &= ~IECODE_UP_PREFIX;
+
             if (code < sizeof(AmigaRawKeyToScancode))
             {
                 int scancode = AmigaRawKeyToScancode[code];
@@ -1869,34 +1890,73 @@ static inline void Amiga_PumpWindowEvents(void)
                 }
             }
         }
+
         else if (class_ == IDCMP_MOUSEMOVE)
         {
-            AmigaMouseX = mx;
-            AmigaMouseY = my;
+            /* Convert physical window coordinates to the logical
+             * 320x200 mouse space. In the 8X2L mode the physical
+             * window is 640x240, so scale 640->320 on X and 240->200
+             * on Y - the game then sees EXACTLY the same 320x200
+             * mouse space as in native mode. In native mode the
+             * mapping is the identity, untouched. */
+            if (AmigaRtgMode == 1)
+            {
+                AmigaMouseX = mx >> 1;
+                AmigaMouseY = (my * 200) / 240;
+            }
+            else
+            {
+                AmigaMouseX = mx;
+                AmigaMouseY = my;
+            }
+
             SDL_Event ev;
+
             memset(&ev, 0, sizeof(ev));
             ev.type = SDL_MOUSEMOTION;
-            ev.button.x = mx;
-            ev.button.y = my;
+            ev.button.x = AmigaMouseX;
+            ev.button.y = AmigaMouseY;
             Amiga_PushEvent(&ev);
         }
+
         else if (class_ == IDCMP_MOUSEBUTTONS)
         {
-            SDL_Event ev;
-            memset(&ev, 0, sizeof(ev));
-            if (code == SELECTDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_LEFT; ev.button.state = 1; AmigaMouseButtons |= 1; }
-            else if (code == SELECTUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_LEFT; ev.button.state = 0; AmigaMouseButtons &= ~1; }
-            else if (code == MENUDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_RIGHT; ev.button.state = 1; AmigaMouseButtons |= 2; }
-            else if (code == MENUUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_RIGHT; ev.button.state = 0; AmigaMouseButtons &= ~2; }
-            else if (code == MIDDLEDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_MIDDLE; ev.button.state = 1; AmigaMouseButtons |= 4; }
-            else if (code == MIDDLEUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_MIDDLE; ev.button.state = 0; AmigaMouseButtons &= ~4; }
-            
-            if (ev.type) {
-                ev.button.x = AmigaMouseX;
-                ev.button.y = AmigaMouseY;
-                Amiga_PushEvent(&ev);
+            /* In the 8X2L mode, ignore middle mouse button events
+             * entirely: on some machines (e.g. A1200 + PiStorm/Emu68
+             * in the scan-doubled 640x240 mode) the middle button
+             * line (mouse port pin 9, shared with the POTX input)
+             * floats and produces a constant MIDDLEDOWN/MIDDLEUP
+             * flood at ~VBlank rate. Unfiltered, the phantom middle
+             * button acts as a permanent "ack": it skips the intro
+             * logos, exits demos instantly and fights joystick and
+             * keyboard steering in game through the mouse-takeover
+             * check. LEFT and RIGHT buttons are unaffected. The
+             * special-weapon cycle remains available on SPACE.
+             * Native mode is untouched. */
+            if (AmigaRtgMode == 1 && (code == MIDDLEDOWN || code == MIDDLEUP))
+            {
+                /* event dropped */
+            }
+            else
+            {
+                SDL_Event ev;
+
+                memset(&ev, 0, sizeof(ev));
+                if (code == SELECTDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_LEFT; ev.button.state = 1; AmigaMouseButtons |= 1; }
+                else if (code == SELECTUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_LEFT; ev.button.state = 0; AmigaMouseButtons &= ~1; }
+                else if (code == MENUDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_RIGHT; ev.button.state = 1; AmigaMouseButtons |= 2; }
+                else if (code == MENUUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_RIGHT; ev.button.state = 0; AmigaMouseButtons &= ~2; }
+                else if (code == MIDDLEDOWN) { ev.type = SDL_MOUSEBUTTONDOWN; ev.button.button = SDL_BUTTON_MIDDLE; ev.button.state = 1; AmigaMouseButtons |= 4; }
+                else if (code == MIDDLEUP) { ev.type = SDL_MOUSEBUTTONUP; ev.button.button = SDL_BUTTON_MIDDLE; ev.button.state = 0; AmigaMouseButtons &= ~4; }
+
+                if (ev.type) {
+                    ev.button.x = AmigaMouseX;
+                    ev.button.y = AmigaMouseY;
+                    Amiga_PushEvent(&ev);
+                }
             }
         }
+
     }
 }
 #else
@@ -1947,9 +2007,6 @@ static inline void SDL_PumpEvents(void) {
             if (!AmigaJoySeeded) {
                 AmigaJoySeeded = 1;
                 AmigaJoyPhantomMask = raw;
-                printf("[AMIGA] Joystick baseline: ReadJoyPort(1)=0x%08lx (phantom mask=0x%08lx)\n",
-                       (unsigned long)raw, (unsigned long)AmigaJoyPhantomMask);
-                fflush(stdout);
             }
             AmigaJoyPhantomMask &= raw;
 
@@ -2026,7 +2083,7 @@ static inline uint32_t SDL_GetMouseState(int *x, int *y) {
 #ifdef __AMIGA__
     if (x) *x = AmigaMouseX;
     if (y) *y = AmigaMouseY;
-    
+
     uint32_t mask = 0;
     if (AmigaMouseButtons & 1) mask |= SDL_BUTTON(SDL_BUTTON_LEFT);
     if (AmigaMouseButtons & 2) mask |= SDL_BUTTON(SDL_BUTTON_RIGHT);

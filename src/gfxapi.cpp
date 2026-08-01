@@ -47,13 +47,11 @@ int G3D_viewz;                    // user view z pos
 
 void GFX_InitTimer(void)
 {
-    fprintf(stderr, "[GFX] GFX_InitTimer()...\n"); fflush(stderr);
 #if SDL_VERSION_ATLEAST(2, 0, 5)
     SDL_SetHint(SDL_HINT_WINDOWS_DISABLE_THREAD_NAMING, "1");
 #endif
     SDL_Init(SDL_INIT_TIMER);
     timer_init = 1;
-    fprintf(stderr, "[GFX] GFX_InitTimer() done, timer_init=%d\n", timer_init); fflush(stderr);
 }
 
 #define GFX_RATE 70
@@ -201,10 +199,8 @@ GFX_InitSystem(
     void
 )
 {
-    fprintf(stderr, "[GFX] GFX_InitSystem() enter\n"); fflush(stderr);
     
     displaybuffer = (char*)malloc(64000);
-    fprintf(stderr, "[GFX]   displaybuffer=%p\n", (void*)displaybuffer); fflush(stderr);
     
     if (!displaybuffer)
     {
@@ -229,7 +225,6 @@ GFX_InitSystem(
         return;
     }
     
-    fprintf(stderr, "[GFX] GFX_InitSystem() done\n"); fflush(stderr);
 }
 
 /**************************************************************************
@@ -240,20 +235,14 @@ GFX_InitVideo(
     char *curpal
 )
 {
-    fprintf(stderr, "[GFX] GFX_InitVideo() enter, curpal=%p\n", (void*)curpal); fflush(stderr);
     I_InitGraphics((uint8_t*)curpal);
     displayscreen = (char*)I_VideoBuffer;
-    fprintf(stderr, "[GFX]   displayscreen=%p (I_VideoBuffer)\n", (void*)displayscreen); fflush(stderr);
     if (!displayscreen)
         EXIT_Error("GFX_InitVideo: I_VideoBuffer is NULL after I_InitGraphics!");
     
-    fprintf(stderr, "[GFX]   GFX_MakeLightTable(light)...\n"); fflush(stderr);
     GFX_MakeLightTable(curpal, ltable, 9);
-    fprintf(stderr, "[GFX]   GFX_MakeLightTable(dark)...\n"); fflush(stderr);
     GFX_MakeLightTable(curpal, dtable, -9);
-    fprintf(stderr, "[GFX]   GFX_MakeGreyTable...\n"); fflush(stderr);
     GFX_MakeGreyTable(curpal, gtable);
-    fprintf(stderr, "[GFX] GFX_InitVideo() done!\n"); fflush(stderr);
 }
 
 /**************************************************************************

@@ -1,4 +1,7 @@
 Raptor: Call of the Shadows - Amiga Port (68060/RTG)
+
+Version: BETA 0.8.1 NOSOUND
+
 =====================================================
 
 Amiga port of Raptor: Call of the Shadows, based on the open source
@@ -22,7 +25,11 @@ Processor:  Motorola 68060 (or PiStorm / Emu68)
 FPU:        Built-in 68060 / 68881 / 68882 - REQUIRED
             (binary compiled with -m68881)
 System:     AmigaOS 3.2 (intuition.library v39+, graphics.library v39+)
-Memory:     32 MB Fast RAM
+Memory:     4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
+            (standard). The game itself uses ~3 MB of Fast RAM; on RTG
+            the screen bitmap lives in graphics card memory, so Chip
+            RAM is only needed by the OS/Workbench.
+
 Graphics:   RTG with Picasso96 (e.g. CyberVision 64/3D, Picasso IV,
             UAEGFX/PiStorm) - 320x200x8 mode required
 Disk space: approx. 25 MB free (game files + saved games)
@@ -96,11 +103,31 @@ accepted. Parameters may be combined in any order.
                Note: until the AHI audio path is finished this option
                has no practical use - use -nosound.
 
+   -rtgmode=M  Selects the RTG display mode used for the game screen.
+               M may be:
+                 8    - native 320x200x8 palette screen (default,
+                        best for classic RTG cards and WinUAE);
+                 8X2L - 640x240x8 screen, the game image is doubled
+                        horizontally in software (320 -> 640 per row)
+                        and blitted 1:1 starting at the top of the
+                        screen (workaround for RTG drivers that show
+                        the 320x200x8 mode squeezed to half the screen
+                        width, e.g. PiStorm/Emu68; 8X2 accepted as an
+                        alias). 640x240 matches the native buffer
+                        geometry of such drivers.
+
+               If the requested mode is unavailable the game falls
+               back to the native 320x200x8 mode. The dashless form
+               "RTGMODE=8X2L" works as well.
+
+
+
    REC <file>  Records a demo of your gameplay to the given file
                (e.g. "raptor -nosound REC demo1.dem").
 
    PLAY <file> Plays back a previously recorded demo file
                (e.g. "raptor -nosound PLAY demo1.dem").
+
 
 
 Running from Shell/CLI
@@ -136,20 +163,64 @@ Workbench. Parameters are passed via icon ToolTypes:
 
       NOSOUND
       (NOMUSIC)
+      RTGMODE=8X2L
 
    A ToolType enclosed in parentheses is INACTIVE (ignored by the
    game) - this is a convenient way to keep an option in the icon
    without enabling it. Only the active, non-parenthesized forms
    are honored.
 
+   The RTGMODE ToolType accepts the same values as the -rtgmode
+   command line parameter: RTGMODE=8 (default) or RTGMODE=8X2L.
+   See "Command Line Parameters" above.
+
+
+
 3. Click "Save" and double-click the icon to start the game.
 
 Note: with sound support still being worked on, the icon should
 contain the NOSOUND ToolType, otherwise the game may fail to start.
 
+Note: when started from the Workbench icon the game produces no
+console output (no console window is opened at all). To see the
+startup messages, start the game from Shell/CLI instead.
+
+
+
+PiStorm / Emu68 Display Troubleshooting
+---------------------------------------
+
+On some RTG drivers (notably the PiStorm/Emu68 VideoCore driver)
+the native 320x200x8 screen may be displayed incorrectly - the
+game image appears squeezed into the left half of the screen,
+or with the bottom half cut off. If you see this, start the
+game with the 8X2L display mode:
+
+   raptor -nosound -rtgmode=8x2l
+
+This opens a 640x240x8 screen, which matches the native buffer
+geometry of such drivers (640 bytes/row, up to 240 rows - so the
+driver does not need to crop or rescale the bitmap), doubles the
+game image horizontally in software (320 -> 640 per row) and
+blits it 1:1 starting at the top of the screen. The driver's own
+scaling stretches the 240-row screen to the full display height.
+The mode is also available as an icon ToolType (RTGMODE=8X2L).
+
+
+If a requested mode is not available on your system, the game
+falls back to the native 320x200x8 mode automatically.
+
+Note: in the 8X2L mode the middle mouse button is ignored. On
+some machines (e.g. A1200 + PiStorm/Emu68 in this scan-doubled
+mode) the middle button line produces phantom presses that skip
+the intro logos, exit demos instantly and fight the steering.
+Cycling the special weapon is always available on SPACE. Left
+and right mouse buttons work normally in all modes.
+
 
 Controls
 --------
+
 
 In this port keyboard, mouse and joystick work simultaneously -
 there is no need to select a device in the options. The mouse takes
@@ -176,6 +247,7 @@ Direct special weapon selection (if available in inventory):
    1  Dumb Missile        6  Ground Missile
    2  Mini Gun            7  Bomb
    3  Turret              8  Energy Grab
+
    4  Missile Pods        9  Pulse Cannon
    5  Air Missile         0  Death Ray
    -  Forward Laser
@@ -233,8 +305,21 @@ Known Limitations
 - Fixed 320x200 resolution - the game always opens its own screen.
 
 
+Credits & Contact
+-----------------
+
+   Amiga Port Author:  Marcin "Raybeez" Bednarczyk (aka Cichy)
+   AI Collaboration:   Built with assistance from AI tools.
+   Contact / Feedback: cichy@cichy.com.pl
+   GitHub Repository:  https://github.com/RaybeezPL
+
+   Special thanks to all Amiga users keeping the scene alive.
+
+
+
 License and Thanks
 ------------------
+
 
 This port does NOT contain game data files. You need your own legal
 copy of Raptor: Call of the Shadows. Only the full version 1.2 is
@@ -244,3 +329,17 @@ This port is based on the skynettx/raptor project.
 Thanks to nukeykt and the contributors of the reconstructed Raptor
 code, and to the Amiga community and the creators of RTG and AHI
 tools.
+
+
+GNU License Compliance / Source Code Notice:
+--------------------------------------------
+
+This project is currently in the beta testing phase. In compliance
+with the GNU license, the full source code will be made publicly
+available upon the final release.
+
+Once finished, the source code will be included directly within the
+Aminet archive alongside the compiled port. Additionally, the GitHub
+repository will be changed from private to fully public at that time.
+
+

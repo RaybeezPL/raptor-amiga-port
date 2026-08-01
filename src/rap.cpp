@@ -42,6 +42,15 @@
 #ifdef __GNUC__
 #include <unistd.h>
 #endif // __GNUC__
+#ifdef __AMIGA__
+/* Workbench startup message and icon.library ToolType access - needed
+ * to make icon ToolTypes work at all: when the game is started from
+ * the Workbench, argc is 0 and argv carries the WBStartup message,
+ * not real command-line arguments. */
+#include <workbench/startup.h>
+#include <proto/icon.h>
+#endif // __AMIGA__
+
 
 #define wmemcpy(dst,src,size) memmove(dst,src,size)
 
@@ -54,6 +63,14 @@ struct bday_t {
 
 /* Global shutdown function pointer - used by common.h EXIT_Error/EXIT_Clean */
 exit_shutdown_func_t g_exit_shutdown_func = NULL;
+
+#ifdef __AMIGA__
+/* Set when the game was launched from the Workbench (argc == 0): at
+ * shutdown we close the console window that the C startup opened for
+ * program output. Shell/CLI launches leave the user's shell alone. */
+static int g_wb_started = 0;
+#endif
+
 
 int wRandSeed = 1;
 
@@ -199,9 +216,197 @@ RAP_StrCaseEqual(
     return (*a == 0 && *b == 0);
 }
 
+/*
+ * RAP_StrCaseStartsWith() - case-insensitive prefix match helper, used
+ * for "KEY=value" style switches like RTGMODE=8X2 (same portability
+ * rationale as RAP_StrCaseEqual above).
+ */
+static int
+RAP_StrCaseStartsWith(
+    const char *str,
+    const char *prefix
+)
+{
+    if (!str || !prefix)
+        return 0;
+
+    while (*prefix)
+    {
+        char cs = *str, cp = *prefix;
+
+        if (cs == 0)
+            return 0;
+
+        if (cs >= 'A' && cs <= 'Z')
+            cs = (char)(cs - 'A' + 'a');
+        if (cp >= 'A' && cp <= 'Z')
+            cp = (char)(cp - 'A' + 'a');
+
+        if (cs != cp)
+            return 0;
+
+        str++;
+        prefix++;
+    }
+
+    return 1;
+}
+
+#ifdef __AMIGA__
+/*
+ * RAP_ParseRtgMode() - handles the RTGMODE=<mode> keyword from the CLI
+ * ("-rtgmode=8x2l" / "rtgmode=8x2l") and Workbench icon ToolTypes
+ * ("RTGMODE=8X2L"). Returns 1 when the argument was recognized.
+ *
+ *   RTGMODE=8    native 320x200x8 screen (default)
+ *   RTGMODE=8X2L 640x240x8 screen, pixels doubled horizontally in
+ *                software, centered with 20-line letterbox bars
+ *                (8X2 accepted as an alias)
+ *
+ * 8X2L is a workaround for RTG drivers that cannot display the native
+ * 320x200x8 mode correctly (e.g. PiStorm/Emu68 showing the image
+ * squeezed to half the screen width). 640x240 matches the driver's
+ * native buffer geometry (640 bytes/row, up to 240 rows).
+ */
+static int
+RAP_ParseRtgMode(
+    const char *arg
+)
+{
+    extern int AmigaRtgMode;
+    const char *value;
+
+    if (RAP_StrCaseStartsWith(arg, "-rtgmode="))
+        value = arg + 9;
+    else if (RAP_StrCaseStartsWith(arg, "rtgmode="))
+        value = arg + 8;
+    else
+        return 0;
+
+    if (RAP_StrCaseEqual(value, "8x2l") || RAP_StrCaseEqual(value, "8x2"))
+    {
+        AmigaRtgMode = 1;
+        printf("RTGMODE=8X2L: 640x240x8 screen, horizontal pixel "
+               "doubling\n");
+    }
+
+    else if (RAP_StrCaseEqual(value, "8"))
+    {
+        AmigaRtgMode = 0;
+        printf("RTGMODE=8: native 320x200x8 screen\n");
+    }
+    else
+    {
+        printf("Unknown RTGMODE '%s' - valid values: 8, 8X2L "
+               "(using default 8)\n", value);
+    }
+
+    return 1;
+}
+
+/*
+ * RAP_ParseWorkbenchToolTypes() - parses the icon ToolTypes when the
+ * game is started from the Workbench. This is the ONLY way Workbench
+ * parameters reach us: in a Workbench launch argc is 0 and argv is
+ * not an argument vector but the WBStartup message, so scanning
+ * argv[] for "NOSOUND" etc. can never match (the earlier approach).
+ *
+ * Official mechanism: read the program's DiskObject via icon.library
+ * and query ToolTypes with FindToolType(). Entries wrapped in
+ * parentheses are ignored by FindToolType() automatically, which
+ * implements the standard "inactive tooltype" convention.
+ */
+static void
+RAP_ParseWorkbenchToolTypes(
+    struct WBStartup *wbmsg
+)
+{
+    struct Library *IconBase;
+    struct DiskObject *dobj;
+    BPTR oldlock;
+
+    if (!wbmsg || wbmsg->sm_NumArgs < 1)
+        return;
+
+    IconBase = OpenLibrary((CONST_STRPTR)"icon.library", 36);
+    if (!IconBase)
+    {
+        printf("[AMIGA] WB start: cannot open icon.library - "
+               "ToolTypes ignored\n");
+        return;
+    }
+
+    /* sm_ArgList[0] is the program itself: wa_Lock = its directory,
+     * wa_Name = its name. GetDiskObject() resolves the .info file. */
+    oldlock = CurrentDir(wbmsg->sm_ArgList[0].wa_Lock);
+    dobj = GetDiskObject((STRPTR)wbmsg->sm_ArgList[0].wa_Name);
+    CurrentDir(oldlock);
+
+    if (!dobj)
+    {
+        printf("[AMIGA] WB start: GetDiskObject('%s') failed - "
+               "ToolTypes ignored\n", wbmsg->sm_ArgList[0].wa_Name);
+        CloseLibrary(IconBase);
+        return;
+    }
+
+    if (dobj->do_ToolTypes)
+    {
+        STRPTR *tt = (STRPTR *)dobj->do_ToolTypes;
+        UBYTE *s;   /* FindToolType() returns UBYTE* in this NDK */
+
+
+        if (FindToolType((CONST_STRPTR *)tt, "NOSOUND"))
+        {
+            g_nosound = 1;
+            printf("NOSOUND tooltype: audio disabled\n");
+        }
+
+        if (FindToolType((CONST_STRPTR *)tt, "NOMUSIC"))
+        {
+            g_nomusic = 1;
+            printf("NOMUSIC tooltype: music disabled\n");
+        }
+
+        if (FindToolType((CONST_STRPTR *)tt, "NOJOY"))
+        {
+            extern int AmigaJoyDisabled;
+            AmigaJoyDisabled = 1;
+            printf("NOJOY tooltype: joystick polling disabled\n");
+        }
+
+        /* FindToolType() returns a pointer to the value part after
+         * '=' (e.g. "8X2L" for "RTGMODE=8X2L"), or NULL if absent. */
+        s = FindToolType((CONST_STRPTR *)tt, "RTGMODE");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "rtgmode=");
+            while (s[i] && i < (int)sizeof(buf) - 10)
+            {
+                buf[8 + i] = s[i];
+                i++;
+            }
+            buf[8 + i] = 0;
+            RAP_ParseRtgMode(buf);
+        }
+    }
+
+    FreeDiskObject(dobj);
+    CloseLibrary(IconBase);
+}
+
+#endif /* __AMIGA__ */
+
+
 /***************************************************************************
 RAP_Bday() - Get system date
  ***************************************************************************/
+
+
+
 
 void 
 RAP_Bday(
@@ -275,6 +480,11 @@ ShutDown(
     
     free(g_highmem);
 }
+
+
+
+
+
 
 /***************************************************************************
 RAP_ClearSides () - Clears the Sides
@@ -1296,20 +1506,14 @@ RAP_InitMem(
     unsigned int heapsize = 0x495FF0;
 #endif
     
-    fprintf(stderr, "[INIT] RAP_InitMem: requesting %u bytes (0x%X)...\n", heapsize, heapsize);
-    fflush(stderr);
     
     g_highmem = (char*)calloc(heapsize, 1);
     
     if (!g_highmem) {
-        fprintf(stderr, "[INIT] RAP_InitMem: calloc FAILED for %u bytes!\n", heapsize);
-        fflush(stderr);
         EXIT_Error("RAP_InitMem: Out of memory! Need %u bytes", heapsize);
         return;
     }
     
-    fprintf(stderr, "[INIT] RAP_InitMem: allocated at %p\n", (void*)g_highmem);
-    fflush(stderr);
     
     VM_InitMemory(g_highmem, heapsize);
     GLB_UseVM();
@@ -1327,50 +1531,59 @@ main(
     char *var1, *tptr, *pal;
     int loop, numfiles, ptrflag, item;
 
+#ifdef __AMIGA__
+    /* Workbench launch (argc == 0): before anything is printed,
+     * redirect stdout/stderr to NIL: - the C startup would otherwise
+     * open a console window on the first print, and there is no safe
+     * way to close that window on exit (both raw Close() and fclose()
+     * crash in the C library exit path). CLI/Shell launches keep full
+     * console output. */
+    if (argc == 0)
+    {
+        freopen("NIL:", "w", stdout);
+        freopen("NIL:", "w", stderr);
+    }
+#endif
+
+    printf("--------------------------------------------------------\n");
+    printf(" Raptor: Shadow of the Stars - Amiga Port - beta version -no sfx and music\n");
+
+    printf(" Port Author: RaybeezPL | AI Collaboration\n");
+    printf(" Contact: cichy@cichy.com.pl\n");
+    printf(" GitHub: https://github.com/RaybeezPL/raptor-amiga-port\n");
+    printf("--------------------------------------------------------\n\n");
+
     var1 = getenv("S_HOST");
 
     InitScreen();
 
     RAP_InitLoadSave();
-    
-#if _WIN32 || __linux__ || __APPLE__
-    if (access(RAP_SetupFilename(), 0))
-    {
-        INI_InitPreference(RAP_SetupFilename());
-        RAP_WriteDefaultSetup();
-    }
-#elif defined(__AMIGA__)
-    if (access(RAP_SetupFilename(), 0) == 0)
-    {
-        /* SETUP.INI exists - load preferences from it */
-        INI_InitPreference(RAP_SetupFilename());
-        printf("[INIT] Loaded SETUP.INI\n");
-    }
-    else
-    {
-        /* No SETUP.INI - run with safe Amiga defaults */
-        printf("[INIT] No SETUP.INI found - using Amiga defaults\n");
-    }
-#else
-    if (access(RAP_SetupFilename(), 0))
-    {
-        printf("\n\n** You must run SETUP first! **\n");
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
-            "Raptor", "** You must run SETUP first! **", NULL);
-        exit(0);
-    }
-#endif //_WIN32 || __linux__ || __APPLE__
 
     godmode = 0;
+
 
     if (var1 != NULL && !strcmp(var1, gdmodestr))
         godmode = 1;
     else
         godmode = 0;
 
+#ifdef __AMIGA__
+    /* Workbench launch: argc is 0 and argv is not a real argument
+     * vector but the WBStartup message. Parse the icon ToolTypes the
+     * official way (icon.library) - without this, parameters set in
+     * the icon (NOSOUND, RTGMODE=..., ...) never reach the game. */
+    if (argc == 0)
+    {
+        g_wb_started = 1;
+        RAP_ParseWorkbenchToolTypes((struct WBStartup *)argv);
+    }
+#endif
+
+
     /* ================================================
      * -nosound / -nomusic command-line switches
      * ================================================
+
      * Scanned across the whole argv[] (not just argv[1]) so they can be
      * combined with the existing REC/PLAY demo arguments in any order,
      * e.g. "raptor -nosound REC demo1.dem" or "raptor REC demo1.dem
@@ -1415,59 +1628,19 @@ main(
             AmigaJoyDisabled = 1;
             printf("-nojoy specified: joystick polling disabled\n");
         }
-#endif
-
-    }
-
-#ifdef __AMIGA__
-    /* AmigaOS ToolTypes: when launched from a Workbench icon, parameters
-     * arrive without a leading dash and may be wrapped in parentheses to
-     * indicate "inactive". We only honor the active (non-parenthesized)
-     * form. Example icon ToolTypes:
-     *   NOSOUND      <- active
-     *   (NOMUSIC)    <- inactive (ignored)
-     *   (NOJOY)      <- inactive (ignored)
-     */
-    {
-        /* Helper macro to test active tooltype (plain keyword in argv) */
-        #define RAP_TOOLTYPE_ACTIVE(key) \
-            (RAP_StrCaseEqual(argv[loop], key))
-
-        /* Re-scan argv for plain keywords (no dash) that act as tooltypes.
-         * The CLI loop above already handles "-nosound" etc., but Workbench
-         * tooltypes like "NOSOUND" (no dash) need their own pass so we can
-         * also detect and skip parenthesized inactive forms. */
-        for (loop = 1; loop < argc; loop++)
+        /* -rtgmode=<8|8X2|32> selects the RTG display mode used for the
+         * game screen. See RAP_ParseRtgMode() above for the values. */
+        else if (RAP_ParseRtgMode(argv[loop]))
         {
-            /* Skip any argument wrapped in parentheses - those are
-             * intentionally inactive tooltypes. */
-            if (argv[loop][0] == '(')
-                continue;
-
-            if (RAP_StrCaseEqual(argv[loop], "nosound"))
-            {
-                g_nosound = 1;
-                printf("NOSOUND tooltype: audio disabled\n");
-            }
-            else if (RAP_StrCaseEqual(argv[loop], "nomusic"))
-            {
-                g_nomusic = 1;
-                printf("NOMUSIC tooltype: music disabled\n");
-            }
-            else if (RAP_StrCaseEqual(argv[loop], "nojoy"))
-            {
-                extern int AmigaJoyDisabled;
-                AmigaJoyDisabled = 1;
-                printf("NOJOY tooltype: joystick polling disabled\n");
-            }
+            /* mode applied later when the game screen is opened */
         }
-
-        #undef RAP_TOOLTYPE_ACTIVE
-    }
 #endif
+
+    }
 
 
     if (argv[1])
+
     {
         if (!strcmp(argv[1], "REC"))
         {
@@ -1607,16 +1780,11 @@ main(
 #endif
 
     fflush(stdout);
-    fprintf(stderr, "[INIT] KBD_Install()...\n"); fflush(stderr);
     KBD_Install();
-    fprintf(stderr, "[INIT] GFX_InitSystem()...\n"); fflush(stderr);
     GFX_InitSystem();
-    fprintf(stderr, "[INIT] SWD_Install()...\n"); fflush(stderr);
     SWD_Install(0);
     
-    fprintf(stderr, "[INIT] VIDEO_LoadPrefs()...\n"); fflush(stderr);
     VIDEO_LoadPrefs();
-    fprintf(stderr, "[INIT] IPT_LoadPrefs()...\n"); fflush(stderr);
     IPT_LoadPrefs();
     
     switch (control)
@@ -1665,21 +1833,14 @@ main(
         GLB_FreeItem(FILE000_ATENTION_TXT);
     }
     
-    fprintf(stderr, "[INIT] SND_InitSound()...\n"); fflush(stderr);
     SND_InitSound();
-    fprintf(stderr, "[INIT] IPT_Init()...\n"); fflush(stderr);
     IPT_Init();
-    fprintf(stderr, "[INIT] GLB_FreeAll()...\n"); fflush(stderr);
     GLB_FreeAll();
-    fprintf(stderr, "[INIT] RAP_InitMem()...\n"); fflush(stderr);
     RAP_InitMem();
-    fprintf(stderr, "[INIT] RAP_InitMem() done, g_highmem=%p\n", (void*)g_highmem); fflush(stderr);
     
     printf("Loading Graphics\n");
     fflush(stdout);
-    fprintf(stderr, "[INIT] Loading Graphics...\n"); fflush(stderr);
     
-    fprintf(stderr, "[INIT] GLB_LockItem(palette)...\n"); fflush(stderr);
     pal = GLB_LockItem(FILE100_PALETTE_DAT);
     memset(pal, 0, 3);
     palette = pal;
@@ -1737,30 +1898,21 @@ main(
     ANIMS_Init();
     SND_Setup();
 
-    fprintf(stderr, "[INIT] GFX_SetPalRange()...\n"); fflush(stderr);
 
     GFX_SetPalRange(0, ROTPAL_START - 1);
-    fprintf(stderr, "[INIT] GFX_InitVideo(palette)... (calls I_InitGraphics)\n"); fflush(stderr);
     GFX_InitVideo(palette);
-    fprintf(stderr, "[INIT] GFX_InitVideo() done!\n"); fflush(stderr);
-    fprintf(stderr, "[INIT] SHADOW_MakeShades()...\n"); fflush(stderr);
     SHADOW_MakeShades();
-    fprintf(stderr, "[INIT] SHADOW_MakeShades() done!\n"); fflush(stderr);
     
     RAP_ClearPlayer();
     
-    fprintf(stderr, "[INIT] === Video init complete, entering game logic ===\n"); fflush(stderr);
     
     if (!godmode)
     {
-        fprintf(stderr, "[INIT] INTRO_Credits()...\n"); fflush(stderr);
         INTRO_Credits();
-        fprintf(stderr, "[INIT] INTRO_Credits() done!\n"); fflush(stderr);
     }
     
     if (demo_flag != DEMO_PLAYBACK)
     {
-        fprintf(stderr, "[INIT] SND_PlaySong + INTRO_PlayMain...\n"); fflush(stderr);
         SND_PlaySong(FILE056_RINTRO_MUS, 1, 1);
         INTRO_PlayMain();
         SND_PlaySong(FILE057_MAINMENU_MUS, 1, 1);

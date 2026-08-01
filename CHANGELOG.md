@@ -2,7 +2,59 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.8.1-beta] - 2026-08-01
+
+Version name: **BETA 0.8.1 NOSOUND**
+
+### Added
+- `RTGMODE` parameter (CLI and Workbench icon ToolType): `RTGMODE=8X2L`
+  opens a 640x240x8 screen and doubles the game image horizontally in
+  software (320 -> 640 per row) - a workaround for PiStorm/Emu68 drivers
+  that display the native 320x200x8 mode squeezed to half the screen
+  width. Mouse coordinates are normalized to the same logical 320x200
+  space as native mode. The game falls back to native 320x200x8 when the
+  requested mode is unavailable.
+- Workbench icon ToolTypes via the official WBStartup + icon.library
+  `FindToolType()` mechanism (NOSOUND, NOMUSIC, NOJOY, RTGMODE);
+  parenthesized ToolTypes are ignored per AmigaOS convention.
+- Startup banner with port version and contact info.
+- On Workbench launches no console window is opened at all (stdout and
+  stderr are redirected to NIL:), so nothing is left behind when the
+  game exits.
+
+
+### Changed
+- All temporary diagnostic output removed for the beta: `[AMIGA]`,
+  `[AMIGA][DIAG]`, `[AMIGA][AUDIO]`, `[VIDEO]`, `[INIT]`, `[GFX]` and
+  `[EXIT_Clean]` log lines stripped from the build; startup output is now
+  limited to the banner, parameter confirmations and original game
+  messages.
+- Duplicate `SETUP.INI` status message and duplicate parameter
+  confirmations eliminated.
+
+### Fixed
+- Phantom middle mouse button events (MIDDLEDOWN/MIDDLEUP flood at
+  ~VBlank rate on some machines, e.g. A1200 + PiStorm/Emu68 in the
+  scan-doubled 640x240 mode) are filtered out in the 8X2L mode. The
+  phantom button previously acted as a permanent "ack": intro logos
+  skipped themselves, demos exited instantly and the mouse-takeover check
+  fought joystick/keyboard steering in game. Special-weapon cycling
+  remains available on SPACE.
+- Exit crashes caused by attempts to close the Workbench console window
+  (Software Failure #8700000E from a double `Close()`, then #81000005
+  BadFreeAddr from `fclose()` of the standard streams): solved by never
+  opening the console window on Workbench launches instead of trying to
+  close it afterwards.
+- Workbench icon ToolTypes now actually reach the game (previously they
+  were looked for in argv[], which is empty on Workbench launches).
+
+
+### Removed
+- Experimental `RTGMODE=32` truecolor mode (did not work correctly on
+  PiStorm/Emu68).
+
 ## [Unreleased]
+
 
 ### Added
 - Initial Amiga 68k port setup: dedicated `Makefile.amiga`, SDL stub layer, and porting analysis document.  
@@ -15,7 +67,9 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
 - Temporary FX/DSP/SFX audio debug probes and early AHI probes to understand callback behaviour.  
 
 ### Changed
+- Documented actual memory requirements from code analysis: the game uses ~3 MB of Fast RAM (2 MB game heap, binary, blit/surface buffers); requirements updated to **4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM** in README files.
 - README updated and then rewritten to describe the Amiga 68060 RTG build environment and port details in English.  
+
 - Amiga SDL stubs repeatedly refined:  
   - Fixed Raptor SDL rendering stubs and input handling for RTG build.  
   - Implemented a real IDCMP event pump for keyboard/mouse, added full SDL scancode table, proper raw‑key mapping, and real `SDL_PumpEvents`/`SDL_PollEvent` integration.  
