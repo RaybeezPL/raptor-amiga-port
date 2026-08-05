@@ -7,15 +7,8 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
 Version name: **BETA 0.8.1 NOSOUND**
 
 ### Added
-- `RTGMODE` parameter (CLI and Workbench icon ToolType): `RTGMODE=8X2L`
-  opens a 640x240x8 screen and doubles the game image horizontally in
-  software (320 -> 640 per row) - a workaround for PiStorm/Emu68 drivers
-  that display the native 320x200x8 mode squeezed to half the screen
-  width. Mouse coordinates are normalized to the same logical 320x200
-  space as native mode. The game falls back to native 320x200x8 when the
-  requested mode is unavailable.
 - Workbench icon ToolTypes via the official WBStartup + icon.library
-  `FindToolType()` mechanism (NOSOUND, NOMUSIC, NOJOY, RTGMODE);
+  `FindToolType()` mechanism (NOSOUND, NOMUSIC, NOJOY);
   parenthesized ToolTypes are ignored per AmigaOS convention.
 - Startup banner with port version and contact info.
 - On Workbench launches no console window is opened at all (stdout and
@@ -34,12 +27,11 @@ Version name: **BETA 0.8.1 NOSOUND**
 
 ### Fixed
 - Phantom middle mouse button events (MIDDLEDOWN/MIDDLEUP flood at
-  ~VBlank rate on some machines, e.g. A1200 + PiStorm/Emu68 in the
-  scan-doubled 640x240 mode) are filtered out in the 8X2L mode. The
-  phantom button previously acted as a permanent "ack": intro logos
-  skipped themselves, demos exited instantly and the mouse-takeover check
-  fought joystick/keyboard steering in game. Special-weapon cycling
-  remains available on SPACE.
+  ~VBlank rate on some RTG machines, e.g. A1200 + PiStorm/Emu68) are
+  filtered out. The phantom button previously acted as a permanent
+  "ack": intro logos skipped themselves, demos exited instantly and
+  the mouse-takeover check fought joystick/keyboard steering in game.
+  Special-weapon cycling remains available on SPACE.
 - Exit crashes caused by attempts to close the Workbench console window
   (Software Failure #8700000E from a double `Close()`, then #81000005
   BadFreeAddr from `fclose()` of the standard streams): solved by never
@@ -52,11 +44,24 @@ Version name: **BETA 0.8.1 NOSOUND**
 ### Removed
 - Experimental `RTGMODE=32` truecolor mode (did not work correctly on
   PiStorm/Emu68).
+- The `RTGMODE`/`-rtgmode` parameter and the `8X2L` 640x240x8 pixel-
+  doubling display mode, together with the RTG screen-mode requester.
 
 ## [Unreleased]
 
 
 ### Added
+- `GFX=AUTO|RTG|AGA` parameter (CLI and Workbench icon ToolType):
+  controls the graphics driver path — AUTO/RTG require RTG (strict,
+  English requester on failure, no silent fallback); AGA forces a
+  classic chipset screen.
+- Automatic 320x240x8 RTG letterbox fallback: when the RTG path cannot
+  open 320x200x8 it tries 320x240x8 (a common Picasso96 default),
+  drawing the 320x200 game image at the top with a 40-row black bar at
+  the bottom.
+- Detailed `[VIDEO]` diagnostic log written to `RAPTOR.LOG` on every start,
+  covering P96 detection, BestModeID selection, GFX mode choice, and
+  the final physical screen parameters.
 - Initial Amiga 68k port setup: dedicated `Makefile.amiga`, SDL stub layer, and porting analysis document.  
 - Detailed video init logging and critical SDL stub fixes for Amiga 68k, including real timer implementation (`SDL_GetTicks`), `SDL_Delay` using AmigaOS, and functional `SDL_LowerBlit` for visible output.  
 - Real Amiga Intuition window support in SDL stubs: SDL window/renderer/texture structs now hold actual Intuition window pointers, and `SDL_CreateWindow`/`SDL_DestroyWindow` manage Amiga windows and libraries correctly.  

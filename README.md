@@ -31,17 +31,19 @@ Working:
 - Native **m68k AmigaOS cross-build** (68060 + FPU)
 - Full gameplay on real hardware (A2000, A1200 + PiStorm/Emu68) and WinUAE
 - Keyboard, mouse and joystick/CD32 pad input working simultaneously
-- RTG video path for **320x200x8-bit** output on a dedicated screen
-- **`RTGMODE=8X2L` display mode** for PiStorm/Emu68 (640x240x8 screen,
-  horizontal pixel doubling in software) - fixes the squeezed half-screen
-  image on those drivers
-- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/RTGMODE) via the
+- RTG video path for **320x200x8-bit** output on a dedicated screen;
+  falls back to 320x240x8 with letterbox on RTG cards that lack 320x200
+- **`GFX=AUTO|RTG|AGA`** parameter — controls the graphics driver path
+  (CLI: `-gfx=RTG`; icon ToolType: `GFX=RTG`)
+- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/GFX) via the
   official WBStartup + icon.library mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
   launches no console window is opened at all (nothing is left behind
   when the game exits)
-- Phantom middle-mouse-button filtering in 8X2L mode (fixes intro/demo
+- Phantom middle-mouse-button filtering on RTG screens (fixes intro/demo
   skipping and erratic steering on some machines)
+- English requester with troubleshooting info when RTG mode is required
+  but unavailable (no silent fallback to AGA)
 
 
 Work still in progress:

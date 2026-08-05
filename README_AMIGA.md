@@ -103,22 +103,29 @@ accepted. Parameters may be combined in any order.
                Note: until the AHI audio path is finished this option
                has no practical use - use -nosound.
 
-   -rtgmode=M  Selects the RTG display mode used for the game screen.
-               M may be:
-                 8    - native 320x200x8 palette screen (default,
-                        best for classic RTG cards and WinUAE);
-                 8X2L - 640x240x8 screen, the game image is doubled
-                        horizontally in software (320 -> 640 per row)
-                        and blitted 1:1 starting at the top of the
-                        screen (workaround for RTG drivers that show
-                        the 320x200x8 mode squeezed to half the screen
-                        width, e.g. PiStorm/Emu68; 8X2 accepted as an
-                        alias). 640x240 matches the native buffer
-                        geometry of such drivers.
+   -gfx=M      Selects the graphics driver path used for the game
+               screen. M may be:
+                 AUTO  - try RTG first; if RTG is not available, show
+                         an English requester and DO NOT start (no
+                         silent fallback to the classic chipset - this
+                         is the default);
+                 RTG   - same as AUTO (RTG required, no silent
+                         fallback);
+                 AGA   - force a native chipset 320x200x8 screen
+                         (no RTG required, works on every Amiga).
 
-               If the requested mode is unavailable the game falls
-               back to the native 320x200x8 mode. The dashless form
-               "RTGMODE=8X2L" works as well.
+               The dashless form "GFX=RTG" also works. When the RTG
+               path cannot open a 320x200x8 screen it looks for
+               320x240x8 instead, opening that with a 40-row black
+               bar at the bottom ("letterbox") - this covers RTG
+               boards and drivers whose default mode list does NOT
+               include 320x200x8 but includes 320x240x8 (a common
+               Picasso96 ScreenModes default).
+
+               Upon failure the game shows an English requester with
+               troubleshooting information: which mode is required,
+               and which parameter to use to force a classic chipset
+               screen (GFX=AGA / -gfx=AGA).
 
 
 
@@ -163,17 +170,12 @@ Workbench. Parameters are passed via icon ToolTypes:
 
       NOSOUND
       (NOMUSIC)
-      RTGMODE=8X2L
+      GFX=AGA
 
    A ToolType enclosed in parentheses is INACTIVE (ignored by the
    game) - this is a convenient way to keep an option in the icon
    without enabling it. Only the active, non-parenthesized forms
    are honored.
-
-   The RTGMODE ToolType accepts the same values as the -rtgmode
-   command line parameter: RTGMODE=8 (default) or RTGMODE=8X2L.
-   See "Command Line Parameters" above.
-
 
 
 3. Click "Save" and double-click the icon to start the game.
@@ -193,29 +195,18 @@ PiStorm / Emu68 Display Troubleshooting
 On some RTG drivers (notably the PiStorm/Emu68 VideoCore driver)
 the native 320x200x8 screen may be displayed incorrectly - the
 game image appears squeezed into the left half of the screen,
-or with the bottom half cut off. If you see this, start the
-game with the 8X2L display mode:
+or with the bottom half cut off. This port tries a 320x200x8 RTG
+screen first; if that resolution is not in the driver's mode list
+it falls back to a 320x240x8 screen (with a 40-row black bar at
+the bottom). If neither mode is available, an English requester
+appears asking you to either configure a suitable RTG mode or
+start the game with the classic chipset screen (GFX=AGA).
 
-   raptor -nosound -rtgmode=8x2l
-
-This opens a 640x240x8 screen, which matches the native buffer
-geometry of such drivers (640 bytes/row, up to 240 rows - so the
-driver does not need to crop or rescale the bitmap), doubles the
-game image horizontally in software (320 -> 640 per row) and
-blits it 1:1 starting at the top of the screen. The driver's own
-scaling stretches the 240-row screen to the full display height.
-The mode is also available as an icon ToolType (RTGMODE=8X2L).
-
-
-If a requested mode is not available on your system, the game
-falls back to the native 320x200x8 mode automatically.
-
-Note: in the 8X2L mode the middle mouse button is ignored. On
-some machines (e.g. A1200 + PiStorm/Emu68 in this scan-doubled
-mode) the middle button line produces phantom presses that skip
-the intro logos, exit demos instantly and fight the steering.
-Cycling the special weapon is always available on SPACE. Left
-and right mouse buttons work normally in all modes.
+Note: the middle mouse button is ignored. On some RTG machines it
+produces phantom presses that skip the intro logos, exit demos
+instantly and fight the steering. Cycling the special weapon is
+always available on SPACE. Left and right mouse buttons work
+normally in all modes.
 
 
 Controls

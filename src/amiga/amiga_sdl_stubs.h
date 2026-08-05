@@ -8,7 +8,34 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdio.h>
+
+/* Minimal Amiga video/window diagnostics logger (AmigaLog).
+ * Writes one line to "RAPTOR.LOG" in the current directory (append) AND
+ * mirrors it to the console, so it works whether the game is launched from
+ * Workbench (where stdout is redirected to NIL:) or from a Shell. Failure to
+ * open the log file is not fatal - console output still works. */
+static inline void AmigaLog(const char *fmt, ...)
+{
+    va_list ap;
+    char line[256];
+    FILE *f;
+
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof(line), fmt, ap);
+    va_end(ap);
+
+    printf("%s\n", line);
+    fflush(stdout);
+
+    f = fopen("RAPTOR.LOG", "a");
+    if (f)
+    {
+        fprintf(f, "%s\n", line);
+        fclose(f);
+    }
+}
 
 /* AmigaOS Intuition/Graphics support. */
 
@@ -49,20 +76,21 @@ AMIGA_STUBS_DECL ULONG AmigaJoyState AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL struct Library *P96Base AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL int AmigaUsingP96 AMIGA_STUBS_INIT(0);
 
-/* RTG display mode, selected at runtime via the RTGMODE keyword
-* (CLI "-rtgmode=..." or icon ToolType "RTGMODE=...", parsed in rap.cpp):
-* 0 = native 320x200x8 - default; 1:1 WriteChunkyPixels blit.
-* 1 = 640x240x8 (8X2L) - pixels doubled horizontally in software
-* (320 -> 640 per row), blitted 1:1 vertically
-* starting at the top of the screen.
-* Mode 1 is a workaround for RTG drivers that cannot display a native
-* 320x200x8 screen correctly (e.g. PiStorm/Emu68 VideoCore, where the
-* low-res 8-bit mode ends up squeezed to half the screen width).
-* 640x240 matches the driver's native buffer geometry (640 bytes/row,
-* up to 240 rows), so the driver does not need to crop or rescale the
-* bitmap - modes with other heights (640x400, 640x480) got their lower
-* part cut off on PiStorm/Emu68. */
-AMIGA_STUBS_DECL int AmigaRtgMode AMIGA_STUBS_INIT(0);
+/* GFX display mode, selected at runtime via the GFX keyword (CLI "-gfx=..."
+ * or icon ToolType "GFX=..."):
+ *   AUTO (default) - try RTG (Picasso96) first; if RTG is unavailable, show
+ *                    an English requester and DO NOT start (no silent fallback).
+ *   RTG            - same as AUTO (RTG required, no silent fallback).
+ *   AGA            - force a native chipset 320x200x8 screen. */
+#define AMIGA_GFX_AUTO 0
+#define AMIGA_GFX_RTG  1
+#define AMIGA_GFX_AGA  2
+AMIGA_STUBS_DECL int AmigaGfxMode AMIGA_STUBS_INIT(AMIGA_GFX_AUTO);
+
+/* Set to 1 when an RTG 320x240x8 screen was opened instead of 320x200x8:
+ * the game draws its 320x200 image at the top of the screen, the bottom
+ * 40 rows stay black, and mouse Y is clamped to the 0..199 play area. */
+AMIGA_STUBS_DECL int AmigaRTGLetterbox AMIGA_STUBS_INIT(0);
 
 /* Physical screen parameters actually opened (filled in by
 * Amiga_OpenGameScreen). The game always draws to a logical 320x200
@@ -70,10 +98,6 @@ AMIGA_STUBS_DECL int AmigaRtgMode AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int AmigaPhysW AMIGA_STUBS_INIT(320);
 AMIGA_STUBS_DECL int AmigaPhysH AMIGA_STUBS_INIT(200);
 AMIGA_STUBS_DECL int AmigaPhysDepth AMIGA_STUBS_INIT(8);
-
-/* Software pixel-doubling buffer used by the RTGMODE=8X2L blit path
-* (640x200x8 = 128000 bytes are needed). */
-AMIGA_STUBS_DECL uint8_t AmigaBlitBuf[256 * 1024];
 
 /* Inlined BestModeID tags to avoid header dependency. */
 #ifndef BIDTAG_DesiredWidth
@@ -133,10 +157,12 @@ static inline int Amiga_OpenP96(void)
 
     if (P96Base) {
         AmigaUsingP96 = 1;
+        AmigaLog("[VIDEO] P96 probe: OpenLibrary(Picasso96API.library,0) -> OK");
         return 1;
     }
 
     AmigaUsingP96 = 0;
+    AmigaLog("[VIDEO] P96 probe: OpenLibrary(Picasso96API.library,0) -> absent (native chipset fallback allowed)");
     return 0;
 }
 
@@ -151,7 +177,15 @@ static inline void Amiga_CloseP96(void)
 
 static inline int Amiga_IsNativeChipsetMode(ULONG modeid)
 {
-    return ((modeid & MONITOR_ID_MASK) == DEFAULT_MONITOR_ID);
+    /* Native chipset monitors: default (0x0000), NTSC (0x0001), PAL (0x0002).
+     * Any other monitor ID (e.g. an RTG board's P96 monitor like 0x5007) is
+     * treated as non-native. This lets the RTG path reject native AGA/ECS
+     * modes that BestModeID would otherwise return on machines without a
+     * suitable P96 mode. Uses direct mask+compare to avoid any compiler-local
+     * issue with intermediate ULONG variables. */
+    return ((modeid & 0xFFFF0000UL) == 0x00000000UL) ||
+           ((modeid & 0xFFFF0000UL) == 0x00010000UL) ||   /* NTSC */
+           ((modeid & 0xFFFF0000UL) == 0x00020000UL);     /* PAL  */
 }
 
 /* Locates the best display ModeID for the requested resolution.
@@ -168,70 +202,80 @@ static inline ULONG Amiga_FindBestModeID(int w, int h, int depth)
         TAG_DONE);
 
     if (modeid == INVALID_ID) {
+        AmigaLog("[VIDEO] BestModeID want %dx%dx%d -> INVALID_ID", w, h, depth);
         return INVALID_ID;
     }
 
     if (AmigaUsingP96 && Amiga_IsNativeChipsetMode(modeid)) {
+        AmigaLog("[VIDEO] BestModeID check: AmigaUsingP96=%d, IsNativeChipset=%d",
+                 AmigaUsingP96, Amiga_IsNativeChipsetMode(modeid));
+        AmigaLog("[VIDEO] BestModeID want %dx%dx%d -> modeid=0x%08lx rejected (native chipset, P96 forces RTG)", w, h, depth, modeid);
         return INVALID_ID;
     }
 
+    AmigaLog("[VIDEO] BestModeID want %dx%dx%d -> modeid=0x%08lx", w, h, depth, modeid);
     return modeid;
 }
 
-/* Resolves the requested RTG mode (AmigaRtgMode) into concrete screen
-* parameters: native 320x200x8 by default, 640x240x8 for the 8X2L
-* horizontal pixel doubling letterbox mode. */
-static inline void Amiga_RtgModeConfig(int *w, int *h, int *depth)
+/* Shows an English system requester explaining that the game needs an RTG
+ * (Picasso96) display when GFX=AUTO/RTG but no RTG mode is available. The
+ * game does NOT fall back to AGA; it aborts instead. */
+static inline void Amiga_ShowRtgRequester(const char *detail)
 {
-    switch (AmigaRtgMode) {
-    case 1: *w = 640; *h = 240; *depth = 8; break;
-    default: *w = AMIGA_GAME_WIDTH; *h = AMIGA_GAME_HEIGHT;
-             *depth = AMIGA_GAME_DEPTH; break;
-    }
+    char body[400];
+    struct EasyStruct es;
+
+    snprintf(body, sizeof(body),
+        "Raptor requires an RTG (Picasso96) display for the selected GFX mode.\r\n\r\n"
+        "%s\r\n\r\n"
+        "Please install a Picasso96 driver that offers a 320x200x8 or "
+        "320x240x8 RTG mode (GFX=AUTO/RTG), or run the game on the classic "
+        "chipset screen with:\r\n"
+        "  GFX=AGA   (CLI: -gfx=AGA)",
+        detail ? detail : "");
+
+    memset(&es, 0, sizeof(es));
+    es.es_StructSize = sizeof(es);
+    es.es_Flags = 0;
+    es.es_Title = "Raptor - RTG required";
+    es.es_TextFormat = body;
+    es.es_GadgetFormat = "OK";
+
+    AmigaLog("[VIDEO] requester shown: RTG display required (%s)",
+             detail ? detail : "");
+    EasyRequestArgs(NULL, &es, NULL, NULL);
 }
 
-/* Opens the custom game screen in the mode selected by AmigaRtgMode.
-* If Picasso96 is present, RTG is mandatory and native chipset fallback
-* is forbidden, so AGA+RTG machines never open an AGA/ECS screen by
-* mistake. Without Picasso96 the game falls back to native 320x200x8. */
-static inline struct Screen* Amiga_OpenGameScreen(int w, int h, int depth)
+/* Opens the game screen (logical 320x200, 8-bit).
+ *
+ * GFX mode:
+ *  - AMIGA_GFX_AGA : native chipset 320x200x8 screen (no RTG required).
+ *  - AUTO / RTG    : requires RTG. Tries 320x200x8 first, then 320x240x8
+ *                    (opening the latter with AmigaRTGLetterbox=1 so the game
+ *                    image sits at the top and the bottom 40 rows stay black).
+ *                    If P96 is absent or no RTG mode exists, an English
+ *                    requester is shown and NULL is returned (no fallback). */
+static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
 {
     ULONG modeid;
-    int attempt;
-    int have_p96;
 
     if (AmigaGameScreen) {
         return AmigaGameScreen;
     }
 
-    have_p96 = Amiga_OpenP96();
+    AmigaLog("[VIDEO] === Amiga_OpenGameScreen: GFX=%s (logical %dx%dx%d) ===",
+             AmigaGfxMode == AMIGA_GFX_AGA ? "AGA" :
+             (AmigaGfxMode == AMIGA_GFX_RTG ? "RTG" : "AUTO"),
+             gw, gh, gdepth);
 
-    /* Two attempts max:
-    * - with P96: requested RTGMODE, then native RTG 320x200x8
-    * - without P96: requested mode, then native chipset 320x200x8 */
-    for (attempt = 0; attempt < 2; attempt++)
+    if (AmigaGfxMode == AMIGA_GFX_AGA)
     {
-        Amiga_RtgModeConfig(&w, &h, &depth);
-
-        modeid = Amiga_FindBestModeID(w, h, depth);
-
-        if (modeid == INVALID_ID) {
-            if (AmigaRtgMode != 0) {
-                /* Requested mode not found: retry with native 320x200x8. */
-                AmigaRtgMode = 0;
-                continue;
-            }
-
-            /* No valid mode at all. On P96 systems this means there is
-            * no usable RTG mode, so do not fall back to chipset. */
-            return NULL;
-        }
-
+        /* Native chipset 320x200x8 custom screen (no RTG required). */
+        AmigaRTGLetterbox = 0;
         AmigaGameScreen = OpenScreenTags(NULL,
-            SA_Width, (ULONG)w,
-            SA_Height, (ULONG)h,
-            SA_Depth, (ULONG)depth,
-            SA_DisplayID, modeid,
+            SA_Width, (ULONG)AMIGA_GAME_WIDTH,
+            SA_Height, (ULONG)AMIGA_GAME_HEIGHT,
+            SA_Depth, (ULONG)AMIGA_GAME_DEPTH,
             SA_Quiet, TRUE,
             SA_ShowTitle, FALSE,
             SA_Draggable, FALSE,
@@ -239,35 +283,117 @@ static inline struct Screen* Amiga_OpenGameScreen(int w, int h, int depth)
             SA_Type, CUSTOMSCREEN,
             TAG_DONE);
 
-        if (AmigaGameScreen) {
-            break;
-        }
-
-        if (AmigaRtgMode != 0) {
-            /* Could not open the requested mode: retry with native 320x200x8
-            * in the same display class. */
-            AmigaRtgMode = 0;
-            continue;
-        }
-
-        if (have_p96) {
-            /* RTG present but still failed: never fall back to AGA/ECS. */
+        AmigaLog("[VIDEO] AGA: OpenScreenTags 320x200x8 -> %s",
+                 AmigaGameScreen ? "OK" : "FAIL");
+        if (!AmigaGameScreen) {
             return NULL;
         }
 
+        AmigaPhysW = AmigaGameScreen->Width;
+        AmigaPhysH = AmigaGameScreen->Height;
+        AmigaPhysDepth = AMIGA_GAME_DEPTH;
+        AmigaLog("[VIDEO] screen opened OK: actual %dx%dx%d, mode=AGA, letterbox=0",
+                 AmigaPhysW, AmigaPhysH, AmigaPhysDepth);
+        SetRast(&AmigaGameScreen->RastPort, 0);
+        return AmigaGameScreen;
+    }
+
+    /* AUTO / RTG (strict): RTG required, no silent fallback to AGA. */
+    if (!Amiga_OpenP96()) {
+        Amiga_ShowRtgRequester("Picasso96 (RTG) was not detected.");
+        AmigaLog("[VIDEO] RTG required but P96 absent -> not starting");
         return NULL;
     }
 
+    /* 1) Try 320x200x8 RTG mode. */
+    modeid = Amiga_FindBestModeID(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
+    if (modeid != INVALID_ID) {
+        /* Bell-and-suspenders native-chipset guard: the same check also
+         * exists inside Amiga_FindBestModeID, but we inline it here with
+         * an unconditional log so it always fires regardless of how the
+         * static-inline function was compiled. */
+        ULONG mon = modeid & MONITOR_ID_MASK;
+        int isNative = ((modeid & 0xFFFF0000UL) == 0x00000000UL) ||
+                       ((modeid & 0xFFFF0000UL) == 0x00010000UL) ||
+                       ((modeid & 0xFFFF0000UL) == 0x00020000UL);
+        AmigaLog("[VIDEO] native guard 0x%08lx: mon=0x%04lx isNative=%d",
+                 modeid, mon >> 16, isNative);
+        if (isNative) {
+            AmigaLog("[VIDEO]   -> rejected (native chipset, RTG required)");
+            modeid = INVALID_ID;
+        }
+    }
+    if (modeid != INVALID_ID) {
+        AmigaRTGLetterbox = 0;
+    }
+    else {
+        /* 2) No 320x200x8 RTG mode - try 320x240x8 (letterbox). */
+        AmigaLog("[VIDEO] RTG: 320x200x8 not available, trying 320x240x8");
+        modeid = Amiga_FindBestModeID(320, 240, 8);
+        if (modeid != INVALID_ID) {
+            ULONG mon2 = modeid & MONITOR_ID_MASK;
+            int isNative = ((modeid & 0xFFFF0000UL) == 0x00000000UL) ||
+                           ((modeid & 0xFFFF0000UL) == 0x00010000UL) ||
+                           ((modeid & 0xFFFF0000UL) == 0x00020000UL);
+            AmigaLog("[VIDEO] native guard 0x%08lx: mon=0x%04lx isNative=%d",
+                     modeid, mon2 >> 16, isNative);
+            if (isNative) {
+                AmigaLog("[VIDEO]   -> rejected (native chipset, RTG required)");
+                modeid = INVALID_ID;
+            }
+        }
+        if (modeid != INVALID_ID) {
+            AmigaRTGLetterbox = 1;
+        }
+        else {
+            Amiga_ShowRtgRequester("No 320x200x8 or 320x240x8 RTG mode was found.");
+            AmigaLog("[VIDEO] RTG: no 320x200x8/320x240x8 mode -> not starting");
+            return NULL;
+        }
+    }
+
+    AmigaGameScreen = OpenScreenTags(NULL,
+        SA_Depth, (ULONG)AMIGA_GAME_DEPTH,
+        SA_DisplayID, modeid,
+        SA_Quiet, TRUE,
+        SA_ShowTitle, FALSE,
+        SA_Draggable, FALSE,
+        SA_Exclusive, TRUE,
+        SA_Type, CUSTOMSCREEN,
+        TAG_DONE);
+
+    AmigaLog("[VIDEO] RTG: OpenScreenTags modeid=0x%08lx -> %s",
+             modeid, AmigaGameScreen ? "OK" : "FAIL");
     if (!AmigaGameScreen) {
         return NULL;
     }
 
-    AmigaPhysW = w;
-    AmigaPhysH = h;
-    AmigaPhysDepth = depth;
+    AmigaPhysW = AmigaGameScreen->Width;
+    AmigaPhysH = AmigaGameScreen->Height;
+    AmigaPhysDepth = AMIGA_GAME_DEPTH;
 
-    /* Clear the whole screen to black once: the blit may not cover
-    * every physical row/column in the scaled modes. */
+    /* Derive letterbox from the actual screen height (not the requested
+     * one – BestModeID may have returned a 320x240 mode as "best fit"
+     * for a 320x200 request). */
+    AmigaRTGLetterbox = (AmigaPhysW == 320 && AmigaPhysH == 240);
+
+    AmigaLog("[VIDEO] screen opened OK: actual %dx%dx%d, mode=RTG, letterbox=%d",
+             AmigaPhysW, AmigaPhysH, AmigaPhysDepth, AmigaRTGLetterbox);
+
+    /* Guard: the RTG path only accepts 320x200 or 320x240. Anything else
+     * is an unexpected mode returned by BestModeID – close it and fail. */
+    if (AmigaPhysW != 320 || (AmigaPhysH != 200 && AmigaPhysH != 240))
+    {
+        AmigaLog("[VIDEO] RTG: unexpected actual screen dimensions %dx%d – closing",
+                 AmigaPhysW, AmigaPhysH);
+        CloseScreen(AmigaGameScreen);
+        AmigaGameScreen = NULL;
+        Amiga_ShowRtgRequester("Opened screen has unexpected dimensions.");
+        return NULL;
+    }
+
+    /* Clear the whole screen once; in the letterbox case the bottom 40 rows
+     * stay black because the game only blits its top 200 rows. */
     SetRast(&AmigaGameScreen->RastPort, 0);
 
     return AmigaGameScreen;
@@ -281,43 +407,11 @@ static inline void Amiga_CloseGameScreen(void)
     }
 }
 
-/* Blits the game's logical 320x200 frame to the physical screen,
-* handling the RTGMODE horizontal pixel doubling. 'chunky' is always
-* the game's 8-bit chunky buffer (320 bytes/row). */
+/* Blits the game's logical 320x200 frame to the physical screen 1:1.
+ * 'chunky' is the game's 8-bit chunky buffer (320 bytes/row). */
 static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
 {
     if (!win || !win->RPort || !chunky) return;
-
-    if (AmigaRtgMode == 1)
-    {
-        /* 8X2L (640x240x8): double every pixel horizontally into a
-        * 640x200 frame in AmigaBlitBuf, then blit 1:1 starting at the
-        * top of the screen (no letterbox/offset). The driver's own
-        * scaling stretches the 240-row screen to the display height. */
-        const uint8_t *src = chunky;
-        uint8_t *dst = AmigaBlitBuf;
-        int x, y;
-        for (y = 0; y < AMIGA_GAME_HEIGHT; y++)
-        {
-            uint16_t *row = (uint16_t *)dst;
-            for (x = 0; x < AMIGA_GAME_WIDTH; x += 2)
-            {
-                uint8_t p0 = src[x + 0];
-                uint8_t p1 = src[x + 1];
-                row[x + 0] = (uint16_t)((p0 << 8) | p0);
-                row[x + 1] = (uint16_t)((p1 << 8) | p1);
-            }
-            src += AMIGA_GAME_WIDTH;
-            dst += 640;
-        }
-        WriteChunkyPixels(win->RPort,
-            win->BorderLeft,
-            win->BorderTop,
-            win->BorderLeft + 639,
-            win->BorderTop + 199,
-            AmigaBlitBuf, 640);
-        return;
-    }
 
     /* Native 320x200x8: original 1:1 chunky blit. */
     WriteChunkyPixels(win->RPort,
@@ -976,19 +1070,24 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y, int 
     if (!IntuitionBase)
         IntuitionBase = (struct IntuitionBase*)OpenLibrary((CONST_STRPTR)"intuition.library", 39);
     if (!IntuitionBase) {
+        AmigaLog("[VIDEO] OpenLibrary(intuition.library,39) -> FAIL");
         free(win);
         return NULL;
     }
+    AmigaLog("[VIDEO] OpenLibrary(intuition.library,39) -> OK");
 
     if (!GfxBase)
         GfxBase = (struct GfxBase*)OpenLibrary((CONST_STRPTR)"graphics.library", 39);
     if (!GfxBase) {
+        AmigaLog("[VIDEO] OpenLibrary(graphics.library,39) -> FAIL");
         free(win);
         return NULL;
     }
+    AmigaLog("[VIDEO] OpenLibrary(graphics.library,39) -> OK");
 
     win->amiga_screen = Amiga_OpenGameScreen(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
     if (!win->amiga_screen) {
+        AmigaLog("[VIDEO] Amiga_OpenGameScreen -> FAIL (no screen)");
         free(win);
         return NULL;
     }
@@ -1014,10 +1113,13 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y, int 
         TAG_DONE);
 
     if (!win->amiga_window) {
+        AmigaLog("[VIDEO] OpenWindowTags %dx%d -> FAIL", AmigaPhysW, AmigaPhysH);
         Amiga_CloseGameScreen();
         free(win);
         return NULL;
     }
+    AmigaLog("[VIDEO] OpenWindowTags %dx%d -> OK; AmigaGameWindow set, pointer hidden",
+             AmigaPhysW, AmigaPhysH);
 
     AmigaGameWindow = win->amiga_window;
     Amiga_HideSystemPointer();
@@ -1921,22 +2023,14 @@ static inline void Amiga_PumpWindowEvents(void)
 
         else if (class_ == IDCMP_MOUSEMOVE)
         {
-            /* Convert physical window coordinates to the logical
-             * 320x200 mouse space. In the 8X2L mode the physical
-             * window is 640x240, so scale 640->320 on X and 240->200
-             * on Y - the game then sees EXACTLY the same 320x200
-             * mouse space as in native mode. In native mode the
-             * mapping is the identity, untouched. */
-            if (AmigaRtgMode == 1)
-            {
-                AmigaMouseX = mx >> 1;
-                AmigaMouseY = (my * 200) / 240;
-            }
-            else
-            {
-                AmigaMouseX = mx;
-                AmigaMouseY = my;
-            }
+            /* Physical window coordinates -> logical 320x200 mouse space.
+             * In the RTG letterbox case the window is 320x240, so clamp
+             * mouse Y to the 0..199 play area (the bottom 40 rows are not
+             * part of the game). */
+            AmigaMouseX = mx;
+            AmigaMouseY = my;
+            if (AmigaRTGLetterbox && AmigaMouseY >= AMIGA_GAME_HEIGHT)
+                AmigaMouseY = AMIGA_GAME_HEIGHT - 1;
 
             SDL_Event ev;
 
@@ -1956,7 +2050,7 @@ static inline void Amiga_PumpWindowEvents(void)
      * generate a button flood that acts like constant "ack"/menu input.
      * This skips intro screens, exits attract/demo immediately and makes
      * gameplay fall back to mouse takeover. Ignore middle-button traffic
-     * on all RTG screens, not only in RTGMODE=1. */
+     * on all RTG screens. */
     if (AmigaUsingP96 && (code == MIDDLEDOWN || code == MIDDLEUP))
     {
         /* event dropped */

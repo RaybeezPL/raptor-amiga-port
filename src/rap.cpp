@@ -217,9 +217,9 @@ RAP_StrCaseEqual(
 }
 
 /*
- * RAP_StrCaseStartsWith() - case-insensitive prefix match helper, used
- * for "KEY=value" style switches like RTGMODE=8X2 (same portability
- * rationale as RAP_StrCaseEqual above).
+ * RAP_StrCaseStartsWith() - case-insensitive prefix match helper, used for
+ * "KEY=value" style switches like GFX=RTG (same portability rationale as
+ * RAP_StrCaseEqual above).
  */
 static int
 RAP_StrCaseStartsWith(
@@ -252,55 +252,41 @@ RAP_StrCaseStartsWith(
     return 1;
 }
 
+
 #ifdef __AMIGA__
 /*
- * RAP_ParseRtgMode() - handles the RTGMODE=<mode> keyword from the CLI
- * ("-rtgmode=8x2l" / "rtgmode=8x2l") and Workbench icon ToolTypes
- * ("RTGMODE=8X2L"). Returns 1 when the argument was recognized.
- *
- *   RTGMODE=8    native 320x200x8 screen (default)
- *   RTGMODE=8X2L 640x240x8 screen, pixels doubled horizontally in
- *                software, centered with 20-line letterbox bars
- *                (8X2 accepted as an alias)
- *
- * 8X2L is a workaround for RTG drivers that cannot display the native
- * 320x200x8 mode correctly (e.g. PiStorm/Emu68 showing the image
- * squeezed to half the screen width). 640x240 matches the driver's
- * native buffer geometry (640 bytes/row, up to 240 rows).
+ * RAP_ParseGfx() - handles the GFX=<mode> keyword from the CLI ("-gfx=rtg")
+ * and Workbench icon ToolTypes ("GFX=RTG"). Values: AUTO (default), RTG, AGA.
+ * Returns 1 when the argument was recognized.
  */
 static int
-RAP_ParseRtgMode(
+RAP_ParseGfx(
     const char *arg
 )
 {
-    extern int AmigaRtgMode;
+    extern int AmigaGfxMode;
     const char *value;
 
-    if (RAP_StrCaseStartsWith(arg, "-rtgmode="))
-        value = arg + 9;
-    else if (RAP_StrCaseStartsWith(arg, "rtgmode="))
-        value = arg + 8;
+    if (RAP_StrCaseStartsWith(arg, "-gfx="))
+        value = arg + 5;
+    else if (RAP_StrCaseStartsWith(arg, "gfx="))
+        value = arg + 4;
     else
         return 0;
 
-    if (RAP_StrCaseEqual(value, "8x2l") || RAP_StrCaseEqual(value, "8x2"))
-    {
-        AmigaRtgMode = 1;
-        printf("RTGMODE=8X2L: 640x240x8 screen, horizontal pixel "
-               "doubling\n");
-    }
-
-    else if (RAP_StrCaseEqual(value, "8"))
-    {
-        AmigaRtgMode = 0;
-        printf("RTGMODE=8: native 320x200x8 screen\n");
-    }
+    if (RAP_StrCaseEqual(value, "rtg"))
+        AmigaGfxMode = AMIGA_GFX_RTG;
+    else if (RAP_StrCaseEqual(value, "aga"))
+        AmigaGfxMode = AMIGA_GFX_AGA;
+    else if (RAP_StrCaseEqual(value, "auto"))
+        AmigaGfxMode = AMIGA_GFX_AUTO;
     else
     {
-        printf("Unknown RTGMODE '%s' - valid values: 8, 8X2L "
-               "(using default 8)\n", value);
+        printf("Unknown GFX '%s' - valid values: AUTO, RTG, AGA "
+               "(using default AUTO)\n", value);
     }
 
+    AmigaLog("[VIDEO] GFX parsed '%s' -> mode=%d", value, AmigaGfxMode);
     return 1;
 }
 
@@ -355,7 +341,6 @@ RAP_ParseWorkbenchToolTypes(
         STRPTR *tt = (STRPTR *)dobj->do_ToolTypes;
         UBYTE *s;   /* FindToolType() returns UBYTE* in this NDK */
 
-
         if (FindToolType((CONST_STRPTR *)tt, "NOSOUND"))
         {
             g_nosound = 1;
@@ -375,22 +360,22 @@ RAP_ParseWorkbenchToolTypes(
             printf("NOJOY tooltype: joystick polling disabled\n");
         }
 
-        /* FindToolType() returns a pointer to the value part after
-         * '=' (e.g. "8X2L" for "RTGMODE=8X2L"), or NULL if absent. */
-        s = FindToolType((CONST_STRPTR *)tt, "RTGMODE");
+        /* FindToolType() returns a pointer to the value part after '='
+         * (e.g. "RTG" for "GFX=RTG"), or NULL if absent. */
+        s = FindToolType((CONST_STRPTR *)tt, "GFX");
         if (s && *s)
         {
             char buf[64];
             int i = 0;
 
-            strcpy(buf, "rtgmode=");
-            while (s[i] && i < (int)sizeof(buf) - 10)
+            strcpy(buf, "gfx=");
+            while (s[i] && i < (int)sizeof(buf) - 5)
             {
-                buf[8 + i] = s[i];
+                buf[4 + i] = s[i];
                 i++;
             }
-            buf[8 + i] = 0;
-            RAP_ParseRtgMode(buf);
+            buf[4 + i] = 0;
+            RAP_ParseGfx(buf);
         }
     }
 
@@ -1553,6 +1538,9 @@ main(
     printf(" GitHub: https://github.com/RaybeezPL/raptor-amiga-port\n");
     printf("--------------------------------------------------------\n\n");
 
+    AmigaLog("[VIDEO] launch: %s (argc=%d)",
+             (argc == 0) ? "Workbench" : "CLI", argc);
+
     var1 = getenv("S_HOST");
 
     InitScreen();
@@ -1571,7 +1559,7 @@ main(
     /* Workbench launch: argc is 0 and argv is not a real argument
      * vector but the WBStartup message. Parse the icon ToolTypes the
      * official way (icon.library) - without this, parameters set in
-     * the icon (NOSOUND, RTGMODE=..., ...) never reach the game. */
+     * the icon (NOSOUND, NOMUSIC, NOJOY, ...) never reach the game. */
     if (argc == 0)
     {
         g_wb_started = 1;
@@ -1628,11 +1616,10 @@ main(
             AmigaJoyDisabled = 1;
             printf("-nojoy specified: joystick polling disabled\n");
         }
-        /* -rtgmode=<8|8X2|32> selects the RTG display mode used for the
-         * game screen. See RAP_ParseRtgMode() above for the values. */
-        else if (RAP_ParseRtgMode(argv[loop]))
+        /* -gfx=AUTO|RTG|AGA selects the graphics path (RTG vs classic
+         * chipset). See RAP_ParseGfx() above. */
+        else if (RAP_ParseGfx(argv[loop]))
         {
-            /* mode applied later when the game screen is opened */
         }
 #endif
 
