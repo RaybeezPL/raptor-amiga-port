@@ -72,6 +72,13 @@ Version name: **BETA 0.8.1 NOSOUND**
 - Temporary FX/DSP/SFX audio debug probes and early AHI probes to understand callback behaviour.  
 
 ### Changed
+- RTG display mode is now chosen directly from the live Picasso96 mode
+  list (`p96AllocModeListTagList`) instead of `BestModeID`: the game
+  selects the exact 320x200x8 mode (fallback: letterboxed 320x240x8) and
+  never uses a native chipset ModeID as a substitute. GFX=AUTO tries RTG
+  first, GFX=RTG strictly requires RTG, and GFX=AGA keeps forcing the
+  native 320x200x8 screen; a missing P96 mode never triggers a silent
+  AUTO→AGA fallback.
 - Documented actual memory requirements from code analysis: the game uses ~3 MB of Fast RAM (2 MB game heap, binary, blit/surface buffers); requirements updated to **4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM** in README files.
 - README updated and then rewritten to describe the Amiga 68060 RTG build environment and port details in English.  
 
