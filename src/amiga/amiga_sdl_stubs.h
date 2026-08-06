@@ -100,28 +100,6 @@ AMIGA_STUBS_DECL int AmigaPhysW AMIGA_STUBS_INIT(320);
 AMIGA_STUBS_DECL int AmigaPhysH AMIGA_STUBS_INIT(200);
 AMIGA_STUBS_DECL int AmigaPhysDepth AMIGA_STUBS_INIT(8);
 
-/* Inlined BestModeID tags to avoid header dependency. */
-#ifndef BIDTAG_DesiredWidth
-#define BIDTAG_DesiredWidth (TAG_USER + 0x0000UL)
-#endif
-#ifndef BIDTAG_DesiredHeight
-#define BIDTAG_DesiredHeight (TAG_USER + 0x0001UL)
-#endif
-#ifndef BIDTAG_SourceID
-#define BIDTAG_SourceID (TAG_USER + 0x0002UL)
-#endif
-#ifndef BIDTAG_Depth
-#define BIDTAG_Depth (TAG_USER + 0x0004UL)
-#endif
-#ifndef BIDTAG_NominalWidth
-#define BIDTAG_NominalWidth (TAG_USER + 0x0008UL)
-#endif
-#ifndef BIDTAG_NominalHeight
-#define BIDTAG_NominalHeight (TAG_USER + 0x0009UL)
-#endif
-#ifndef BIDTAG_MonitorID
-#define BIDTAG_MonitorID (TAG_USER + 0x000AUL)
-#endif
 #ifndef INVALID_ID
 #define INVALID_ID 0xFFFFFFFFUL
 #endif
@@ -216,10 +194,9 @@ static inline int Amiga_IsNativeChipsetMode(ULONG modeid)
 {
     /* Native chipset monitors: default (0x0000), NTSC (0x0001), PAL (0x0002).
      * Any other monitor ID (e.g. an RTG board's P96 monitor like 0x5007) is
-     * treated as non-native. This lets the RTG path reject native AGA/ECS
-     * modes that BestModeID would otherwise return on machines without a
-     * suitable P96 mode. Uses direct mask+compare to avoid any compiler-local
-     * issue with intermediate ULONG variables. */
+     * treated as non-native, so the RTG path never mistakes a native AGA/ECS
+     * MonitorID for a real P96 mode. Uses direct mask+compare to avoid any
+     * compiler-local issue with intermediate ULONG variables. */
     return ((modeid & 0xFFFF0000UL) == 0x00000000UL) ||
            ((modeid & 0xFFFF0000UL) == 0x00010000UL) ||   /* NTSC */
            ((modeid & 0xFFFF0000UL) == 0x00020000UL);     /* PAL  */
