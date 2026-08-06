@@ -48,6 +48,7 @@ static inline void AmigaLog(const char *fmt, ...)
 #include <graphics/displayinfo.h>
 #include <proto/lowlevel.h>
 #include <libraries/lowlevel.h>
+#include <proto/Picasso96.h>   /* Official P96 SDK prototypes+inline stubs (installed via /opt/amiga toolchain p96.sdk). */
 
 
 /* Global storage pattern: AMIGA_STUBS_OWNER defines actual instance, others use extern to guarantee a single instance. */
@@ -175,6 +176,42 @@ static inline void Amiga_CloseP96(void)
     AmigaUsingP96 = 0;
 }
 
+/* DIAGNOSTIC: enumerates every Picasso96 (P96) mode via the official
+ * Picasso96API.library API and logs each ModeID with its width, height,
+ * depth and monitor ID. It is called right after Amiga_OpenP96() and does
+ * NOT change the normal screen-opening logic (the RTG branch below picks the
+ * mode straight from this same P96 mode list). The list node type is the SDK's
+ * own struct P96Mode; the list is always released with p96FreeModeList() on
+ * every path. */
+static inline void Amiga_DumpP96Modes(void)
+{
+    struct TagItem tags[] = { TAG_DONE };
+    struct List *ml = p96AllocModeListTagList(tags);
+
+    if (!ml) {
+        AmigaLog("[VIDEO] P96 mode list: <empty>");
+        return;
+    }
+
+    AmigaLog("[VIDEO] P96 mode list:");
+    {
+        struct P96Mode *mn;
+        for (mn = (struct P96Mode *)(ml->lh_Head);
+             mn->Node.ln_Succ;
+             mn = (struct P96Mode *)mn->Node.ln_Succ) {
+            ULONG mid = mn->DisplayID;
+            AmigaLog("[VIDEO] P96 mode 0x%08lx: %lux%lu @ %lu-bit, monitor=0x%04lx",
+                     mid,
+                     p96GetModeIDAttr(mid, P96IDA_WIDTH),
+                     p96GetModeIDAttr(mid, P96IDA_HEIGHT),
+                     p96GetModeIDAttr(mid, P96IDA_DEPTH),
+                     (mid & MONITOR_ID_MASK) >> 16);
+        }
+    }
+
+    p96FreeModeList(ml);
+}
+
 static inline int Amiga_IsNativeChipsetMode(ULONG modeid)
 {
     /* Native chipset monitors: default (0x0000), NTSC (0x0001), PAL (0x0002).
@@ -188,33 +225,46 @@ static inline int Amiga_IsNativeChipsetMode(ULONG modeid)
            ((modeid & 0xFFFF0000UL) == 0x00020000UL);     /* PAL  */
 }
 
-/* Locates the best display ModeID for the requested resolution.
-* If Picasso96 is available, native chipset modes are rejected so
-* AGA+RTG machines always use RTG and never fall back to AGA/ECS. */
-static inline ULONG Amiga_FindBestModeID(int w, int h, int depth)
+/* Selects an RTG display ModeID from the live P96 mode list that matches the
+ * requested logical resolution EXACTLY (width x height x depth). Returns the
+ * DisplayID of the first exact P96 match, or INVALID_ID when no such real RTG
+ * mode exists. Unlike BestModeID, it never returns a native chipset ModeID:
+ * the candidate always comes straight from the P96 mode list. The list is
+ * always released with p96FreeModeList() on every path. */
+static inline ULONG Amiga_FindP96GameMode(int width, int height, int depth)
 {
-    ULONG modeid = BestModeID(
-        BIDTAG_DesiredWidth, (ULONG)w,
-        BIDTAG_DesiredHeight, (ULONG)h,
-        BIDTAG_NominalWidth, (ULONG)w,
-        BIDTAG_NominalHeight, (ULONG)h,
-        BIDTAG_Depth, (ULONG)depth,
-        TAG_DONE);
+    struct TagItem tags[] = { TAG_DONE };
+    struct List *ml = p96AllocModeListTagList(tags);
 
-    if (modeid == INVALID_ID) {
-        AmigaLog("[VIDEO] BestModeID want %dx%dx%d -> INVALID_ID", w, h, depth);
+    if (!ml) {
         return INVALID_ID;
     }
 
-    if (AmigaUsingP96 && Amiga_IsNativeChipsetMode(modeid)) {
-        AmigaLog("[VIDEO] BestModeID check: AmigaUsingP96=%d, IsNativeChipset=%d",
-                 AmigaUsingP96, Amiga_IsNativeChipsetMode(modeid));
-        AmigaLog("[VIDEO] BestModeID want %dx%dx%d -> modeid=0x%08lx rejected (native chipset, P96 forces RTG)", w, h, depth, modeid);
-        return INVALID_ID;
-    }
+    {
+        struct P96Mode *mn;
+        ULONG found = INVALID_ID;
 
-    AmigaLog("[VIDEO] BestModeID want %dx%dx%d -> modeid=0x%08lx", w, h, depth, modeid);
-    return modeid;
+        for (mn = (struct P96Mode *)(ml->lh_Head);
+             mn->Node.ln_Succ;
+             mn = (struct P96Mode *)mn->Node.ln_Succ) {
+            ULONG mid = mn->DisplayID;
+
+            /* Extra guard: a real P96 mode is never on a native chipset monitor,
+             * but reject 0x0000/0x0001/0x0002 just in case. */
+            if (Amiga_IsNativeChipsetMode(mid))
+                continue;
+
+            if ((ULONG)p96GetModeIDAttr(mid, P96IDA_WIDTH)  == (ULONG)width &&
+                (ULONG)p96GetModeIDAttr(mid, P96IDA_HEIGHT) == (ULONG)height &&
+                (ULONG)p96GetModeIDAttr(mid, P96IDA_DEPTH)  == (ULONG)depth) {
+                found = mid;
+                break;
+            }
+        }
+
+        p96FreeModeList(ml);
+        return found;
+    }
 }
 
 /* Shows an English system requester explaining that the game needs an RTG
@@ -305,47 +355,30 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         return NULL;
     }
 
-    /* 1) Try 320x200x8 RTG mode. */
-    modeid = Amiga_FindBestModeID(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
+    /* Diagnostics: dump every P96 mode (dimensions + monitor) to see what
+     * the RTG subsystem actually offers. Does not alter mode selection. */
+    Amiga_DumpP96Modes();
+
+    /* 1) Prefer an exact real P96 mode 320x200x8 from the live mode list.
+     *    BestModeID is deliberately NOT used here: it can hand back a native
+     *    chipset ModeID even when P96 exposes no real RTG mode. */
+    AmigaLog("[VIDEO] RTG: searching P96 mode 320x200x8");
+    modeid = Amiga_FindP96GameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
     if (modeid != INVALID_ID) {
-        /* Bell-and-suspenders native-chipset guard: the same check also
-         * exists inside Amiga_FindBestModeID, but we inline it here with
-         * an unconditional log so it always fires regardless of how the
-         * static-inline function was compiled. */
-        ULONG mon = modeid & MONITOR_ID_MASK;
-        int isNative = ((modeid & 0xFFFF0000UL) == 0x00000000UL) ||
-                       ((modeid & 0xFFFF0000UL) == 0x00010000UL) ||
-                       ((modeid & 0xFFFF0000UL) == 0x00020000UL);
-        AmigaLog("[VIDEO] native guard 0x%08lx: mon=0x%04lx isNative=%d",
-                 modeid, mon >> 16, isNative);
-        if (isNative) {
-            AmigaLog("[VIDEO]   -> rejected (native chipset, RTG required)");
-            modeid = INVALID_ID;
-        }
-    }
-    if (modeid != INVALID_ID) {
+        AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x200x8", modeid);
         AmigaRTGLetterbox = 0;
     }
     else {
-        /* 2) No 320x200x8 RTG mode - try 320x240x8 (letterbox). */
-        AmigaLog("[VIDEO] RTG: 320x200x8 not available, trying 320x240x8");
-        modeid = Amiga_FindBestModeID(320, 240, 8);
+        /* 2) No exact 320x200x8: fall back only to letterboxed 320x240x8. */
+        AmigaLog("[VIDEO] RTG: 320x200x8 unavailable, trying 320x240x8");
+        modeid = Amiga_FindP96GameMode(320, 240, 8);
         if (modeid != INVALID_ID) {
-            ULONG mon2 = modeid & MONITOR_ID_MASK;
-            int isNative = ((modeid & 0xFFFF0000UL) == 0x00000000UL) ||
-                           ((modeid & 0xFFFF0000UL) == 0x00010000UL) ||
-                           ((modeid & 0xFFFF0000UL) == 0x00020000UL);
-            AmigaLog("[VIDEO] native guard 0x%08lx: mon=0x%04lx isNative=%d",
-                     modeid, mon2 >> 16, isNative);
-            if (isNative) {
-                AmigaLog("[VIDEO]   -> rejected (native chipset, RTG required)");
-                modeid = INVALID_ID;
-            }
-        }
-        if (modeid != INVALID_ID) {
+            AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x240x8", modeid);
             AmigaRTGLetterbox = 1;
         }
         else {
+            /* Controlled fail with requester; never a silent AUTO->AGA fallback. */
+            AmigaLog("[VIDEO] RTG: no matching P96 mode found");
             Amiga_ShowRtgRequester("No 320x200x8 or 320x240x8 RTG mode was found.");
             AmigaLog("[VIDEO] RTG: no 320x200x8/320x240x8 mode -> not starting");
             return NULL;
@@ -373,15 +406,15 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
     AmigaPhysDepth = AMIGA_GAME_DEPTH;
 
     /* Derive letterbox from the actual screen height (not the requested
-     * one – BestModeID may have returned a 320x240 mode as "best fit"
-     * for a 320x200 request). */
+     * one – the matched P96 mode may legitimately be 320x240 instead of
+     * the requested 320x200). */
     AmigaRTGLetterbox = (AmigaPhysW == 320 && AmigaPhysH == 240);
 
     AmigaLog("[VIDEO] screen opened OK: actual %dx%dx%d, mode=RTG, letterbox=%d",
              AmigaPhysW, AmigaPhysH, AmigaPhysDepth, AmigaRTGLetterbox);
 
     /* Guard: the RTG path only accepts 320x200 or 320x240. Anything else
-     * is an unexpected mode returned by BestModeID – close it and fail. */
+     * is an unexpected mode reported by P96 – close it and fail. */
     if (AmigaPhysW != 320 || (AmigaPhysH != 200 && AmigaPhysH != 240))
     {
         AmigaLog("[VIDEO] RTG: unexpected actual screen dimensions %dx%d – closing",
