@@ -118,8 +118,10 @@ LIBS      = $(SDL_LIBS) \
 #
 # NOTE: Platform-specific MIDI backends excluded (Windows/Linux/macOS).
 # The CAMD MIDI backend (mpucamd.cpp, Amiga music out), TinySoundFont
-# (mputsf.cpp, unused on Amiga) and the OPL3 emulator (AdLib fallback) are
-# included.
+# (mputsf.cpp, unused on Amiga) and the OPL music (AdLib fallback) are
+# included.  The OPL core is the lightweight DOSBox dbopl (dbopl.cpp +
+# opl3dbopl.cpp shim) instead of Nuked opl3.cpp, which is far too heavy
+# for a real 68060 (fixed ~49716 Hz internal render rate).
 # Textscreen library (setup program) is NOT built in this Makefile.
 # -----------------------------------------------------------------------------
 SRCS_CXX  = \
@@ -152,7 +154,8 @@ SRCS_CXX  = \
     src/mputsf.cpp \
     src/musapi.cpp \
     src/objects.cpp \
-    src/opl3.cpp \
+    src/dbopl.cpp \
+    src/opl3dbopl.cpp \
     src/prefapi.cpp \
     src/ptrapi.cpp \
     src/ptrapi_a.cpp \

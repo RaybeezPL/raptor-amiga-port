@@ -23,7 +23,14 @@
 #include <stdint.h>
 
 #include "common.h"
+#ifdef __AMIGA__
+/* Real 68060: use the lightweight DOSBox dbopl core (opl3dbopl.cpp) -
+ * Nuked OPL3 renders at a fixed internal ~49716 Hz rate and costs most
+ * of the CPU; dbopl generates at the output rate (11025 Hz). */
+#include "opl3dbopl.h"
+#else
 #include "opl3.h"
+#endif
 #include "i_oplmusic.h"
 #include "musapi.h"
 #include "fx.h"
@@ -1344,6 +1351,14 @@ void I_SetOPLDriverVer(opl_driver_ver_t ver)
 
 void I_OPL_Mix(int16_t *stream, int len)
 {
+#ifdef __AMIGA__
+    /* 68060: when no OPL voice is keyed on the chip outputs pure silence,
+     * so skip the render entirely (the stream is already zeroed by the
+     * caller).  Rendering "silence" would still burn the full emulator
+     * cost for nothing - on a real 68060 that CPU is needed by the game. */
+    if (voice_alloced_num == 0)
+        return;
+#endif
     OPL3_GenerateStream(&opl, stream, len);
 }
 
