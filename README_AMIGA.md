@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68060/RTG)
 
-Version: BETA 0.9.0 SOUND
+Version: 0.9.0 SOUND
 
 =====================================================
 
@@ -89,10 +89,11 @@ Sound (AHI + CAMD)
 
 Sound effects and music use two separate, native Amiga subsystems:
 
-   Sound effects:  AHI (ahi.device), 44100 Hz 16-bit stereo, played
-                   through the standard double-buffered device
-                   interface. AHI v4+ must be installed (AHI user
-                   package, freely available on Aminet). Any
+   Sound effects:  AHI (ahi.device), 11025 Hz 16-bit stereo - the
+                   native rate of the game's samples - played through
+                   the standard double-buffered device interface by a
+                   dedicated audio task. AHI v4+ must be installed
+                   (AHI user package, freely available on Aminet). Any
                    AHI-capable sound card works, as does the built-in
                    Paula through an AHI audio mode.
 
@@ -118,7 +119,9 @@ Sound effects and music use two separate, native Amiga subsystems:
                    If camd.library is not installed at all, the game
                    automatically falls back to the built-in AdLib/OPL3
                    emulation (the authentic Raptor sound) mixed into
-                   the AHI audio stream - music always works.
+                   the AHI audio stream - music always works.  The
+                   emulator uses the lightweight DOSBox dbopl core,
+                   which costs only a few percent of a 68060.
 
 Audio status and diagnostics are printed at startup (Shell/CLI) and
 also written to RAPTOR.LOG in the game directory.

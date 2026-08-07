@@ -2,56 +2,80 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
-## [0.9.0-beta] - 2026-08-07
+## [0.9.0] - 2026-08-07
 
-Version name: **BETA 0.9.0 SOUND**
+Version name: **0.9.0 SOUND**
+
+Tested on real hardware (Amiga 2000, 68060, AmigaOS 3.2.1, Picasso96
+RTG): full game with sound effects and music, correct intro pacing,
+clean startup and exit (no leftover tasks or devices).
 
 ### Added
-- Sound effects through AHI (ahi.device): the SDL-stub audio backend
-  now builds on the official AHI SDK header and plays 44100 Hz 16-bit
-  stereo via double-buffered CMD_WRITE requests.
-- Music through CAMD (camd.library): new `mpucamd.cpp` music backend
-  plays the game's MUS tracks as a live General MIDI event stream to a
-  CAMD cluster (default "out.0", configurable via SETUP.INI
-  `[Setup] camd_cluster=<name>`). Sequencer timing is driven by
-  `MUS_Poll()` from the main loop, exactly like the upstream
-  WinMM/ALSA/CoreMIDI backends on other platforms.
-- Automatic music fallback: if camd.library is unavailable, the game
-  falls back to the built-in AdLib/OPL3 emulation mixed into the AHI
-  audio stream, so music always plays.
+- Sound effects through AHI (ahi.device): 11025 Hz 16-bit stereo - the
+  native rate of the game's samples, so the DSP mixer ticks 1:1 with
+  the output (no resampling work) - streamed by a dedicated audio task
+  using the canonical double-buffered CMD_WRITE scheme from the AHI
+  documentation.
+- Music through CAMD (camd.library): new `mpucamd.cpp` backend plays
+  the MUS tracks as a live General MIDI event stream to a CAMD cluster
+  (default "out.0", configurable via SETUP.INI
+  `[Setup] camd_cluster=<name>`), like the upstream WinMM/ALSA/CoreMIDI
+  backends on other platforms.
+- Automatic music fallback: without camd.library the game uses AdLib
+  (OPL) emulation mixed into the AHI stream.  The emulator core is the
+  lightweight DOSBox **dbopl** (vendored `src/dbopl.cpp/h`, GPL,
+  DOSBox Team) behind an opl3.h-compatible shim
+  (`src/opl3dbopl.cpp/h`) - it renders at the 11025 Hz output rate
+  (a few percent of a 68060) and is skipped entirely when no OPL voice
+  is playing.
 - Vendored official headers under `src/amiga/`: AHI SDK
-  `devices/ahi.h`, and CAMD `midi/camd.h`, `midi/mididefs.h`,
-  `clib/camd_protos.h` from the CAMD developer kit, plus hand-written
-  NDK-style GCC `proto/camd.h` / `inline/camd.h` (LVO offsets verified
-  against the official `fd/camd_lib.fd`).
+  `devices/ahi.h`; CAMD `midi/camd.h`, `midi/mididefs.h`,
+  `clib/camd_protos.h`; hand-written NDK-style GCC `proto/camd.h` /
+  `inline/camd.h` (LVO offsets verified against the official fd file).
+- RAPTOR.LOG audio diagnostics: AHI/CAMD/MUS/DSP init steps, streaming
+  counters and io_Error capture.
 
 ### Fixed
+- Silent audio + hang right after the Apogee logo: the AHI message
+  port was created by the main task, so ahi.device signalled the main
+  task on completed requests while the audio task's WaitIO() slept
+  forever (zero buffers played; the MUS sequencer never advanced, and
+  the intro waits for the song).  The audio task now owns the whole
+  device side: port, IO requests, OpenDevice/CloseDevice, streaming
+  loop and teardown.
 - AHI backend wrote every request field 8 bytes past the official
   AHIRequest layout (broken hand-written substitute header in the
   toolchain NDK): ahi.device read Type=0 (mono 8-bit), Frequency=0,
-  Volume~0 and a wild Link pointer - the root cause of "AHI opens OK
-  but there is no sound / occasional hang". Compile-time layout guards
+  Volume~0 and a wild Link pointer.  Compile-time layout guards
   (sizeof/offsetof) were added so the wrong header can never silently
   win again.
 - Wrong AHI constants: AHIST_S16S 0x06 -> 0x03, ahir_Version 2 -> 4,
   stereo position 0 (full left!) -> 0x8000 (center).
-- ahi.device and the "Raptor Audio Task" survived game exit (the
-  SDL_QuitSubSystem/close path was a no-op); both are now really shut
-  down via SDL_QuitSubSystem(SDL_INIT_AUDIO) and SDL_Quit().
+- Crackling/stuttering audio and slow title-screen transitions: the
+  audio task ran at the same priority as the game loop and was starved
+  by equal-priority timeslicing.  It now runs at priority +10, with
+  512-frame buffers (~46 ms of runway at 11025 Hz).
+- The upstream Nuked OPL3 core stalled the whole game on a real 68060
+  (it steps the chip at a fixed internal ~49716 Hz even for silence);
+  replaced by the DOSBox dbopl core (see above).
 - `dspapi.cpp` restored to the upstream version: fixes the effect
   length unit (reads past the sample buffer at randomized pitch) and
   the effect volume divisor (/127 instead of /256, about 6 dB louder).
 - `MUS_DeInit()` is now called from `SND_DeInit()`: CAMD link/node and
   camd.library are properly released on exit, after all-notes-off is
-  sent on every channel.
+  sent on every channel; ahi.device and the audio task are really shut
+  down via SDL_QuitSubSystem(SDL_INIT_AUDIO) and SDL_Quit().
 
 ### Changed
-- Without SETUP.INI the music card now defaults to General MIDI (CAMD)
-  instead of "None", and the DSP mixer defaults to 8 channels.
+- The audio pipeline runs at 11025 Hz (native SFX rate; 4x lighter
+  AHI stream than 44100 Hz on the 68060).
+- Defaults without SETUP.INI: music card = General MIDI (CAMD), DSP
+  mixer channels = 4 (upstream default 2, max 8; oldest voice is
+  stolen when full).
 - Parameter behaviour finalized: no parameter = SFX (AHI) + music
-  (CAMD/OPL3); NOMUSIC = SFX only, camd.library never opened;
-  NOSOUND = no audio at all, neither ahi.device nor camd.library is
-  opened (still the fastest startup path).
+  (CAMD, or AdLib fallback); NOMUSIC = SFX only, camd.library never
+  opened; NOSOUND = no audio at all, neither ahi.device nor
+  camd.library is opened (still the fastest startup path).
 
 ## [0.8.1-beta] - 2026-08-01
 

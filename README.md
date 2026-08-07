@@ -24,7 +24,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **BETA 0.8.1 NOSOUND**
+Current version: **0.9.0 SOUND**
 
 Working:
 
@@ -45,12 +45,19 @@ Working:
   skipping and erratic steering on some machines)
 - English requester with troubleshooting info when RTG mode is required
   but unavailable (no silent fallback to AGA)
+- **Sound effects through AHI** (ahi.device): 11025 Hz 16-bit stereo -
+  the native rate of the game's samples - streamed by a dedicated audio
+  task using the canonical double-buffered CMD_WRITE scheme
+- **Music through CAMD** (camd.library): the MUS tracks play as a live
+  General MIDI stream to a CAMD cluster (default "out.0"); without
+  camd.library the game automatically falls back to **AdLib/OPL
+  emulation** using the lightweight DOSBox dbopl core (only a few
+  percent of a 68060) mixed into the AHI stream
 
 
 Work still in progress:
 
-- **AHI audio playback** - the game currently must be started with
-  `-nosound` (see README_AMIGA.md)
+- Fine-tuning and performance polish on real 68060 hardware
 
 For detailed requirements, controls, parameters and troubleshooting see
 **README_AMIGA.md** - the main port documentation.
@@ -69,7 +76,8 @@ Recommended baseline target:
   lives in graphics card memory, so Chip RAM is only needed by the OS)
 
 - **OS:** AmigaOS 3.2
-- **Audio:** AHI
+- **Audio:** AHI (ahi.device) for sound effects; camd.library (CAMD)
+  for MIDI music output (optional - AdLib/OPL fallback included)
 
 Current development and testing is mainly aimed at systems such as:
 
