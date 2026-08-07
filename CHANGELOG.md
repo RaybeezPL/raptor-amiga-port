@@ -49,6 +49,14 @@ Version name: **BETA 0.8.1 NOSOUND**
 
 ## [Unreleased]
 
+### Added
+- **CGX (CyberGraphX) fallback:** when the P96 (Picasso96) RTG path does
+  not produce a usable screen, the game now tries `cybergraphics.library`
+  (CGX). The same strict 320x200x8 / 320x240x8 mode matching and native-
+  chipset rejection logic is applied to the CGX mode list. GFX=AUTO/RTG
+  will use the first working RTG driver (P96 preferred, CGX as fallback);
+  the English "RTG required" requester appears only if both fail.
+
 
 ### Added
 - `GFX=AUTO|RTG|AGA` parameter (CLI and Workbench icon ToolType):

@@ -32,6 +32,7 @@ Working:
 - Full gameplay on real hardware (A2000, A1200 + PiStorm/Emu68) and WinUAE
 - Keyboard, mouse and joystick/CD32 pad input working simultaneously
 - RTG video path for **320x200x8-bit** output on a dedicated screen;
+  tries P96 (Picasso96) first, falls back to CGX (CyberGraphX), then
   falls back to 320x240x8 with letterbox on RTG cards that lack 320x200
 - **`GFX=AUTO|RTG|AGA`** parameter — controls the graphics driver path
   (CLI: `-gfx=RTG`; icon ToolType: `GFX=RTG`)
@@ -60,7 +61,8 @@ For detailed requirements, controls, parameters and troubleshooting see
 Recommended baseline target:
 
 - **CPU:** Motorola 68060 or PiStorm/Emu68 equivalent
-- **Graphics:** RTG board with Picasso96 support
+- **Graphics:** RTG board with Picasso96 (P96) support; also works
+  with CyberGraphX (CGX / cybergraphics.library)
 - **Display mode:** 320x200, 8-bit paletted
 - **RAM:** 4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
   (the game itself uses ~3 MB of Fast RAM; on RTG the screen bitmap

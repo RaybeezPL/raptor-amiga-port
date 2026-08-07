@@ -30,8 +30,9 @@ Memory:     4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
             the screen bitmap lives in graphics card memory, so Chip
             RAM is only needed by the OS/Workbench.
 
-Graphics:   RTG with Picasso96 (e.g. CyberVision 64/3D, Picasso IV,
-            UAEGFX/PiStorm) - 320x200x8 mode required
+Graphics:   RTG with Picasso96 or CyberGraphX (CGX)
+            (e.g. CyberVision 64/3D, Picasso IV, UAEGFX/PiStorm)
+            - 320x200x8 mode required
 Disk space: approx. 25 MB free (game files + saved games)
 Joystick:   Optional - port 1 (DB9); requires lowlevel.library v40+
             (included in AmigaOS 3.2); CD32 pads are also supported
@@ -40,7 +41,8 @@ Sound:      Not available yet - AHI support is work in progress;
 
 Without an RTG card the game will attempt to open a standard custom
 chipset screen, but the supported and tested configuration is
-Picasso96 RTG.
+Picasso96 RTG.  When Picasso96 is not available the game falls back to
+CyberGraphX (CGX / cybergraphics.library) automatically.
 
 
 Installation
@@ -105,10 +107,13 @@ accepted. Parameters may be combined in any order.
 
    -gfx=M      Selects the graphics driver path used for the game
                screen. M may be:
-                 AUTO  - try RTG first; if RTG is not available, show
-                         an English requester and DO NOT start (no
-                         silent fallback to the classic chipset - this
-                         is the default);
+                 AUTO  - try P96 (Picasso96) RTG first; if P96 is not
+                         available or does not offer a matching mode,
+                         fall back to CGX (CyberGraphX). If neither
+                         driver produces a usable screen, an English
+                         requester is shown and the game DOES NOT start
+                         (no silent fallback to the classic chipset —
+                         this is the default);
                  RTG   - same as AUTO (RTG required, no silent
                          fallback);
                  AGA   - force a native chipset 320x200x8 screen
@@ -117,10 +122,11 @@ accepted. Parameters may be combined in any order.
                The dashless form "GFX=RTG" also works. When the RTG
                path cannot open a 320x200x8 screen it looks for
                320x240x8 instead, opening that with a 40-row black
-               bar at the bottom ("letterbox") - this covers RTG
+               bar at the bottom ("letterbox") — this covers RTG
                boards and drivers whose default mode list does NOT
                include 320x200x8 but includes 320x240x8 (a common
-               Picasso96 ScreenModes default).
+               Picasso96 ScreenModes default). This fallback applies
+               to both P96 and CGX modes.
 
                Upon failure the game shows an English requester with
                troubleshooting information: which mode is required,

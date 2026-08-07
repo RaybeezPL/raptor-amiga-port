@@ -77,6 +77,10 @@ AMIGA_STUBS_DECL ULONG AmigaJoyState AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL struct Library *P96Base AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL int AmigaUsingP96 AMIGA_STUBS_INIT(0);
 
+/* cybergraphics.library used for CGX fallback when P96 is absent or fails. */
+AMIGA_STUBS_DECL struct Library *CyberGfxBase AMIGA_STUBS_INIT(NULL);
+AMIGA_STUBS_DECL int AmigaUsingCGX AMIGA_STUBS_INIT(0);
+
 /* GFX display mode, selected at runtime via the GFX keyword (CLI "-gfx=..."
  * or icon ToolType "GFX=..."):
  *   AUTO (default) - try RTG (Picasso96) first; if RTG is unavailable, show
@@ -152,6 +156,35 @@ static inline void Amiga_CloseP96(void)
         P96Base = NULL;
     }
     AmigaUsingP96 = 0;
+}
+
+/* Opens cybergraphics.library to detect CGX RTG. Returns 1 if available, 0 if absent. */
+static inline int Amiga_OpenCGX(void)
+{
+    if (CyberGfxBase != NULL) {
+        return 1;
+    }
+
+    CyberGfxBase = OpenLibrary((CONST_STRPTR)"cybergraphics.library", 0);
+
+    if (CyberGfxBase) {
+        AmigaUsingCGX = 1;
+        AmigaLog("[VIDEO] CGX probe: OpenLibrary(cybergraphics.library,0) -> OK");
+        return 1;
+    }
+
+    AmigaUsingCGX = 0;
+    AmigaLog("[VIDEO] CGX probe: OpenLibrary(cybergraphics.library,0) -> absent");
+    return 0;
+}
+
+static inline void Amiga_CloseCGX(void)
+{
+    if (CyberGfxBase) {
+        CloseLibrary(CyberGfxBase);
+        CyberGfxBase = NULL;
+    }
+    AmigaUsingCGX = 0;
 }
 
 /* DIAGNOSTIC: enumerates every Picasso96 (P96) mode via the official
@@ -244,6 +277,117 @@ static inline ULONG Amiga_FindP96GameMode(int width, int height, int depth)
     }
 }
 
+/*--- CGX (CyberGraphX/cybergraphics.library) fallback definitions -------------*/
+
+/* CyberModeNode matches cybergraphics.library AllocCModeTagList nodes.
+ * Width/Height/Depth are pre-filled by the library; no CModeIDtoTags needed. */
+struct CyberModeNode
+{
+    struct Node Node;
+    char   ModeText[DISPLAYNAMELEN];
+    ULONG  DisplayID;
+    UWORD  Width;
+    UWORD  Height;
+    UWORD  Depth;
+    struct TagItem *DisplayTagList;
+};
+
+/* CGX inline helpers using the LP1/LP1NR pattern (same as P96 SDK uses).
+ * CyberGfxBase must be open before calling these.
+ * Offsets confirmed from CGraphX-DevKit Release VI FD file (bias 30). */
+#define CGX_AllocCModeTagList(tags) \
+    LP1(0x48, struct List *, CGX_AllocModeList, struct TagItem *, (tags), a1, , CyberGfxBase)
+
+#define CGX_FreeCModeList(ml) \
+    LP1NR(0x4E, CGX_FreeModeList, struct List *, (ml), a0, , CyberGfxBase)
+
+#define CGX_BestCModeIDTagList(tags) \
+    LP1(0x3C, ULONG, CGX_BestModeID, struct TagItem *, (tags), a0, , CyberGfxBase)
+
+/* Selects a CGX display ModeID from the live cybergraphics.library mode list
+ * that matches the requested resolution EXACTLY (width x height x depth).
+ * Returns DisplayID of the first exact match, or INVALID_ID.
+ * Unlike BestModeID/BestCModeID, it never returns a native chipset ModeID:
+ * the candidate always comes straight from the CGX mode list and is filtered
+ * through Amiga_IsNativeChipsetMode. */
+static inline ULONG Amiga_FindCGXGameMode(int width, int height, int depth)
+{
+    struct TagItem tags[] = { TAG_DONE };
+    struct List *ml;
+
+    if (!CyberGfxBase)
+        return INVALID_ID;
+
+    ml = CGX_AllocCModeTagList(tags);
+
+    if (!ml) {
+        return INVALID_ID;
+    }
+
+    {
+        struct CyberModeNode *mn;
+        ULONG found = INVALID_ID;
+
+        for (mn = (struct CyberModeNode *)(ml->lh_Head);
+             mn->Node.ln_Succ;
+             mn = (struct CyberModeNode *)mn->Node.ln_Succ) {
+            ULONG mid = mn->DisplayID;
+
+            /* Extra guard: reject native chipset monitors just in case. */
+            if (Amiga_IsNativeChipsetMode(mid))
+                continue;
+
+            if ((int)mn->Width == width &&
+                (int)mn->Height == height &&
+                (int)mn->Depth == depth) {
+                found = mid;
+                break;
+            }
+        }
+
+        CGX_FreeCModeList(ml);
+        return found;
+    }
+}
+
+/* DIAGNOSTIC: enumerates every CGX mode from cybergraphics.library and logs
+ * each DisplayID with width, height, depth and monitor ID. Called after a
+ * successful Amiga_OpenCGX(); does not alter screen-opening logic. */
+static inline void Amiga_DumpCGXModes(void)
+{
+    struct TagItem tags[] = { TAG_DONE };
+    struct List *ml;
+
+    if (!CyberGfxBase) {
+        AmigaLog("[VIDEO] CGX mode list: <empty> (no library)");
+        return;
+    }
+
+    ml = CGX_AllocCModeTagList(tags);
+
+    if (!ml) {
+        AmigaLog("[VIDEO] CGX mode list: <empty>");
+        return;
+    }
+
+    AmigaLog("[VIDEO] CGX mode list:");
+    {
+        struct CyberModeNode *mn;
+        for (mn = (struct CyberModeNode *)(ml->lh_Head);
+             mn->Node.ln_Succ;
+             mn = (struct CyberModeNode *)mn->Node.ln_Succ) {
+            AmigaLog("[VIDEO] CGX mode 0x%08lx: %ux%u @ %u-bit, monitor=0x%04lx",
+                     mn->DisplayID,
+                     (unsigned)mn->Width, (unsigned)mn->Height, (unsigned)mn->Depth,
+                     (mn->DisplayID & MONITOR_ID_MASK) >> 16);
+        }
+    }
+
+    CGX_FreeCModeList(ml);
+}
+
+/*----------------------------------------------------------------------------*/
+
 /* Shows an English system requester explaining that the game needs an RTG
  * (Picasso96) display when GFX=AUTO/RTG but no RTG mode is available. The
  * game does NOT fall back to AGA; it aborts instead. */
@@ -273,15 +417,22 @@ static inline void Amiga_ShowRtgRequester(const char *detail)
     EasyRequestArgs(NULL, &es, NULL, NULL);
 }
 
+/* Forward decls: helpers used inside Amiga_OpenGameScreen. */
+static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantLetterbox,
+                                                         const char *label);
+static inline void Amiga_CloseGameScreen(void);
+
 /* Opens the game screen (logical 320x200, 8-bit).
  *
  * GFX mode:
  *  - AMIGA_GFX_AGA : native chipset 320x200x8 screen (no RTG required).
- *  - AUTO / RTG    : requires RTG. Tries 320x200x8 first, then 320x240x8
- *                    (opening the latter with AmigaRTGLetterbox=1 so the game
- *                    image sits at the top and the bottom 40 rows stay black).
- *                    If P96 is absent or no RTG mode exists, an English
- *                    requester is shown and NULL is returned (no fallback). */
+ *  - AUTO / RTG    : requires RTG. Tries P96 (Picasso96) first; if P96
+ *                    is absent or does not yield a usable screen, falls
+ *                    back to CGX (cybergraphics.library). In both RTG paths
+ *                    the code tries 320x200x8 first, then 320x240x8 (letter-
+ *                    boxed). If neither P96 nor CGX produces a screen, an
+ *                    English requester is shown and NULL is returned (no
+ *                    silent fallback to AGA). */
 static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
 {
     ULONG modeid;
@@ -326,42 +477,75 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
     }
 
     /* AUTO / RTG (strict): RTG required, no silent fallback to AGA. */
-    if (!Amiga_OpenP96()) {
-        Amiga_ShowRtgRequester("Picasso96 (RTG) was not detected.");
-        AmigaLog("[VIDEO] RTG required but P96 absent -> not starting");
-        return NULL;
-    }
 
-    /* Diagnostics: dump every P96 mode (dimensions + monitor) to see what
-     * the RTG subsystem actually offers. Does not alter mode selection. */
-    Amiga_DumpP96Modes();
+    /* --- P96 (Picasso96) first attempt --- */
+    if (Amiga_OpenP96()) {
+        Amiga_DumpP96Modes();
 
-    /* 1) Prefer an exact real P96 mode 320x200x8 from the live mode list.
-     *    BestModeID is deliberately NOT used here: it can hand back a native
-     *    chipset ModeID even when P96 exposes no real RTG mode. */
-    AmigaLog("[VIDEO] RTG: searching P96 mode 320x200x8");
-    modeid = Amiga_FindP96GameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
-    if (modeid != INVALID_ID) {
-        AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x200x8", modeid);
-        AmigaRTGLetterbox = 0;
-    }
-    else {
-        /* 2) No exact 320x200x8: fall back only to letterboxed 320x240x8. */
-        AmigaLog("[VIDEO] RTG: 320x200x8 unavailable, trying 320x240x8");
-        modeid = Amiga_FindP96GameMode(320, 240, 8);
+        AmigaLog("[VIDEO] RTG: searching P96 mode 320x200x8");
+        modeid = Amiga_FindP96GameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
         if (modeid != INVALID_ID) {
-            AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x240x8", modeid);
-            AmigaRTGLetterbox = 1;
+            AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x200x8", modeid);
+            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[P96]"))
+                return AmigaGameScreen;
         }
         else {
-            /* Controlled fail with requester; never a silent AUTO->AGA fallback. */
-            AmigaLog("[VIDEO] RTG: no matching P96 mode found");
-            Amiga_ShowRtgRequester("No 320x200x8 or 320x240x8 RTG mode was found.");
-            AmigaLog("[VIDEO] RTG: no 320x200x8/320x240x8 mode -> not starting");
-            return NULL;
+            AmigaLog("[VIDEO] RTG: 320x200x8 unavailable, trying 320x240x8");
+            modeid = Amiga_FindP96GameMode(320, 240, 8);
+            if (modeid != INVALID_ID) {
+                AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x240x8", modeid);
+                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[P96]"))
+                    return AmigaGameScreen;
+            }
+            else {
+                AmigaLog("[VIDEO] RTG: no matching P96 mode found – will try CGX");
+            }
+        }
+    }
+    /* If P96 failed at any point (absent, no mode, OpenScreen failed
+     * or bad dimensions), clean up and try the CGX fallback. */
+    Amiga_CloseGameScreen();     /* safe if AmigaGameScreen is already NULL */
+    Amiga_CloseP96();
+
+    /* --- CGX (CyberGraphX) fallback --- */
+    if (Amiga_OpenCGX()) {
+        Amiga_DumpCGXModes();
+
+        AmigaLog("[VIDEO] CGX: searching mode 320x200x8");
+        modeid = Amiga_FindCGXGameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
+        if (modeid != INVALID_ID) {
+            AmigaLog("[VIDEO] CGX: selected mode 0x%08lx for 320x200x8", modeid);
+            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[CGX]"))
+                return AmigaGameScreen;
+        }
+        else {
+            AmigaLog("[VIDEO] CGX: 320x200x8 unavailable, trying 320x240x8");
+            modeid = Amiga_FindCGXGameMode(320, 240, 8);
+            if (modeid != INVALID_ID) {
+                AmigaLog("[VIDEO] CGX: selected mode 0x%08lx for 320x240x8", modeid);
+                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[CGX]"))
+                    return AmigaGameScreen;
+            }
+            else {
+                AmigaLog("[VIDEO] CGX: no matching mode found");
+            }
         }
     }
 
+    /* Neither P96 nor CGX produced a usable screen. */
+    Amiga_ShowRtgRequester("No 320x200x8 or 320x240x8 RTG mode was found "
+                           "(tried Picasso96 and CyberGraphX).");
+    AmigaLog("[VIDEO] RTG: no P96 or CGX screen -> not starting");
+    return NULL;
+}
+
+/* Shared helper: opens the RTG screen via OpenScreenTags with the given
+ * ModeID and applies the standard dimension guard. Returns the screen on
+ * success, NULL on failure (with internal requester for bad dimensions).
+ * 'label' is a short driver name used for log messages only. */
+static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantLetterbox,
+                                                         const char *label)
+{
     AmigaGameScreen = OpenScreenTags(NULL,
         SA_Depth, (ULONG)AMIGA_GAME_DEPTH,
         SA_DisplayID, modeid,
@@ -372,8 +556,8 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         SA_Type, CUSTOMSCREEN,
         TAG_DONE);
 
-    AmigaLog("[VIDEO] RTG: OpenScreenTags modeid=0x%08lx -> %s",
-             modeid, AmigaGameScreen ? "OK" : "FAIL");
+    AmigaLog("[VIDEO] %s: OpenScreenTags modeid=0x%08lx -> %s",
+             label, modeid, AmigaGameScreen ? "OK" : "FAIL");
     if (!AmigaGameScreen) {
         return NULL;
     }
@@ -383,19 +567,19 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
     AmigaPhysDepth = AMIGA_GAME_DEPTH;
 
     /* Derive letterbox from the actual screen height (not the requested
-     * one – the matched P96 mode may legitimately be 320x240 instead of
-     * the requested 320x200). */
+     * one – the matched mode may legitimately be 320x240 instead of the
+     * requested 320x200). */
     AmigaRTGLetterbox = (AmigaPhysW == 320 && AmigaPhysH == 240);
 
-    AmigaLog("[VIDEO] screen opened OK: actual %dx%dx%d, mode=RTG, letterbox=%d",
-             AmigaPhysW, AmigaPhysH, AmigaPhysDepth, AmigaRTGLetterbox);
+    AmigaLog("[VIDEO] screen opened OK: actual %dx%dx%d, mode=%s, letterbox=%d",
+             AmigaPhysW, AmigaPhysH, AmigaPhysDepth, label, AmigaRTGLetterbox);
 
-    /* Guard: the RTG path only accepts 320x200 or 320x240. Anything else
-     * is an unexpected mode reported by P96 – close it and fail. */
+    /* Guard: only accept 320x200 or 320x240. Anything else is an unexpected
+     * mode reported by the driver – close it and fail. */
     if (AmigaPhysW != 320 || (AmigaPhysH != 200 && AmigaPhysH != 240))
     {
-        AmigaLog("[VIDEO] RTG: unexpected actual screen dimensions %dx%d – closing",
-                 AmigaPhysW, AmigaPhysH);
+        AmigaLog("[VIDEO] %s: unexpected actual screen dimensions %dx%d – closing",
+                 label, AmigaPhysW, AmigaPhysH);
         CloseScreen(AmigaGameScreen);
         AmigaGameScreen = NULL;
         Amiga_ShowRtgRequester("Opened screen has unexpected dimensions.");
@@ -969,13 +1153,14 @@ static inline void SDL_Quit(void) {
 #ifdef __AMIGA__
     /* Idempotent guard to prevent double-closing libraries and redundant output. */
     if (!AmigaGameWindow && !AmigaGameScreen &&
-        !IntuitionBase && !GfxBase && !LowLevelBase && !P96Base)
+        !IntuitionBase && !GfxBase && !LowLevelBase && !P96Base && !CyberGfxBase)
         return;
 
     /* Restores the native pointer before destroying window and closing libraries. */
     Amiga_ShowSystemPointer();
     Amiga_CloseGameScreen();
     Amiga_CloseP96();
+    Amiga_CloseCGX();
     if (IntuitionBase) {
         CloseLibrary((struct Library *)IntuitionBase);
         IntuitionBase = NULL;
@@ -2061,7 +2246,7 @@ static inline void Amiga_PumpWindowEvents(void)
      * This skips intro screens, exits attract/demo immediately and makes
      * gameplay fall back to mouse takeover. Ignore middle-button traffic
      * on all RTG screens. */
-    if (AmigaUsingP96 && (code == MIDDLEDOWN || code == MIDDLEUP))
+    if ((AmigaUsingP96 || AmigaUsingCGX) && (code == MIDDLEDOWN || code == MIDDLEUP))
     {
         /* event dropped */
     }
