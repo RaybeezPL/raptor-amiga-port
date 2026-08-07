@@ -430,6 +430,13 @@ MUS_Init(
     case M_CANVAS:
     case M_GMIDI:
     default:
+#ifdef __AMIGA__
+        /* Amiga: General MIDI music is played through camd.library
+         * (mpucamd.cpp).  The TinySoundFont softsynth is deliberately
+         * never used here: its TSF_Init() opens its own SDL audio device,
+         * which would hijack the AHI backend and kill the sound effects. */
+        music_device = &mus_device_camd;
+#else
         if (sys_midi)
         {
             #ifdef _WIN32
@@ -451,11 +458,25 @@ MUS_Init(
         }
         else
         music_device = &mus_device_tsf;
+#endif
         break;
     }
 
     if (music_device && music_device->Init)
+    {
+#ifdef __AMIGA__
+        /* Amiga: propagate init failure (e.g. camd.library missing) so
+         * SND_InitSound() can retry MUS_Init() with the OPL3 fallback
+         * backend. */
+        if (!music_device->Init(option))
+        {
+            music_device = NULL;
+            return 0;
+        }
+#else
         music_device->Init(option);
+#endif
+    }
 
     if (music_device && music_device->AllNotesOffEvent)
         music_device->AllNotesOffEvent(0,0);

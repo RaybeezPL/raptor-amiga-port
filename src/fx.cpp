@@ -156,8 +156,18 @@ int SND_InitSound(void)
     fx_device = SND_NONE;
 
     music_volume = INI_GetPreferenceLong("Music", "Volume", 127);
+#ifdef __AMIGA__
+    /* Amiga: with no SETUP.INI the CardType default M_NONE would leave the
+     * game without music.  Default to General MIDI, played through
+     * camd.library (mpucamd.cpp), with automatic fallback to AdLib/OPL3
+     * below when CAMD is unavailable.  An explicit SETUP.INI CardType
+     * still overrides this default. */
+    music_card = INI_GetPreferenceLong("Music", "CardType", M_GMIDI);
+    sys_midi = INI_GetPreferenceLong("Setup", "sys_midi", 1);
+#else
     music_card = INI_GetPreferenceLong("Music", "CardType", M_NONE);
     sys_midi = INI_GetPreferenceLong("Setup", "sys_midi", 0);
+#endif
     winmm_mpu_device = INI_GetPreferenceLong("Setup", "winmm_mpu_device", 0);
     core_dls_synth = INI_GetPreferenceLong("Setup", "core_dls_synth", 1);
     core_midi_port = INI_GetPreferenceLong("Setup", "core_midi_port", 0);
@@ -192,17 +202,48 @@ int SND_InitSound(void)
         music_volume = 0;
     }
 
-    printf("Music Enabled (%s)\n", g_nomusic ? "Disabled (-nomusic)" : cards[music_card]);
-    
     if (music_card != M_NONE && !g_nomusic)
     {
-        MUS_Init(music_card, 0);
-        MUS_SetVolume(music_volume);
+        int mus_ok = MUS_Init(music_card, 0);
+
+#ifdef __AMIGA__
+        if (!mus_ok && music_card == M_GMIDI)
+        {
+            /* CAMD (camd.library / node / cluster link) unavailable: fall
+             * back to the OPL3 (AdLib) emulator, so music still plays
+             * through the AHI audio stream. */
+            printf("[AUDIO] CAMD MIDI unavailable - falling back to AdLib/OPL3 music.\n");
+            genmidi = GLB_GetItem(FILE00e_GENMIDI_OP2);
+            if (genmidi)
+            {
+                LoadInstrumentTable(genmidi);
+                GLB_FreeItem(14);
+            }
+            music_card = M_ADLIB;
+            mus_ok = MUS_Init(music_card, 0);
+        }
+#endif
+        if (mus_ok)
+            MUS_SetVolume(music_volume);
     }
+
+    /* Printed after backend selection so it names the real (possibly
+     * fallen-back) music device. */
+#ifdef __AMIGA__
+    if (!g_nomusic && music_card == M_GMIDI)
+        printf("Music Enabled (General Midi via CAMD)\n");
+    else
+#endif
+    printf("Music Enabled (%s)\n", g_nomusic ? "Disabled (-nomusic)" : cards[music_card]);
 
     fx_volume = INI_GetPreferenceLong("SoundFX", "Volume", 127);
     fx_card = INI_GetPreferenceLong("SoundFX", "CardType", 0);
+#ifdef __AMIGA__
+    /* Amiga: default to all 8 DSP mixer channels (no SETUP.INI). */
+    fx_chans = INI_GetPreferenceLong("SoundFX", "Channels", 8);
+#else
     fx_chans = INI_GetPreferenceLong("SoundFX", "Channels", 2);
+#endif
 
 #ifdef __AMIGA__
     /* On Amiga with no SETUP.INI the CardType defaults to 0 (M_NONE), which
@@ -285,6 +326,13 @@ void SND_DeInit(void)
     if (!fx_init)
         return;
 
+    /* Shut down the music backend first: sends all-notes-off on every
+     * channel and (on Amiga) removes the CAMD link/node and closes
+     * camd.library.  MUS_DeInit() early-outs when music was never
+     * initialised. */
+    MUS_DeInit();
+
+    /* Stops the audio task and closes ahi.device (Amiga SDL stub). */
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
     fx_init = 0;
 }

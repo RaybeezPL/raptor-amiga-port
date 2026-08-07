@@ -117,7 +117,9 @@ LIBS      = $(SDL_LIBS) \
 # Source files - Game
 #
 # NOTE: Platform-specific MIDI backends excluded (Windows/Linux/macOS).
-# The TinySoundFont backend (mputsf.cpp) and OPL3 emulator are included.
+# The CAMD MIDI backend (mpucamd.cpp, Amiga music out), TinySoundFont
+# (mputsf.cpp, unused on Amiga) and the OPL3 emulator (AdLib fallback) are
+# included.
 # Textscreen library (setup program) is NOT built in this Makefile.
 # -----------------------------------------------------------------------------
 SRCS_CXX  = \
@@ -146,6 +148,7 @@ SRCS_CXX  = \
     src/m_misc.cpp \
     src/movie.cpp \
     src/movie_a.cpp \
+    src/mpucamd.cpp \
     src/mputsf.cpp \
     src/musapi.cpp \
     src/objects.cpp \

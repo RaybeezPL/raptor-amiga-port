@@ -2,6 +2,57 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.9.0-beta] - 2026-08-07
+
+Version name: **BETA 0.9.0 SOUND**
+
+### Added
+- Sound effects through AHI (ahi.device): the SDL-stub audio backend
+  now builds on the official AHI SDK header and plays 44100 Hz 16-bit
+  stereo via double-buffered CMD_WRITE requests.
+- Music through CAMD (camd.library): new `mpucamd.cpp` music backend
+  plays the game's MUS tracks as a live General MIDI event stream to a
+  CAMD cluster (default "out.0", configurable via SETUP.INI
+  `[Setup] camd_cluster=<name>`). Sequencer timing is driven by
+  `MUS_Poll()` from the main loop, exactly like the upstream
+  WinMM/ALSA/CoreMIDI backends on other platforms.
+- Automatic music fallback: if camd.library is unavailable, the game
+  falls back to the built-in AdLib/OPL3 emulation mixed into the AHI
+  audio stream, so music always plays.
+- Vendored official headers under `src/amiga/`: AHI SDK
+  `devices/ahi.h`, and CAMD `midi/camd.h`, `midi/mididefs.h`,
+  `clib/camd_protos.h` from the CAMD developer kit, plus hand-written
+  NDK-style GCC `proto/camd.h` / `inline/camd.h` (LVO offsets verified
+  against the official `fd/camd_lib.fd`).
+
+### Fixed
+- AHI backend wrote every request field 8 bytes past the official
+  AHIRequest layout (broken hand-written substitute header in the
+  toolchain NDK): ahi.device read Type=0 (mono 8-bit), Frequency=0,
+  Volume~0 and a wild Link pointer - the root cause of "AHI opens OK
+  but there is no sound / occasional hang". Compile-time layout guards
+  (sizeof/offsetof) were added so the wrong header can never silently
+  win again.
+- Wrong AHI constants: AHIST_S16S 0x06 -> 0x03, ahir_Version 2 -> 4,
+  stereo position 0 (full left!) -> 0x8000 (center).
+- ahi.device and the "Raptor Audio Task" survived game exit (the
+  SDL_QuitSubSystem/close path was a no-op); both are now really shut
+  down via SDL_QuitSubSystem(SDL_INIT_AUDIO) and SDL_Quit().
+- `dspapi.cpp` restored to the upstream version: fixes the effect
+  length unit (reads past the sample buffer at randomized pitch) and
+  the effect volume divisor (/127 instead of /256, about 6 dB louder).
+- `MUS_DeInit()` is now called from `SND_DeInit()`: CAMD link/node and
+  camd.library are properly released on exit, after all-notes-off is
+  sent on every channel.
+
+### Changed
+- Without SETUP.INI the music card now defaults to General MIDI (CAMD)
+  instead of "None", and the DSP mixer defaults to 8 channels.
+- Parameter behaviour finalized: no parameter = SFX (AHI) + music
+  (CAMD/OPL3); NOMUSIC = SFX only, camd.library never opened;
+  NOSOUND = no audio at all, neither ahi.device nor camd.library is
+  opened (still the fastest startup path).
+
 ## [0.8.1-beta] - 2026-08-01
 
 Version name: **BETA 0.8.1 NOSOUND**

@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68060/RTG)
 
-Version: BETA 0.8.1 NOSOUND
+Version: BETA 0.9.0 SOUND
 
 =====================================================
 
@@ -36,8 +36,9 @@ Graphics:   RTG with Picasso96 or CyberGraphX (CGX)
 Disk space: approx. 25 MB free (game files + saved games)
 Joystick:   Optional - port 1 (DB9); requires lowlevel.library v40+
             (included in AmigaOS 3.2); CD32 pads are also supported
-Sound:      Not available yet - AHI support is work in progress;
-            the game must be started with -nosound
+Sound:      AHI (ahi.device v4+) for sound effects;
+            music via MIDI out through camd.library (CAMD), with
+            automatic AdLib/OPL3 fallback when CAMD is unavailable
 
 Without an RTG card the game will attempt to open a standard custom
 chipset screen, but the supported and tested configuration is
@@ -72,21 +73,55 @@ Installation
 Running
 -------
 
-The only currently tested and working configuration is with sound
-disabled. From Shell/CLI:
+From Shell/CLI simply start the game:
 
-   raptor -nosound
+   raptor
 
-The Amiga-style syntax without a dash also works, case insensitive:
+Sound effects play through AHI (ahi.device) and music is sent as a
+MIDI stream through camd.library (CAMD). If camd.library is not
+installed, the game automatically falls back to the built-in
+AdLib/OPL3 emulation, so music always plays. See the "Sound
+(AHI + CAMD)" section below for details and MIDI configuration.
 
-   raptor NOSOUND
 
-Sound status: The audio path (AHI / ahi.device) is not yet complete.
-Starting the game without -nosound is not currently supported and
-may result in a device open error or a hang, depending on your AHI
-configuration. Always start the game with -nosound (this is also
-the fastest startup path for testing). The -nomusic option exists
-in the code but has no practical use until audio is working.
+Sound (AHI + CAMD)
+------------------
+
+Sound effects and music use two separate, native Amiga subsystems:
+
+   Sound effects:  AHI (ahi.device), 44100 Hz 16-bit stereo, played
+                   through the standard double-buffered device
+                   interface. AHI v4+ must be installed (AHI user
+                   package, freely available on Aminet). Any
+                   AHI-capable sound card works, as does the built-in
+                   Paula through an AHI audio mode.
+
+   Music:          The game's MUS tracks are played as a General MIDI
+                   event stream through camd.library (CAMD), the
+                   standard Amiga MIDI API - the same way the Windows
+                   and Linux versions of the engine use WinMM and
+                   ALSA MIDI. MIDI data is sent to the CAMD cluster
+                   "out.0" by default; a different cluster name can be
+                   set with the SETUP.INI option:
+
+                       [Setup]
+                       camd_cluster=<name>
+
+                   To actually hear CAMD music you need one of:
+                   - a MIDI interface with an external synthesizer and
+                     a CAMD MIDI driver running (e.g. the serial
+                     driver from the camd40 package on Aminet), or
+                   - a software synthesizer with a CAMD interface
+                     (e.g. CAMD Toolkit, or Timidity with a CAMD
+                     driver) attached to the configured cluster.
+
+                   If camd.library is not installed at all, the game
+                   automatically falls back to the built-in AdLib/OPL3
+                   emulation (the authentic Raptor sound) mixed into
+                   the AHI audio stream - music always works.
+
+Audio status and diagnostics are printed at startup (Shell/CLI) and
+also written to RAPTOR.LOG in the game directory.
 
 
 Command Line Parameters
@@ -97,13 +132,13 @@ either with a leading dash (GNU style) or without it (AmigaDOS
 style). Examples: "-nosound", "NOSOUND" and "nosound" are all
 accepted. Parameters may be combined in any order.
 
-   -nosound    Disables ALL audio (music and sound effects). The
-               ahi.device / audio backend is never opened. This is
-               the fastest startup path and is currently REQUIRED.
+   -nosound    Disables ALL audio (music and sound effects). Neither
+               ahi.device nor camd.library is ever opened. This is
+               the fastest startup path.
 
-   -nomusic    Disables music only; sound effects remain enabled.
-               Note: until the AHI audio path is finished this option
-               has no practical use - use -nosound.
+   -nomusic    Disables music only; sound effects (gun shots,
+               explosions, etc.) keep playing through AHI.
+               camd.library is never opened in this mode.
 
    -gfx=M      Selects the graphics driver path used for the game
                screen. M may be:
@@ -136,10 +171,10 @@ accepted. Parameters may be combined in any order.
 
 
    REC <file>  Records a demo of your gameplay to the given file
-               (e.g. "raptor -nosound REC demo1.dem").
+               (e.g. "raptor REC demo1.dem").
 
    PLAY <file> Plays back a previously recorded demo file
-               (e.g. "raptor -nosound PLAY demo1.dem").
+               (e.g. "raptor PLAY demo1.dem").
 
 
 
@@ -147,18 +182,18 @@ Running from Shell/CLI
 ----------------------
 
 Open a Shell (CLI) window, change to the game directory and start
-the game with the desired parameters, e.g.:
+the game, e.g.:
 
    cd Games:Raptor
-   raptor -nosound
+   raptor
 
-or in AmigaDOS style:
+Parameters work with or without a dash, case insensitively:
 
-   raptor NOSOUND
+   raptor NOMUSIC
 
 Combining parameters:
 
-   raptor -nosound REC demo1.dem
+   raptor -nomusic REC demo1.dem
 
 
 Running from a Workbench Icon
@@ -186,8 +221,8 @@ Workbench. Parameters are passed via icon ToolTypes:
 
 3. Click "Save" and double-click the icon to start the game.
 
-Note: with sound support still being worked on, the icon should
-contain the NOSOUND ToolType, otherwise the game may fail to start.
+Note: to run without audio from the Workbench, add the NOSOUND
+ToolType to the icon (NOMUSIC keeps sound effects enabled).
 
 Note: when started from the Workbench icon the game produces no
 console output (no console window is opened at all). To see the
@@ -293,8 +328,10 @@ Menu controls (keyboard / mouse / joystick):
 Known Limitations
 -----------------
 
-- No sound - the game must be started with -nosound (AHI work in
-  progress).
+- MIDI music through CAMD needs a MIDI driver or a CAMD software
+  synthesizer attached to the output cluster (default "out.0") -
+  otherwise CAMD music is silent (sound effects still play; install
+  no camd.library at all to force the AdLib/OPL3 fallback instead).
 - No pause or menu exit directly from joystick (use keyboard).
 - No rumble / haptic support.
 - The Amiga system mouse pointer is hidden while the game is

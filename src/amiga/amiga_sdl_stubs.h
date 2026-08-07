@@ -1147,10 +1147,31 @@ static inline int SDL_Init(uint32_t flags)
 
     return 0;
 }
-static inline void   SDL_QuitSubSystem(uint32_t flags) { (void)flags; }
+#ifdef __AMIGA__
+/* Defined in the audio section further below; stops the audio task and
+ * closes ahi.device. Idempotent. */
+static inline void SDL_CloseAudio(void);
+#endif
+static inline void SDL_QuitSubSystem(uint32_t flags)
+{
+#ifdef __AMIGA__
+    /* SND_DeInit() routes here: really shut down the AHI backend instead of
+     * leaving "Raptor Audio Task" and the open ahi.device behind (the old
+     * no-op let both survive game exit, looping the last audio buffer). */
+    if (flags & SDL_INIT_AUDIO)
+        SDL_CloseAudio();
+#else
+    (void)flags;
+#endif
+}
 
 static inline void SDL_Quit(void) {
 #ifdef __AMIGA__
+    /* Last-chance audio shutdown (idempotent): never leave ahi.device or
+     * the audio task running after the game exits, even if SND_DeInit()
+     * was skipped on some exit path. */
+    SDL_CloseAudio();
+
     /* Idempotent guard to prevent double-closing libraries and redundant output. */
     if (!AmigaGameWindow && !AmigaGameScreen &&
         !IntuitionBase && !GfxBase && !LowLevelBase && !P96Base && !CyberGfxBase)
@@ -1612,29 +1633,27 @@ static inline int SDL_PixelFormatEnumToMasks(uint32_t format, int *bpp,
 #include <dos/dostags.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
+#include <devices/ahi.h>
+#include <stddef.h>
 
-#define AMIGA_AHINAME          "ahi.device"
-#define AMIGA_AHI_DEFAULT_UNIT 0
-#define AMIGA_AHIST_M16S 0x00000003UL /* 16-bit mono signed. */
-#define AMIGA_AHIST_S16S 0x00000006UL /* 16-bit stereo signed. */
+/* The OFFICIAL AHI SDK header (vendored in src/amiga/devices/ahi.h) must be
+ * the one included above: the toolchain's ndk-include/devices/ahi.h is an
+ * incompatible hand-written substitute with a wrong AHIRequest layout
+ * (IORequest instead of IOStdReq, too little driver-private space), which
+ * shifted every field this stub wrote past where ahi.device reads them:
+ * ahir_Type read as 0 (mono 8-bit), ahir_Frequency 0, ahir_Volume ~0 and
+ * ahir_Link as a wild pointer (crash/hang on buffer switch).
+ * These compile-time guards fail loudly if the wrong header ever wins again.
+ * Official layout: IOStdReq(48) + Version(2) + Pad1(2) + Private[2](8)
+ * + Type + Frequency + Volume + Position + Link = 80 bytes total. */
+typedef char amiga_ahi_req_size_check[(sizeof(struct AHIRequest) == 80) ? 1 : -1];
+typedef char amiga_ahi_type_offs_check[(offsetof(struct AHIRequest, ahir_Type) == 60) ? 1 : -1];
+typedef char amiga_ahi_link_offs_check[(offsetof(struct AHIRequest, ahir_Link) == 76) ? 1 : -1];
 
-/* AHI 16.16 fixed-point type. */
-typedef LONG AmigaAHIFixed;
-#define AMIGA_AHI_FIXED_1_0 ((AmigaAHIFixed)0x00010000L)
-
-/* Local replacement for struct AHIRequest ensuring correct padding and driver-private space. */
-struct AmigaAHIRequest
-{
-    struct IOStdReq  ahir_Std;        /* io_Data/io_Length/io_Offset/io_Command/io_Error. */
-    UWORD            ahir_Version;
-    UWORD            ahir_Reserved;
-    ULONG            ahir_Private[4]; /* Driver-private space, must be 4 ULONGs. */
-    ULONG            ahir_Type;
-    ULONG            ahir_Frequency;
-    AmigaAHIFixed    ahir_Volume;
-    AmigaAHIFixed    ahir_Position;
-    struct AmigaAHIRequest *ahir_Link;
-};
+/* AHI 16.16 fixed-point: full volume and centered stereo position.
+ * NOTE: ahir_Position 0x8000 is CENTER - 0x0000 would be full left. */
+#define AMIGA_AHI_VOLUME_FULL     (0x00010000UL)
+#define AMIGA_AHI_POSITION_CENTER (0x00008000UL)
 
 #define AMIGA_AUDIO_NUM_BUFFERS 2
 
@@ -1642,7 +1661,7 @@ struct AmigaAudioState
 {
     int initialized;
     struct MsgPort         *port;
-    struct AmigaAHIRequest *req[AMIGA_AUDIO_NUM_BUFFERS];
+    struct AHIRequest *req[AMIGA_AUDIO_NUM_BUFFERS];
     int devopen;
     UBYTE *buffer[AMIGA_AUDIO_NUM_BUFFERS];
     ULONG  bufferBytes;
@@ -1708,7 +1727,7 @@ static inline void AmigaAudio_FillBuffer(UBYTE *dst, ULONG bytes)
     g_AmigaAudio.callback(g_AmigaAudio.userdata, dst, (int)bytes);
 }
 
-static inline void AmigaAudio_SetupRequest(struct AmigaAHIRequest *req, UBYTE *buf, ULONG bytes)
+static inline void AmigaAudio_SetupRequest(struct AHIRequest *req, UBYTE *buf, ULONG bytes)
 
 {
     req->ahir_Std.io_Command = CMD_WRITE;
@@ -1717,8 +1736,8 @@ static inline void AmigaAudio_SetupRequest(struct AmigaAHIRequest *req, UBYTE *b
     req->ahir_Std.io_Offset  = 0;
     req->ahir_Type      = g_AmigaAudio.ahiType;
     req->ahir_Frequency = (ULONG)g_AmigaAudio.freq;
-    req->ahir_Volume    = AMIGA_AHI_FIXED_1_0;
-    req->ahir_Position  = 0x00000000; /* Centered position. */
+    req->ahir_Volume    = AMIGA_AHI_VOLUME_FULL;
+    req->ahir_Position  = AMIGA_AHI_POSITION_CENTER;
 }
 
 /* Dedicated background audio task - no STDIO allowed. */
@@ -1752,7 +1771,7 @@ static inline void AmigaAudio_TaskEntry(void)
 
     while (!g_AmigaAudio.taskShouldQuit)
     {
-        struct AmigaAHIRequest *done = g_AmigaAudio.req[cur];
+        struct AHIRequest *done = g_AmigaAudio.req[cur];
         int other;
 
         WaitIO((struct IORequest *)done);
@@ -1819,7 +1838,7 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
     g_AmigaAudio.callback = desired->callback;
     g_AmigaAudio.userdata = desired->userdata;
     g_AmigaAudio.paused   = 0; /* Audio starts playing. */
-    g_AmigaAudio.ahiType  = (g_AmigaAudio.channels >= 2) ? AMIGA_AHIST_S16S : AMIGA_AHIST_M16S;
+    g_AmigaAudio.ahiType  = (g_AmigaAudio.channels >= 2) ? AHIST_S16S : AHIST_M16S;
 
     {
         ULONG frames = desired->samples > 0 ? desired->samples : 512;
@@ -1850,19 +1869,20 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
         int i;
         for (i = 0; i < AMIGA_AUDIO_NUM_BUFFERS; i++)
         {
-            g_AmigaAudio.req[i] = (struct AmigaAHIRequest *)CreateIORequest(g_AmigaAudio.port, sizeof(struct AmigaAHIRequest));
+            g_AmigaAudio.req[i] = (struct AHIRequest *)CreateIORequest(g_AmigaAudio.port, sizeof(struct AHIRequest));
             if (!g_AmigaAudio.req[i])
             {
                 AmigaAudio_FreeIOReqs();
                 AmigaAudio_FreeBuffers();
                 return -1;
             }
-            memset(g_AmigaAudio.req[i], 0, sizeof(struct AmigaAHIRequest));
-            g_AmigaAudio.req[i]->ahir_Version = 2;
+            memset(g_AmigaAudio.req[i], 0, sizeof(struct AHIRequest));
+            /* Require ahi.device V4 (official AHI examples do the same). */
+            g_AmigaAudio.req[i]->ahir_Version = 4;
             g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Node.ln_Type = NT_MESSAGE;
             g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Node.ln_Name = NULL;
             g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_ReplyPort    = g_AmigaAudio.port;
-            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Length       = sizeof(struct AmigaAHIRequest);
+            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Length       = sizeof(struct AHIRequest);
         }
     }
 
@@ -1877,7 +1897,7 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
             return -1;
         }
 
-        odErr = OpenDevice((CONST_STRPTR)AMIGA_AHINAME, AMIGA_AHI_DEFAULT_UNIT,
+        odErr = OpenDevice((CONST_STRPTR)AHINAME, AHI_DEFAULT_UNIT,
                             (struct IORequest *)g_AmigaAudio.req[0], 0);
 
         if (odErr != 0)
