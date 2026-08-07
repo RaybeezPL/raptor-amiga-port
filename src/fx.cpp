@@ -149,12 +149,9 @@ int SND_InitSound(void)
     spec.freq = fx_freq;
     spec.format = AUDIO_S16SYS;
     spec.channels = 2;
-#ifdef __AMIGA__
-    /* 256 frames @ 11025 Hz ~= 23 ms per buffer - keeps SFX responsive. */
-    spec.samples = 256;
-#else
+    /* 512 frames @ 11025 Hz on Amiga ~= 46 ms of runway per buffer -
+     * generous scheduling headroom for the audio task on a real 68060. */
     spec.samples = 512;
-#endif
     spec.callback = FX_Fill;
     spec.userdata = NULL;
 
@@ -277,8 +274,10 @@ int SND_InitSound(void)
     fx_volume = INI_GetPreferenceLong("SoundFX", "Volume", 127);
     fx_card = INI_GetPreferenceLong("SoundFX", "CardType", 0);
 #ifdef __AMIGA__
-    /* Amiga: default to all 8 DSP mixer channels (no SETUP.INI). */
-    fx_chans = INI_GetPreferenceLong("SoundFX", "Channels", 8);
+    /* Amiga: 4 DSP mixer channels by default (upstream default is 2, max
+     * 8; when full, the oldest voice is stolen).  Plenty for
+     * shots/explosions/voices and halves the mixer work on the 68060. */
+    fx_chans = INI_GetPreferenceLong("SoundFX", "Channels", 4);
 #else
     fx_chans = INI_GetPreferenceLong("SoundFX", "Channels", 2);
 #endif

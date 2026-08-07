@@ -1955,7 +1955,10 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
     g_AmigaAudio.audioTask = CreateNewProcTags(
         NP_Entry,     (ULONG)AmigaAudio_TaskEntry,
         NP_Name,      (ULONG)"Raptor Audio Task",
-        NP_Priority,  (LONG)0,
+        NP_Priority,  (LONG)10, /* above the game loop (pri 0): preempt and
+                                 * refill as soon as a buffer completes,
+                                 * otherwise equal-priority timeslicing
+                                 * starves the stream (crackle/stutter) */
         NP_StackSize, (ULONG)32768, /* OPL3 music renders in this task */
         TAG_DONE);
 
