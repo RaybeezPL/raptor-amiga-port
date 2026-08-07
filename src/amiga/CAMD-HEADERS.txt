@@ -1,0 +1,23 @@
+CAMD (camd.library) headers for the Amiga port
+==============================================
+
+Vendored unmodified from the CAMD developer kit (Aminet
+dev/c/camd-morphos-dev.lha):
+
+    midi/camd.h        - public structures, tags, MidiMsg layout
+    midi/mididefs.h    - MIDI status/controller constants
+    clib/camd_protos.h - plain C prototypes
+                         (local change: extern "C" guard added for C++)
+
+Hand-written for this port (GCC m68k, NDK inline/macros.h convention):
+
+    inline/camd.h      - register-argument inlines; LVO offsets verified
+                         against the official fd/camd_lib.fd (bias 30)
+    proto/camd.h       - NDK-style proto header
+
+The devices/ahi.h header is vendored from the official AHI developer
+archive (Aminet mus/dev/m68k-amigaos-ahidev.lha, AHI by Martin Blom).
+It must take precedence over the toolchain's ndk-include/devices/ahi.h,
+which is an incompatible hand-written substitute (wrong AHIRequest
+layout).  -Isrc/amiga is listed before the NDK paths in Makefile.amiga,
+so the vendored headers win.
