@@ -1674,6 +1674,13 @@ struct AmigaAudioState
     volatile int taskRunning;
     volatile int taskShouldQuit;
     volatile int paused;
+    /* Diagnostics: written by the audio task (no STDIO allowed there),
+     * read and logged from the main task only. */
+    volatile ULONG buffersFilled;
+    volatile LONG  lastError;
+    /* Init handshake: 0 = pending, 1 = streaming live, <0 = failed stage
+     * (-1 msg port, -2 IO request, -3 OpenDevice, -4 buffers). */
+    volatile LONG  openDone;
 };
 
 AMIGA_STUBS_DECL struct AmigaAudioState g_AmigaAudio;
@@ -1740,22 +1747,79 @@ static inline void AmigaAudio_SetupRequest(struct AHIRequest *req, UBYTE *buf, U
     req->ahir_Position  = AMIGA_AHI_POSITION_CENTER;
 }
 
-/* Dedicated background audio task - no STDIO allowed. */
+/* Dedicated background audio task - no STDIO allowed.
+ *
+ * This task owns the ENTIRE AHI device side: message port, IO requests,
+ * OpenDevice/CloseDevice and the streaming loop.  The message port (and
+ * therefore its completion signal) MUST belong to this task: a port
+ * created by the main task has mp_SigTask = main task, so ahi.device
+ * signals the main task on every completed request while this task's
+ * WaitIO() sleeps forever - that was the "AHI opens OK but zero buffers
+ * play" bug (buffersFilled stayed 0, game silent, music sequencer dead).
+ *
+ * Failures are reported to the main task through openDone (see above) and
+ * lastError (OpenDevice error code); the main task does all the logging. */
+/* Compiled with -O0 to prevent FPU traps from opportunistic register spills during OpenDevice. */
+__attribute__((optimize("O0")))
 static inline void AmigaAudio_TaskEntry(void)
 
 {
-    int cur;
+    int cur, i;
 
     g_AmigaAudio.taskRunning = 1;
 
-    if (!g_AmigaAudio.buffer[0] || !g_AmigaAudio.buffer[1] ||
-        !g_AmigaAudio.req[0]    || !g_AmigaAudio.req[1]    ||
-        !g_AmigaAudio.devopen)
+    if (!g_AmigaAudio.buffer[0] || !g_AmigaAudio.buffer[1])
     {
+        g_AmigaAudio.openDone = -4; /* buffers missing (main-side alloc) */
         g_AmigaAudio.taskRunning = 0;
         return;
     }
 
+    g_AmigaAudio.port = CreateMsgPort();
+    if (!g_AmigaAudio.port)
+    {
+        g_AmigaAudio.openDone = -1;
+        g_AmigaAudio.taskRunning = 0;
+        return;
+    }
+
+    for (i = 0; i < AMIGA_AUDIO_NUM_BUFFERS; i++)
+    {
+        g_AmigaAudio.req[i] = (struct AHIRequest *)CreateIORequest(g_AmigaAudio.port, sizeof(struct AHIRequest));
+        if (!g_AmigaAudio.req[i])
+        {
+            AmigaAudio_FreeIOReqs();
+            g_AmigaAudio.openDone = -2;
+            g_AmigaAudio.taskRunning = 0;
+            return;
+        }
+        memset(g_AmigaAudio.req[i], 0, sizeof(struct AHIRequest));
+        /* Require ahi.device V4 (official AHI examples do the same). */
+        g_AmigaAudio.req[i]->ahir_Version = 4;
+        g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Node.ln_Type = NT_MESSAGE;
+        g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Node.ln_Name = NULL;
+        g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_ReplyPort    = g_AmigaAudio.port;
+        g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Length       = sizeof(struct AHIRequest);
+    }
+
+    {
+        BYTE odErr = OpenDevice((CONST_STRPTR)AHINAME, AHI_DEFAULT_UNIT,
+                                (struct IORequest *)g_AmigaAudio.req[0], 0);
+        if (odErr != 0)
+        {
+            g_AmigaAudio.lastError = odErr;
+            AmigaAudio_FreeIOReqs();
+            g_AmigaAudio.openDone = -3;
+            g_AmigaAudio.taskRunning = 0;
+            return;
+        }
+    }
+    g_AmigaAudio.devopen = 1;
+
+    g_AmigaAudio.req[1]->ahir_Std.io_Device = g_AmigaAudio.req[0]->ahir_Std.io_Device;
+    g_AmigaAudio.req[1]->ahir_Std.io_Unit   = g_AmigaAudio.req[0]->ahir_Std.io_Unit;
+
+    /* Canonical double buffering (ahidev.guide, "Writing To The Device"). */
     AmigaAudio_FillBuffer(g_AmigaAudio.buffer[0], g_AmigaAudio.bufferBytes);
     AmigaAudio_FillBuffer(g_AmigaAudio.buffer[1], g_AmigaAudio.bufferBytes);
 
@@ -1767,6 +1831,7 @@ static inline void AmigaAudio_TaskEntry(void)
     g_AmigaAudio.req[1]->ahir_Link = g_AmigaAudio.req[0];
     SendIO((struct IORequest *)g_AmigaAudio.req[1]);
 
+    g_AmigaAudio.openDone = 1; /* tell the main task: streaming is live */
     cur = 0;
 
     while (!g_AmigaAudio.taskShouldQuit)
@@ -1775,6 +1840,11 @@ static inline void AmigaAudio_TaskEntry(void)
         int other;
 
         WaitIO((struct IORequest *)done);
+
+        /* No STDIO in this task - record diagnostics for the main task. */
+        if (((struct IORequest *)done)->io_Error)
+            g_AmigaAudio.lastError = ((struct IORequest *)done)->io_Error;
+        g_AmigaAudio.buffersFilled++;
 
         AmigaAudio_FillBuffer(g_AmigaAudio.buffer[cur], g_AmigaAudio.bufferBytes);
 
@@ -1791,6 +1861,11 @@ static inline void AmigaAudio_TaskEntry(void)
     WaitIO((struct IORequest *)g_AmigaAudio.req[0]);
     WaitIO((struct IORequest *)g_AmigaAudio.req[1]);
 
+    CloseDevice((struct IORequest *)g_AmigaAudio.req[0]);
+    g_AmigaAudio.devopen = 0;
+
+    AmigaAudio_FreeIOReqs();
+
     g_AmigaAudio.taskRunning = 0;
 }
 
@@ -1799,6 +1874,11 @@ static inline void SDL_CloseAudio(void)
     if (!g_AmigaAudio.initialized)
         return;
 
+    AmigaLog("AHI: closing audio (buffers played: %lu, last io_Error: %ld)",
+             (unsigned long)g_AmigaAudio.buffersFilled, (long)g_AmigaAudio.lastError);
+
+    /* Ask the audio task to stop; it owns the device, the IO requests and
+     * the message port, so it does the whole device-side teardown itself. */
     g_AmigaAudio.taskShouldQuit = 1;
     {
         int spins = 0;
@@ -1809,16 +1889,14 @@ static inline void SDL_CloseAudio(void)
         }
     }
 
-    if (g_AmigaAudio.devopen)
-    {
-        CloseDevice((struct IORequest *)g_AmigaAudio.req[0]);
-        g_AmigaAudio.devopen = 0;
-    }
+    if (g_AmigaAudio.taskRunning)
+        AmigaLog("AHI: WARNING - audio task did not stop in time!");
 
-    AmigaAudio_FreeIOReqs();
     AmigaAudio_FreeBuffers();
 
     memset(&g_AmigaAudio, 0, sizeof(g_AmigaAudio));
+
+    AmigaLog("AHI: audio closed.");
 }
 
 /* Compiled with -O0 to prevent FPU traps from opportunistic register spills during OpenDevice. */
@@ -1840,10 +1918,16 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
     g_AmigaAudio.paused   = 0; /* Audio starts playing. */
     g_AmigaAudio.ahiType  = (g_AmigaAudio.channels >= 2) ? AHIST_S16S : AHIST_M16S;
 
+    AmigaLog("AHI: open request: freq=%ld channels=%ld type=%s",
+             (long)g_AmigaAudio.freq, (long)g_AmigaAudio.channels,
+             g_AmigaAudio.ahiType == AHIST_S16S ? "AHIST_S16S" : "AHIST_M16S");
+
     {
         ULONG frames = desired->samples > 0 ? desired->samples : 512;
         g_AmigaAudio.bufferBytes = frames * (ULONG)g_AmigaAudio.channels * sizeof(short);
     }
+
+    AmigaLog("AHI: buffers: %d x %lu bytes", AMIGA_AUDIO_NUM_BUFFERS, (unsigned long)g_AmigaAudio.bufferBytes);
 
     {
         int i;
@@ -1852,84 +1936,71 @@ static inline int SDL_OpenAudio(const SDL_AudioSpec *desired, SDL_AudioSpec *obt
             g_AmigaAudio.buffer[i] = (UBYTE *)AllocMem(g_AmigaAudio.bufferBytes, MEMF_PUBLIC | MEMF_CLEAR);
             if (!g_AmigaAudio.buffer[i])
             {
+                AmigaLog("AHI: AllocMem(%lu) FAILED for buffer %d", (unsigned long)g_AmigaAudio.bufferBytes, i);
                 AmigaAudio_FreeBuffers();
                 return -1;
             }
         }
     }
 
-    g_AmigaAudio.port = CreateMsgPort();
-    if (!g_AmigaAudio.port)
-    {
-        AmigaAudio_FreeBuffers();
-        return -1;
-    }
-
-    {
-        int i;
-        for (i = 0; i < AMIGA_AUDIO_NUM_BUFFERS; i++)
-        {
-            g_AmigaAudio.req[i] = (struct AHIRequest *)CreateIORequest(g_AmigaAudio.port, sizeof(struct AHIRequest));
-            if (!g_AmigaAudio.req[i])
-            {
-                AmigaAudio_FreeIOReqs();
-                AmigaAudio_FreeBuffers();
-                return -1;
-            }
-            memset(g_AmigaAudio.req[i], 0, sizeof(struct AHIRequest));
-            /* Require ahi.device V4 (official AHI examples do the same). */
-            g_AmigaAudio.req[i]->ahir_Version = 4;
-            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Node.ln_Type = NT_MESSAGE;
-            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Node.ln_Name = NULL;
-            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_ReplyPort    = g_AmigaAudio.port;
-            g_AmigaAudio.req[i]->ahir_Std.io_Message.mn_Length       = sizeof(struct AHIRequest);
-        }
-    }
-
-    {
-        BYTE odErr;
-        extern struct ExecBase *SysBase;
-
-        if (!SysBase)
-        {
-            AmigaAudio_FreeIOReqs();
-            AmigaAudio_FreeBuffers();
-            return -1;
-        }
-
-        odErr = OpenDevice((CONST_STRPTR)AHINAME, AHI_DEFAULT_UNIT,
-                            (struct IORequest *)g_AmigaAudio.req[0], 0);
-
-        if (odErr != 0)
-        {
-            AmigaAudio_FreeIOReqs();
-            AmigaAudio_FreeBuffers();
-            return -1;
-        }
-    }
-    g_AmigaAudio.devopen = 1;
-
-    g_AmigaAudio.req[1]->ahir_Std.io_Device = g_AmigaAudio.req[0]->ahir_Std.io_Device;
-    g_AmigaAudio.req[1]->ahir_Std.io_Unit   = g_AmigaAudio.req[0]->ahir_Std.io_Unit;
-
+    /* The whole AHI device side (message port, IO requests, OpenDevice,
+     * streaming loop, teardown) lives inside the audio task - see
+     * AmigaAudio_TaskEntry for the reason (the port's completion signal
+     * must wake the audio task, not the main task).  Here we only start
+     * the task and wait for its init handshake. */
     g_AmigaAudio.taskShouldQuit = 0;
     g_AmigaAudio.taskRunning = 0;
+    g_AmigaAudio.openDone = 0;
 
     g_AmigaAudio.audioTask = CreateNewProcTags(
         NP_Entry,     (ULONG)AmigaAudio_TaskEntry,
         NP_Name,      (ULONG)"Raptor Audio Task",
         NP_Priority,  (LONG)0,
-        NP_StackSize, (ULONG)16384,
+        NP_StackSize, (ULONG)32768, /* OPL3 music renders in this task */
         TAG_DONE);
 
     if (!g_AmigaAudio.audioTask)
     {
-        CloseDevice((struct IORequest *)g_AmigaAudio.req[0]);
-        g_AmigaAudio.devopen = 0;
-        AmigaAudio_FreeIOReqs();
+        AmigaLog("AHI: CreateNewProcTags FAILED");
         AmigaAudio_FreeBuffers();
         return -1;
     }
+
+    /* Wait for the task to open ahi.device and start streaming. */
+    {
+        int spins = 0;
+        while (!g_AmigaAudio.openDone && spins < 300) /* ~6 s worst case */
+        {
+            Delay(1);
+            spins++;
+        }
+    }
+
+    if (g_AmigaAudio.openDone != 1)
+    {
+        LONG stage = g_AmigaAudio.openDone;
+
+        if (stage == 0)
+        {
+            /* Task never answered - request stop and wait for it to die. */
+            int spins2 = 0;
+            g_AmigaAudio.taskShouldQuit = 1;
+            while (g_AmigaAudio.taskRunning && spins2 < 100)
+            {
+                Delay(1);
+                spins2++;
+            }
+        }
+
+        AmigaLog("AHI: init FAILED in audio task (stage %ld: -1 port, -2 ioreq, -3 OpenDevice, -4 buffers; io_Error=%ld)",
+                 (long)stage, (long)g_AmigaAudio.lastError);
+
+        AmigaAudio_FreeBuffers();
+        return -1;
+    }
+
+    AmigaLog("AHI: ahi.device opened, audio task streaming (%ld Hz, %lu-byte buffers).",
+             (long)g_AmigaAudio.freq, (unsigned long)g_AmigaAudio.bufferBytes);
 
     g_AmigaAudio.initialized = 1;
 

@@ -115,6 +115,17 @@ KeyOnEvent(
     unsigned int volume
 )
 {
+    /* One-shot diagnostic: proves the MUS sequencer is feeding CAMD.
+     * Logged BEFORE PutMidi, so it is recorded even if a full MIDI
+     * driver buffer would block the PutMidi call itself. */
+    static int first_note = 0;
+    if (!first_note)
+    {
+        first_note = 1;
+        CAMD_LOG("CAMD: first KeyOn event (ch=%u key=%u vel=%u).",
+                 (unsigned)MPU_MapChannel(chan), key, volume);
+    }
+
     CAMD_Put(MS_NoteOn | MPU_MapChannel(chan), key, volume);
 }
 
@@ -205,12 +216,16 @@ CAMD_Init(
     camd_node = NULL;
     camd_link = NULL;
 
+    CAMD_LOG("CAMD: opening camd.library...");
     CamdBase = OpenLibrary((CONST_STRPTR)"camd.library", 0);
     if (!CamdBase)
     {
         CAMD_LOG("CAMD: camd.library not found - MIDI music unavailable.");
         return 0;
     }
+
+    CAMD_LOG("CAMD: camd.library v%d.%d opened.",
+             (int)CamdBase->lib_Version, (int)CamdBase->lib_Revision);
 
     INI_GetPreference("Setup", "camd_cluster", camd_cluster, sizeof(camd_cluster), "out.0");
 
@@ -244,7 +259,8 @@ CAMD_Init(
     /* NOTE: CAMD creates a named cluster on demand, so the link succeeds
      * even when no MIDI driver is attached yet; events sent before a
      * driver appears are simply routed nowhere. */
-    CAMD_LOG("CAMD: MIDI music out on cluster '%s'.", camd_cluster);
+    CAMD_LOG("CAMD: MIDI music out on cluster '%s' (link %s).", camd_cluster,
+             MidiLinkConnected(camd_link) ? "connected" : "pending");
 
     return 1;
 }
@@ -258,6 +274,9 @@ CAMD_DeInit(
     void
 )
 {
+    if (CamdBase || camd_node)
+        CAMD_LOG("CAMD: closing MIDI node and camd.library.");
+
     if (camd_node)
     {
         if (camd_link)

@@ -21,7 +21,16 @@ int fx_device;
 int fx_volume;
 static int fx_init = 0;
 static int lockcount;
+#ifdef __AMIGA__
+/* Amiga: run the audio pipeline at 11025 Hz - the native rate of Raptor's
+ * sound effects.  The DSP mixer then ticks 1:1 with the output (no
+ * resampling work) and the AHI stream is 4x lighter than 44100 Hz on the
+ * 68060.  Music timing is rate-independent (MUS counts services against
+ * fx_freq) and the CAMD MIDI path is pure events. */
+int fx_freq = 11025;
+#else
 int fx_freq = 44100;
+#endif
 
 int music_song = -1;
 
@@ -109,6 +118,10 @@ int SND_InitSound(void)
     if (fx_init)
         return 0;
 
+#ifdef __AMIGA__
+    AmigaLog("AUDIO: SND_InitSound (nosound=%d nomusic=%d)", g_nosound, g_nomusic);
+#endif
+
     /* -nosound : skip audio entirely - never open SDL_INIT_AUDIO / the
      * ahi.device backend at all. Music AND all sound effects (gun shots,
      * explosions, etc.) are disabled; music_volume/fx_volume stay at 0
@@ -120,6 +133,9 @@ int SND_InitSound(void)
     {
         printf("[AUDIO] -nosound specified: audio subsystem disabled.\n");
         fflush(stdout);
+#ifdef __AMIGA__
+        AmigaLog("AUDIO: -nosound: audio subsystem disabled (no AHI, no CAMD).");
+#endif
         fx_device = SND_NONE;
         music_volume = 0;
         fx_volume = 0;
@@ -133,20 +149,35 @@ int SND_InitSound(void)
     spec.freq = fx_freq;
     spec.format = AUDIO_S16SYS;
     spec.channels = 2;
+#ifdef __AMIGA__
+    /* 256 frames @ 11025 Hz ~= 23 ms per buffer - keeps SFX responsive. */
+    spec.samples = 256;
+#else
     spec.samples = 512;
+#endif
     spec.callback = FX_Fill;
     spec.userdata = NULL;
 
     if ((fx_dev = SDL_OpenAudioDevice(NULL, 0, &spec, &actual, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE)) == 0)
     {
+#ifdef __AMIGA__
+        AmigaLog("AUDIO: SDL_OpenAudioDevice FAILED - game runs without sound.");
+#endif
         SDL_QuitSubSystem(SDL_INIT_AUDIO);
         return 0;
     }
 
+#ifdef __AMIGA__
+    AmigaLog("AUDIO: AHI stream open: freq=%ld format=0x%04x channels=%d",
+             (long)actual.freq, (unsigned)actual.format, (int)actual.channels);
+#endif
     fx_freq = actual.freq;
     
     if (actual.format != AUDIO_S16SYS || actual.channels != 2)
     {
+#ifdef __AMIGA__
+        AmigaLog("AUDIO: unexpected audio format/channels - closing.");
+#endif
         SDL_CloseAudio();
         SDL_QuitSubSystem(SDL_INIT_AUDIO);
         return 0;
@@ -199,6 +230,9 @@ int SND_InitSound(void)
     {
         printf("[AUDIO] -nomusic specified: music disabled (sound FX still enabled).\n");
         fflush(stdout);
+#ifdef __AMIGA__
+        AmigaLog("AUDIO: -nomusic: music disabled, SFX via AHI stay enabled.");
+#endif
         music_volume = 0;
     }
 
@@ -212,7 +246,7 @@ int SND_InitSound(void)
             /* CAMD (camd.library / node / cluster link) unavailable: fall
              * back to the OPL3 (AdLib) emulator, so music still plays
              * through the AHI audio stream. */
-            printf("[AUDIO] CAMD MIDI unavailable - falling back to AdLib/OPL3 music.\n");
+            AmigaLog("[AUDIO] CAMD MIDI unavailable - falling back to AdLib/OPL3 music.");
             genmidi = GLB_GetItem(FILE00e_GENMIDI_OP2);
             if (genmidi)
             {
@@ -222,6 +256,10 @@ int SND_InitSound(void)
             music_card = M_ADLIB;
             mus_ok = MUS_Init(music_card, 0);
         }
+#endif
+#ifdef __AMIGA__
+        AmigaLog("AUDIO: music backend: card=%d (%s) init_ok=%d",
+                 music_card, cards[music_card], mus_ok);
 #endif
         if (mus_ok)
             MUS_SetVolume(music_volume);
@@ -304,6 +342,9 @@ int SND_InitSound(void)
         if (fx_card == M_GUS && fx_channels < 2)
             fx_gus = 1;
         DSP_Init(fx_channels, 11025);
+#ifdef __AMIGA__
+        AmigaLog("AUDIO: DSP_Init done: channels=%d rate=11025 fx_device=%d", fx_channels, fx_device);
+#endif
     }
     else
         fx_channels = 1;
@@ -313,6 +354,10 @@ int SND_InitSound(void)
 
     SDL_PauseAudioDevice(fx_dev, 0);
 
+#ifdef __AMIGA__
+    AmigaLog("AUDIO: init complete (fx_card=%d fx_volume=%d fx_channels=%d music_card=%d music_volume=%d)",
+             fx_card, fx_volume, fx_channels, music_card, music_volume);
+#endif
     fx_init = 1;
 
     return 1;
@@ -865,6 +910,22 @@ SFX_PlayPatch () -
  ***************************************************************************/
 int SFX_PlayPatch(char* patch, int pitch, int sep, int vol, int priority)
 {
+#ifdef __AMIGA__
+    /* One-shot diagnostic: proves the game requested a sound effect and
+     * reports the AHI pump state at that moment. */
+    {
+        static int first_sfx_logged = 0;
+        if (!first_sfx_logged)
+        {
+            first_sfx_logged = 1;
+            AmigaLog("AUDIO: first SFX_PlayPatch (pitch=%d vol=%d | buffers filled=%lu last io_Error=%ld)",
+                     pitch, vol,
+                     (unsigned long)g_AmigaAudio.buffersFilled,
+                     (long)g_AmigaAudio.lastError);
+        }
+    }
+#endif
+
     if (!patch)
         return -1;
 
@@ -1122,6 +1183,9 @@ void SND_PlaySong(int item, int chainflag, int fadeflag)
     {
         music_song = item;
         song = GLB_LockItem(item);
+#ifdef __AMIGA__
+        AmigaLog("AUDIO: SND_PlaySong item=%d loop=%d fade=%d", item, chainflag, fadeflag);
+#endif
         MUS_PlaySong(song, chainflag, fadeflag);
     }
 }

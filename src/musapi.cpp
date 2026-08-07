@@ -462,6 +462,13 @@ MUS_Init(
         break;
     }
 
+#ifdef __AMIGA__
+    AmigaLog("MUS: Init card=%d -> %s backend", card,
+             music_device == &mus_device_camd ? "CAMD" :
+             music_device == &mus_device_opl  ? "OPL3/AdLib" :
+             (music_device ? "other" : "none"));
+#endif
+
     if (music_device && music_device->Init)
     {
 #ifdef __AMIGA__
@@ -470,6 +477,7 @@ MUS_Init(
          * backend. */
         if (!music_device->Init(option))
         {
+            AmigaLog("MUS: backend init FAILED (card=%d)", card);
             music_device = NULL;
             return 0;
         }
