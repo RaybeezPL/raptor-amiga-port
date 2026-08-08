@@ -82,7 +82,6 @@ set(SOURCE_FILES
     src/vmemapi.cpp
     src/rap.cpp
     src/demo.cpp
-    src/prefapi.cpp
     src/gfxapi.cpp
     src/intro.cpp
     src/help.cpp

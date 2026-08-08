@@ -12,7 +12,6 @@
 #include "kbdapi.h"
 #include "input.h"
 #include "musapi.h"
-#include "prefapi.h"
 #include "help.h"
 #include "loadsave.h"
 #include "objects.h"
@@ -209,10 +208,10 @@ WIN_Opts(
 
     /* When -nosound is active, music_volume and fx_volume are both forced
      * to 0 by SND_InitSound() as a no-op guard for the audio subsystem.
-     * Read the actual user preference from INI instead so the sliders show
-     * the real stored value (default 64 = 50%) rather than always zero. */
-    opt_vol[MUSIC_VOL] = g_nosound ? INI_GetPreferenceLong("Music",   "Volume", 64) : music_volume;
-    opt_vol[FX_VOL]    = g_nosound ? INI_GetPreferenceLong("SoundFX", "Volume", 64) : fx_volume;
+     * Show fixed 50% defaults (64) on the sliders in that case; this Amiga
+     * port does not use SETUP.INI, so there is no stored value to read. */
+    opt_vol[MUSIC_VOL] = g_nosound ? 64 : music_volume;
+    opt_vol[FX_VOL]    = g_nosound ? 64 : fx_volume;
     
     opt_window = SWD_InitWindow(FILE13f_OPTS_SWD);
     
@@ -408,17 +407,12 @@ WIN_Opts(
             switch (dlg.field)
             {
             case OPTS_EXIT:
+                /* No SETUP.INI in this Amiga port: option changes apply to
+                 * the current session only and are not saved to disk. */
                 if (opt_vol[MUSIC_VOL] >= 0 && opt_vol[MUSIC_VOL] < 128)
-                {
                     music_volume = opt_vol[MUSIC_VOL];
-                    INI_PutPreferenceLong("Music", "Volume", music_volume);
-                }
                 if (opt_vol[FX_VOL] >= 0 && opt_vol[FX_VOL] < 128)
-                {
                     fx_volume = opt_vol[FX_VOL];
-                    INI_PutPreferenceLong("SoundFX", "Volume", fx_volume);
-                }
-                INI_PutPreferenceLong("Setup", "Detail", opt_detail);
                 SND_Patch(FX_SWEP, 127);
                 goto exit_opts;
             

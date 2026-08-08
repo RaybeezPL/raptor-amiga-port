@@ -24,7 +24,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.1 EC060**
+Current version: **0.9.2 MUSIC**
 
 Working:
 
@@ -38,7 +38,10 @@ Working:
   falls back to 320x240x8 with letterbox on RTG cards that lack 320x200
 - **`GFX=AUTO|RTG|AGA`** parameter — controls the graphics driver path
   (CLI: `-gfx=RTG`; icon ToolType: `GFX=RTG`)
-- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/GFX) via the
+- **`MUSIC=ADLIB|CAMD|OFF`** parameter — selects the music backend:
+  built-in AdLib/OPL3 emulation (default), General MIDI via CAMD, or
+  no music (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
+- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/GFX/MUSIC) via the
   official WBStartup + icon.library mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
   launches no console window is opened at all (nothing is left behind
@@ -50,11 +53,11 @@ Working:
 - **Sound effects through AHI** (ahi.device): 11025 Hz 16-bit stereo -
   the native rate of the game's samples - streamed by a dedicated audio
   task using the canonical double-buffered CMD_WRITE scheme
-- **Music through CAMD** (camd.library): the MUS tracks play as a live
-  General MIDI stream to a CAMD cluster (default "out.0"); without
-  camd.library the game automatically falls back to **AdLib/OPL
-  emulation** using the lightweight DOSBox dbopl core (only a few
-  percent of a 68060) mixed into the AHI stream
+- **Music: AdLib/OPL3 emulation by default** (lightweight DOSBox dbopl
+  core, only a few percent of a 68060) mixed into the AHI stream -
+  always audible; optional **General MIDI via CAMD** (camd.library)
+  with `MUSIC=CAMD` for external synths / CAMD software synths
+  (cluster "out.0"; needs a configured MIDI driver or synth)
 
 
 Work still in progress:
@@ -78,8 +81,9 @@ Recommended baseline target:
   lives in graphics card memory, so Chip RAM is only needed by the OS)
 
 - **OS:** AmigaOS 3.2
-- **Audio:** AHI (ahi.device) for sound effects; camd.library (CAMD)
-  for MIDI music output (optional - AdLib/OPL fallback included)
+- **Audio:** AHI (ahi.device) for sound effects and the default
+  AdLib/OPL3 music; camd.library (CAMD) optional for MIDI music
+  output (MUSIC=CAMD)
 
 Current development and testing is mainly aimed at systems such as:
 

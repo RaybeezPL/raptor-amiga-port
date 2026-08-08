@@ -79,6 +79,19 @@ extern int sys_midi, winmm_mpu_device, core_dls_synth, core_midi_port, alsaclien
 extern int g_nosound;
 extern int g_nomusic;
 
+/* MUSIC=<mode> music backend selection (-music= switch / MUSIC= icon
+ * ToolType), parsed in main() (src/rap.cpp) and consumed by SND_InitSound()
+ * (src/fx.cpp):
+ *   MUSIC_MODE_ADLIB (default) : built-in AdLib/OPL3 emulation (dbopl core),
+ *              mixed into the AHI audio stream - always audible.
+ *   MUSIC_MODE_CAMD            : General MIDI event stream via camd.library;
+ *              needs a configured MIDI driver/synth on cluster "out.0",
+ *              otherwise the music is silent.
+ * MUSIC=OFF (or -nomusic) sets g_nomusic instead and always wins. */
+#define MUSIC_MODE_ADLIB 0
+#define MUSIC_MODE_CAMD  1
+extern int g_music_mode;
+
 #include "SDL.h"
 
 extern SDL_AudioDeviceID fx_dev;

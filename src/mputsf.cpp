@@ -8,7 +8,6 @@
 #include "tsf.h"
 
 #include "musapi.h"
-#include "prefapi.h"
 
 static tsf* g_TinySoundFont;
 
@@ -43,7 +42,9 @@ TSF_Init(
     OutputAudioSpec.callback = AudioCallback;
     
     char fn[128];
-    INI_GetPreference("Setup", "SoundFont", fn, 127, "SoundFont.sf2");
+    /* No SETUP.INI in this Amiga fork: fixed SoundFont file name (the TSF
+     * backend itself is unused on Amiga - music is AdLib/OPL3 or CAMD). */
+    strcpy(fn, "SoundFont.sf2");
 
     // Load the SoundFont from a file
     g_TinySoundFont = tsf_load_filename(fn);

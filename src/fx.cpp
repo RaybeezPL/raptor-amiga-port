@@ -6,7 +6,6 @@
 #include "i_video.h"
 #include "i_oplmusic.h"
 #include "musapi.h"
-#include "prefapi.h"
 #include "cards.h"
 #include "fx.h"
 #include "dspapi.h"
@@ -38,12 +37,15 @@ int fx_gus;
 int fx_channels;
 int sys_midi, winmm_mpu_device, core_dls_synth, core_midi_port, alsaclient, alsaport;
 
-/* -nosound / -nomusic command-line flags - parsed in main() (src/rap.cpp).
- * See fx.h for the full description of each flag's semantics. Defaulting
- * to 0 (audio fully enabled) preserves the exact previous behaviour when
- * neither switch is passed on the command line. */
+/* -nosound / -nomusic command-line flags and the MUSIC= backend selector -
+ * parsed in main() (src/rap.cpp). See fx.h for the full description of each
+ * flag's semantics. Defaulting to 0 (audio fully enabled) preserves the
+ * exact previous behaviour when neither switch is passed on the command
+ * line. g_music_mode defaults to the always-audible built-in AdLib/OPL3
+ * music; CAMD MIDI is opt-in via MUSIC=CAMD. */
 int g_nosound = 0;
 int g_nomusic = 0;
+int g_music_mode = MUSIC_MODE_ADLIB;
 
 typedef struct
 {
@@ -90,10 +92,10 @@ void FX_Fill(void *userdata, uint8_t *stream, int len)
         return;
     }
 
-    /* Czyszczenie bufora (wyjściowe stereo S16 = 0) */
+    /* Clear the output buffer (stereo S16 silence = 0). */
     memset(stream, 0, len);
 
-    /* 1 ramka stereo S16 (2 ch * 2 B) = 4 B. Liczba ramek = len / 4 */
+    /* 1 stereo S16 frame (2 ch * 2 B) = 4 bytes; frame count = len / 4. */
     int frames = len / 4;
     if (frames <= 0) return;
 
@@ -119,7 +121,7 @@ int SND_InitSound(void)
         return 0;
 
 #ifdef __AMIGA__
-    AmigaLog("AUDIO: SND_InitSound (nosound=%d nomusic=%d)", g_nosound, g_nomusic);
+    AmigaLog("AUDIO: SND_InitSound (nosound=%d nomusic=%d music_mode=%d)", g_nosound, g_nomusic, g_music_mode);
 #endif
 
     /* -nosound : skip audio entirely - never open SDL_INIT_AUDIO / the
@@ -183,24 +185,21 @@ int SND_InitSound(void)
     dig_flag = 0;
     fx_device = SND_NONE;
 
-    music_volume = INI_GetPreferenceLong("Music", "Volume", 127);
+    /* No SETUP.INI is used anywhere in this Amiga port - all settings are
+     * fixed built-in defaults.  Music volume starts at max; the in-game
+     * options sliders adjust it for the current session. */
+    music_volume = 127;
 #ifdef __AMIGA__
-    /* Amiga: with no SETUP.INI the CardType default M_NONE would leave the
-     * game without music.  Default to General MIDI, played through
-     * camd.library (mpucamd.cpp), with automatic fallback to AdLib/OPL3
-     * below when CAMD is unavailable.  An explicit SETUP.INI CardType
-     * still overrides this default. */
-    music_card = INI_GetPreferenceLong("Music", "CardType", M_GMIDI);
-    sys_midi = INI_GetPreferenceLong("Setup", "sys_midi", 1);
+    /* Amiga: the music backend is selected with the MUSIC= command-line
+     * parameter / icon ToolType (parsed in main(), src/rap.cpp):
+     * AdLib/OPL3 emulation (default, always audible in the AHI stream) or
+     * General MIDI via camd.library (MUSIC=CAMD, with automatic fallback
+     * to AdLib/OPL3 below when CAMD cannot be opened). */
+    music_card = (g_music_mode == MUSIC_MODE_CAMD) ? M_GMIDI : M_ADLIB;
 #else
-    music_card = INI_GetPreferenceLong("Music", "CardType", M_NONE);
-    sys_midi = INI_GetPreferenceLong("Setup", "sys_midi", 0);
+    music_card = M_NONE;
+    sys_midi = 0;
 #endif
-    winmm_mpu_device = INI_GetPreferenceLong("Setup", "winmm_mpu_device", 0);
-    core_dls_synth = INI_GetPreferenceLong("Setup", "core_dls_synth", 1);
-    core_midi_port = INI_GetPreferenceLong("Setup", "core_midi_port", 0);
-    alsaclient = INI_GetPreferenceLong("Setup", "alsa_output_client", 128);
-    alsaport = INI_GetPreferenceLong("Setup", "alsa_output_port", 0);
 
     switch (music_card)
     {
@@ -267,29 +266,25 @@ int SND_InitSound(void)
 #ifdef __AMIGA__
     if (!g_nomusic && music_card == M_GMIDI)
         printf("Music Enabled (General Midi via CAMD)\n");
+    else if (!g_nomusic && music_card == M_ADLIB)
+        printf("Music Enabled (AdLib/OPL3)\n");
     else
 #endif
     printf("Music Enabled (%s)\n", g_nomusic ? "Disabled (-nomusic)" : cards[music_card]);
 
-    fx_volume = INI_GetPreferenceLong("SoundFX", "Volume", 127);
-    fx_card = INI_GetPreferenceLong("SoundFX", "CardType", 0);
 #ifdef __AMIGA__
-    /* Amiga: 4 DSP mixer channels by default (upstream default is 2, max
-     * 8; when full, the oldest voice is stolen).  Plenty for
-     * shots/explosions/voices and halves the mixer work on the 68060. */
-    fx_chans = INI_GetPreferenceLong("SoundFX", "Channels", 4);
+    /* Amiga: fixed built-in defaults - no SETUP.INI.  M_SB = digital SFX
+     * through the DSP software mixer into the AHI stream; 4 DSP mixer
+     * channels (upstream default is 2, max 8; when full, the oldest voice
+     * is stolen) - plenty for shots/explosions/voices and halves the mixer
+     * work on the 68060. */
+    fx_volume = 127;
+    fx_card = M_SB;
+    fx_chans = 4;
 #else
-    fx_chans = INI_GetPreferenceLong("SoundFX", "Channels", 2);
-#endif
-
-#ifdef __AMIGA__
-    /* On Amiga with no SETUP.INI the CardType defaults to 0 (M_NONE), which
-     * would leave fx_device=SND_NONE and skip DSP_Init() even though ahi.device
-     * is already open and ready.  Default to M_SB (digital SFX) so the DSP
-     * software mixer is initialised and SFX play through the AHI backend.
-     * A real SETUP.INI with an explicit CardType overrides this automatically. */
-    if (fx_card == M_NONE)
-        fx_card = M_SB;
+    fx_volume = 127;
+    fx_card = M_NONE;
+    fx_chans = 2;
 #endif
 
     switch (fx_card)
@@ -885,7 +880,7 @@ void SND_CacheIFX(void)
 }
 
 /***************************************************************************
-SFX_Playing () - Sprawdza czy dany dźwięk wciąż odtwarza się na backendzie
+SFX_Playing () - Checks whether a sound is still playing on the backend
  ***************************************************************************/
 int SFX_Playing(int handle)
 {

@@ -2,6 +2,49 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.9.2] - 2026-08-08
+
+Version name: **0.9.2 MUSIC**
+
+### Added
+- Music backend selection parameter `MUSIC=ADLIB|CAMD|OFF`
+  (CLI `-music=`, dashless `MUSIC=`, and Workbench icon ToolType
+  `MUSIC=`): ADLIB = built-in OPL3 emulation (default), CAMD =
+  General MIDI via camd.library, OFF = no music (same as -nomusic;
+  -nomusic / MUSIC=OFF always wins). When MUSIC=CAMD finds no MIDI
+  driver/synth attached to the "out.0" cluster, a clear console
+  warning explains that the music would be silent (the CaffeineOS
+  case: camd.library installed but unconfigured).
+
+### Changed
+- Default music backend changed from CAMD (General MIDI) to the
+  built-in AdLib/OPL3 emulation: camd.library can be present but
+  unconfigured (e.g. CaffeineOS), and a CAMD link succeeds even with
+  nothing attached, which played silence. AdLib/OPL3 always plays;
+  CAMD music is now opt-in via MUSIC=CAMD.
+
+### Removed
+- SETUP.INI support removed entirely from the Amiga build
+  (`src/prefapi.cpp/h` deleted; all INI_GetPreference* /
+  INI_PutPreference* call sites replaced with the former built-in
+  defaults): audio card selection, volumes (music 127 / sfx 127),
+  4 DSP channels, video and input preferences (classic Raptor
+  mapping), and the `[Setup] camd_cluster` option (the CAMD output
+  cluster is now fixed to "out.0"). Consequence: volume/detail
+  changes made in the in-game options menu apply to the current
+  session only and are no longer saved between runs.
+
+### Fixed
+- Startup banner corrected: it still read "beta version -no sfx and
+  music" (a leftover from the 0.8.x era, before audio existed) and
+  used the wrong game title; it now shows "Raptor: Call of the
+  Shadows" and the release version.
+- Remaining Polish source comments translated to English (fx.cpp).
+- README_AMIGA: removed an outdated claim that the game falls back
+  to a custom chipset screen by itself - AUTO/RTG are strict (an
+  English requester appears, no silent fallback); only GFX=AGA opens
+  the classic chipset screen.
+
 ## [0.9.1] - 2026-08-08
 
 Version name: **0.9.1 EC060**

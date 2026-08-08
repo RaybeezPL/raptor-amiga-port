@@ -177,7 +177,6 @@ SRCS_CXX  = \
     src/objects.cpp \
     src/dbopl.cpp \
     src/opl3dbopl.cpp \
-    src/prefapi.cpp \
     src/ptrapi.cpp \
     src/ptrapi_a.cpp \
     src/rap.cpp \

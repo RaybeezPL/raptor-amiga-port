@@ -1,7 +1,6 @@
 #include "SDL.h"
 #include "stdio.h"
 #include "common.h"
-#include "prefapi.h"
 #include "windows.h"
 #include "kbdapi.h"
 #include "ptrapi.h"
@@ -592,46 +591,45 @@ IPT_FMovePlayer(
 }
 
 /***************************************************************************
-IPT_LoadPrefs() - Load Input Prefs from setup.ini
+IPT_LoadPrefs() - Set input prefs (fixed built-in defaults, no SETUP.INI)
  ***************************************************************************/
-void 
+void
 IPT_LoadPrefs(
     void
 )
 {
-    opt_detail = INI_GetPreferenceLong("Setup", "Detail", 1);
-    control = INI_GetPreferenceLong("Setup", "Control", 0);
-#ifdef __AMIGA__
-    /* Na Amidze zawsze używamy trybu joystick - zarówno w menu (kursor via
-     * PTR_JoyHandler) jak i w grze (IPT_GetJoyStick). Ignorujemy wartość
-     * z setup.ini, żeby klawiatura i joystick działały równolegle. */
+    /* This Amiga port does not use SETUP.INI at all - all preferences are
+     * fixed built-in defaults (the classic Raptor mapping). */
+    opt_detail = 1;
+
+    /* Amiga: always joystick mode - keyboard, mouse and joystick all work
+     * in parallel, both in the menus and in the game. */
     control = I_JOYSTICK;
-#endif
-    haptic = INI_GetPreferenceLong("Setup", "Haptic", 1);
-    joy_ipt_MenuNew = INI_GetPreferenceLong("Setup", "joy_ipt_MenuNew", 0);
-#ifdef __AMIGA__
-    /* Amiga: always use joy_ipt_MenuNew mode so D-pad/analog stick navigates
-     * menus with discrete steps (like keyboard arrows) instead of floating
-     * the crosshair like a mouse.  This also disables PTR_JoyHandler() which
-     * was the source of the analog cursor drift in menus. */
+
+    haptic = 1;
+
+    /* Amiga: always use joy_ipt_MenuNew mode so the D-pad/analog stick
+     * navigates menus with discrete steps (like keyboard arrows) instead of
+     * floating the crosshair like a mouse.  This also disables
+     * PTR_JoyHandler() which was the source of the analog cursor drift in
+     * menus. */
     joy_ipt_MenuNew = 1;
-#endif
-    
-    k_Up = INI_GetPreferenceLong("Keyboard", "MoveUp", SC_UP);
-    k_Down = INI_GetPreferenceLong("Keyboard", "MoveDn", SC_DOWN);
-    k_Left = INI_GetPreferenceLong("Keyboard", "MoveLeft", SC_LEFT);
-    k_Right = INI_GetPreferenceLong("Keyboard", "MoveRight", SC_RIGHT);
-    k_Fire = INI_GetPreferenceLong("Keyboard", "Fire", SC_CTRL);
-    k_FireSp = INI_GetPreferenceLong("Keyboard", "FireSp", SC_ALT);
-    k_ChangeSp = INI_GetPreferenceLong("Keyboard", "ChangeSp", SC_SPACE);
-    k_Mega = INI_GetPreferenceLong("Keyboard", "MegaFire", SC_RIGHT_SHIFT);
-    
-    m_lookup[0] = INI_GetPreferenceLong("Mouse", "Fire", 0);
-    m_lookup[1] = INI_GetPreferenceLong("Mouse", "FireSp", 1);
-    m_lookup[2] = INI_GetPreferenceLong("Mouse", "ChangeSp", 2);
-    
-    j_lookup[0] = INI_GetPreferenceLong("JoyStick", "Fire", 0);
-    j_lookup[1] = INI_GetPreferenceLong("JoyStick", "FireSp", 1);
-    j_lookup[2] = INI_GetPreferenceLong("JoyStick", "ChangeSp", 2);
-    j_lookup[3] = INI_GetPreferenceLong("JoyStick", "MegaFire", 3);
+
+    k_Up = SC_UP;
+    k_Down = SC_DOWN;
+    k_Left = SC_LEFT;
+    k_Right = SC_RIGHT;
+    k_Fire = SC_CTRL;
+    k_FireSp = SC_ALT;
+    k_ChangeSp = SC_SPACE;
+    k_Mega = SC_RIGHT_SHIFT;
+
+    m_lookup[0] = 0;
+    m_lookup[1] = 1;
+    m_lookup[2] = 2;
+
+    j_lookup[0] = 0;
+    j_lookup[1] = 1;
+    j_lookup[2] = 2;
+    j_lookup[3] = 3;
 }

@@ -36,7 +36,6 @@
 #include "ptrapi.h"
 #include "input.h"
 #include "musapi.h"
-#include "prefapi.h"
 #include "joyapi.h"
 
 // These are (1) the window (or the full screen) that our game is rendered to
@@ -116,13 +115,13 @@ static int max_scaling_buffer_pixels = 16000000;
 // Run in full screen mode?  (int type for config code)
 
 // int fullscreen = true;
-int fullscreen; //Defined in VIDEO_LoadPrefs to read config from setup.ini
+int fullscreen; //Fixed default set in VIDEO_LoadPrefs (no SETUP.INI)
 
 int txt_fullscreen;
 
 // Aspect ratio correction mode
 
-int aspect_ratio_correct; //Defined in VIDEO_LoadPrefs to read config from setup.ini
+int aspect_ratio_correct; //Fixed default set in VIDEO_LoadPrefs (no SETUP.INI)
 static int actualheight;
 
 // Force integer scales for resolution-independent rendering
@@ -205,9 +204,12 @@ static bool textmode = false;
 
 void VIDEO_LoadPrefs(void)
 {
-    fullscreen = INI_GetPreferenceLong("Video", "fullscreen", 0);
-    aspect_ratio_correct = INI_GetPreferenceLong("Video", "aspect_ratio_correct", 1);
-    txt_fullscreen = INI_GetPreferenceLong("Video", "txt_fullscreen", 0);
+    /* This Amiga port does not use SETUP.INI - fixed video defaults (the
+     * game always opens its own screen; the GFX= parameter selects the
+     * display driver path). */
+    fullscreen = 0;
+    aspect_ratio_correct = 1;
+    txt_fullscreen = 0;
 }
 
 static bool MouseShouldBeGrabbed()

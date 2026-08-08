@@ -11,12 +11,14 @@
  * other system-MIDI backends.  Sound effects are unaffected - they keep
  * playing through the AHI audio backend.
  *
- * MIDI data is sent to a CAMD cluster (default "out.0", overridable via
- * SETUP.INI option [Setup] camd_cluster=<name>).  A MIDI driver (e.g. the
- * serial driver from the camd40 package) or a software synthesizer with a
- * CAMD interface must provide the cluster - otherwise the events are
+ * This backend is opt-in: the game plays music through the built-in
+ * AdLib/OPL3 emulation by default; MUSIC=CAMD (CLI parameter or icon
+ * ToolType) selects this General MIDI path instead.  MIDI data is sent
+ * to the fixed CAMD output cluster "out.0".  A MIDI driver (e.g. the
+ * serial driver from the camd40 package) or a software synthesizer with
+ * a CAMD interface must provide the cluster - otherwise the events are
  * routed nowhere (standard MIDI behaviour, same as an unplugged MIDI
- * cable behind a DOS MPU-401).
+ * cable behind a DOS MPU-401) and the music is silent.
  ***************************************************************************/
 #ifdef __AMIGA__
 
@@ -34,7 +36,6 @@
 #include "SDL.h"
 #include "common.h"
 #include "musapi.h"
-#include "prefapi.h"
 
 /* camd.library base (extern in proto/camd.h). */
 struct Library *CamdBase = NULL;
@@ -227,7 +228,9 @@ CAMD_Init(
     CAMD_LOG("CAMD: camd.library v%d.%d opened.",
              (int)CamdBase->lib_Version, (int)CamdBase->lib_Revision);
 
-    INI_GetPreference("Setup", "camd_cluster", camd_cluster, sizeof(camd_cluster), "out.0");
+    /* No SETUP.INI in this Amiga port: the output cluster is fixed to
+     * "out.0", the standard CAMD output cluster name. */
+    strcpy(camd_cluster, "out.0");
 
     node_tags[0].ti_Tag  = MIDI_Name;       node_tags[0].ti_Data = (ULONG)"Raptor";
     node_tags[1].ti_Tag  = MIDI_ClientType; node_tags[1].ti_Data = CCType_EventGenerator | CCType_Sequencer;
@@ -261,6 +264,18 @@ CAMD_Init(
      * driver appears are simply routed nowhere. */
     CAMD_LOG("CAMD: MIDI music out on cluster '%s' (link %s).", camd_cluster,
              MidiLinkConnected(camd_link) ? "connected" : "pending");
+
+    /* The CaffeineOS trap: camd.library can be installed but unconfigured,
+     * so the link above succeeds while nothing is listening on the
+     * cluster - the music would be silently routed nowhere.  Say so
+     * loudly on the console. */
+    if (!MidiLinkConnected(camd_link))
+    {
+        CAMD_LOG("CAMD: WARNING - no MIDI driver/synth attached to cluster '%s':", camd_cluster);
+        CAMD_LOG("CAMD: MIDI music will be SILENT (sound FX still play).");
+        CAMD_LOG("CAMD: Configure a CAMD driver, or run without MUSIC=CAMD");
+        CAMD_LOG("CAMD: to use the default AdLib/OPL3 music instead.");
+    }
 
     return 1;
 }

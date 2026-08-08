@@ -21,7 +21,6 @@
 #include "input.h"
 #include "fileids.h"
 #include "winids.h"
-#include "prefapi.h"
 #include "i_video.h"
 
 #ifdef _WIN32
@@ -38,7 +37,6 @@
 #define MAX_SAVE  10
 
 char cdpath[PATH_MAX];
-char g_setup_ini[PATH_MAX];
 
 int cdflag = 0;
 
@@ -962,13 +960,6 @@ RAP_InitLoadSave(
     if (gethome != NULL)
     {
         strcpy(cdpath, gethome);
-        strcpy(g_setup_ini, gethome);
-        
-        if(RAP_CheckFileInPath("setup.ini"))
-            sprintf(g_setup_ini, "%s%s", g_setup_ini, "setup.ini");
-        else
-            sprintf(g_setup_ini, "%s%s", g_setup_ini, "SETUP.INI");
-        
         cdflag = 1;
         SDL_free(gethome);
     }
@@ -1009,101 +1000,13 @@ RAP_InitLoadSave(
 
     return cdpath;
 #else
+    /* Amiga: saved games live in the current directory; no SETUP.INI. */
     memset(cdpath, 0, sizeof(cdpath));
 
     cdflag = 0;
 
-    if(!access("setup.ini", 0))
-        strcpy(g_setup_ini, "setup.ini");
-    else
-        strcpy(g_setup_ini, "SETUP.INI");
-
     return cdpath;
 #endif // _WIN32 || __linux__ || __APPLE__
-}
-
-/***************************************************************************
-RAP_SetupFilename() - Gets current setup.ini path and name
- ***************************************************************************/
-const char*
-RAP_SetupFilename(
-    void
-)
-{
-    return g_setup_ini;
-}
-
-/***************************************************************************
-RAP_WriteDefaultSetup() - Writes default setup.ini
- ***************************************************************************/
-void 
-RAP_WriteDefaultSetup(
-    void
-)
-{
-    INI_PutPreferenceLong("Setup", "Detail", 1);
-#if __ANDROID__
-    INI_PutPreferenceLong("Setup", "Control", 1);
-#else
-    INI_PutPreferenceLong("Setup", "Control", 0);
-#endif //__ANDROID__
-    INI_PutPreferenceLong("Setup", "Haptic", 1);                           
-    INI_PutPreferenceLong("Setup", "joy_ipt_MenuNew", 0);         
-
-#if _WIN32 || __APPLE__
-    INI_PutPreferenceLong("Setup", "sys_midi", 1);
-#else
-    INI_PutPreferenceLong("Setup", "sys_midi", 0);
-#endif // _WIN32 __APPLE__
- 
-    INI_PutPreferenceLong("Setup", "winmm_mpu_device", 0);       
-    INI_PutPreferenceLong("Setup", "core_dls_synth", 1);           
-    INI_PutPreferenceLong("Setup", "core_midi_port", 0);           
-    INI_PutPreferenceLong("Setup", "alsa_output_client", 128);           
-    INI_PutPreferenceLong("Setup", "alsa_output_port", 0);               
-    INI_PutPreference("Setup", "SoundFont", "SoundFont.sf2");
-    INI_PutPreferenceLong("Music", "Volume", 85);
-
-#if _WIN32 || __APPLE__
-    INI_PutPreferenceLong("Music", "CardType", 8);
-    INI_PutPreferenceLong("Music", "MidiPort", 330);
-#else
-    INI_PutPreferenceLong("Music", "CardType", 5);
-    INI_PutPreferenceLong("Music", "BasePort", 220);
-    INI_PutPreferenceLong("Music", "Irq", 7);
-    INI_PutPreferenceLong("Music", "Dma", 1);
-#endif // _WIN32 __APPLE__
-
-    INI_PutPreferenceLong("SoundFX", "Volume", 85);
-    INI_PutPreferenceLong("SoundFX", "CardType", 5);
-    INI_PutPreferenceLong("SoundFX", "BasePort", 220);
-    INI_PutPreferenceLong("SoundFX", "Irq", 7);
-    INI_PutPreferenceLong("SoundFX", "Dma", 1);
-    INI_PutPreferenceLong("SoundFX", "Channels", 4);
-    INI_PutPreferenceLong("Keyboard", "MoveUp", 72);
-    INI_PutPreferenceLong("Keyboard", "MoveDn", 80);
-    INI_PutPreferenceLong("Keyboard", "MoveLeft", 75);
-    INI_PutPreferenceLong("Keyboard", "MoveRight", 77);
-    INI_PutPreferenceLong("Keyboard", "Fire", 29);
-    INI_PutPreferenceLong("Keyboard", "FireSp", 56);
-    INI_PutPreferenceLong("Keyboard", "ChangeSp", 57);
-    INI_PutPreferenceLong("Keyboard", "MegaFire", 54);
-    INI_PutPreferenceLong("Mouse", "Fire", 0);
-    INI_PutPreferenceLong("Mouse", "FireSp", 1);
-    INI_PutPreferenceLong("Mouse", "ChangeSp", 2);
-    INI_PutPreferenceLong("JoyStick", "Fire", 0);
-    INI_PutPreferenceLong("JoyStick", "FireSp", 1);
-    INI_PutPreferenceLong("JoyStick", "ChangeSp", 2);
-    INI_PutPreferenceLong("JoyStick", "MegaFire", 3);
-#if __ANDROID__
-    INI_PutPreferenceLong("Video", "fullscreen", 1);
-    INI_PutPreferenceLong("Video", "aspect_ratio_correct", 0);
-    INI_PutPreferenceLong("Video", "txt_fullscreen", 1);
-#else
-    INI_PutPreferenceLong("Video", "fullscreen", 0);
-    INI_PutPreferenceLong("Video", "aspect_ratio_correct", 1);
-    INI_PutPreferenceLong("Video", "txt_fullscreen", 0);
-#endif //__ANDROID__
 }
 
 /***************************************************************************

@@ -17,7 +17,6 @@
 #include "imsapi.h"
 #include "kbdapi.h"
 #include "input.h"
-#include "prefapi.h"
 #include "loadsave.h"
 #include "help.h"
 #include "objects.h"
@@ -291,6 +290,58 @@ RAP_ParseGfx(
 }
 
 /*
+ * RAP_ParseMusic() - handles the MUSIC=<mode> keyword from the CLI
+ * ("-music=CAMD") and Workbench icon ToolTypes ("MUSIC=CAMD").
+ * Values: ADLIB (default - built-in OPL3 emulation), CAMD (General MIDI
+ * via camd.library), OFF (no music, same as -nomusic). Values are
+ * recognized case-insensitively. Returns 1 when the argument was
+ * recognized.
+ */
+static int
+RAP_ParseMusic(
+    const char *arg
+)
+{
+    const char *value;
+
+    if (RAP_StrCaseStartsWith(arg, "-music="))
+        value = arg + 7;
+    else if (RAP_StrCaseStartsWith(arg, "music="))
+        value = arg + 6;
+    else
+        return 0;
+
+    if (RAP_StrCaseEqual(value, "off") ||
+        RAP_StrCaseEqual(value, "nomusic"))
+    {
+        g_nomusic = 1;
+        printf("MUSIC=OFF: music disabled (sound FX still enabled)\n");
+    }
+    else if (RAP_StrCaseEqual(value, "adlib") ||
+             RAP_StrCaseEqual(value, "opl") ||
+             RAP_StrCaseEqual(value, "opl3"))
+    {
+        g_music_mode = MUSIC_MODE_ADLIB;
+        printf("MUSIC=ADLIB: AdLib/OPL3 music (default)\n");
+    }
+    else if (RAP_StrCaseEqual(value, "camd") ||
+             RAP_StrCaseEqual(value, "midi"))
+    {
+        g_music_mode = MUSIC_MODE_CAMD;
+        printf("MUSIC=CAMD: General Midi music via camd.library\n");
+    }
+    else
+    {
+        printf("Unknown MUSIC '%s' - valid values: ADLIB, CAMD, OFF "
+               "(using default ADLIB)\n", value);
+    }
+
+    AmigaLog("[AUDIO] MUSIC parsed '%s' -> nomusic=%d music_mode=%d",
+             value, g_nomusic, g_music_mode);
+    return 1;
+}
+
+/*
  * RAP_ParseWorkbenchToolTypes() - parses the icon ToolTypes when the
  * game is started from the Workbench. This is the ONLY way Workbench
  * parameters reach us: in a Workbench launch argc is 0 and argv is
@@ -376,6 +427,24 @@ RAP_ParseWorkbenchToolTypes(
             }
             buf[4 + i] = 0;
             RAP_ParseGfx(buf);
+        }
+
+        /* MUSIC=ADLIB|CAMD|OFF - music backend selection (same values as
+         * the CLI parameter; see RAP_ParseMusic above). */
+        s = FindToolType((CONST_STRPTR *)tt, "MUSIC");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "music=");
+            while (s[i] && i < (int)sizeof(buf) - 7)
+            {
+                buf[6 + i] = s[i];
+                i++;
+            }
+            buf[6 + i] = 0;
+            RAP_ParseMusic(buf);
         }
     }
 
@@ -1531,7 +1600,7 @@ main(
 #endif
 
     printf("--------------------------------------------------------\n");
-    printf(" Raptor: Shadow of the Stars - Amiga Port - beta version -no sfx and music\n");
+    printf(" Raptor: Call of the Shadows - Amiga Port - version 0.9.2 MUSIC\n");
 
     printf(" Port Author: RaybeezPL | AI Collaboration\n");
     printf(" Contact: cichy@cichy.com.pl\n");
@@ -1619,6 +1688,12 @@ main(
         /* -gfx=AUTO|RTG|AGA selects the graphics path (RTG vs classic
          * chipset). See RAP_ParseGfx() above. */
         else if (RAP_ParseGfx(argv[loop]))
+        {
+        }
+        /* -music=ADLIB|CAMD|OFF selects the music backend: built-in
+         * AdLib/OPL3 (default), General MIDI via camd.library, or no
+         * music. See RAP_ParseMusic() above. */
+        else if (RAP_ParseMusic(argv[loop]))
         {
         }
 #endif
@@ -1743,28 +1818,10 @@ main(
         printf("Birthday() = %s\n", bday[bday_num].name);
 
     // ================================================
-
-#ifdef __AMIGA__
-    if (access(RAP_SetupFilename(), 0) == 0)
-    {
-        /* SETUP.INI exists - load preferences from it */
-        INI_InitPreference(RAP_SetupFilename());
-        printf("[INIT] Loaded SETUP.INI\n");
-    }
-    else
-    {
-        /* No SETUP.INI - run with safe Amiga defaults.
-         * All INI_GetPreference*() calls will use their built-in 'def' values
-         * since ProfilePath points to a non-existent file. */
-        printf("[INIT] No SETUP.INI found - using Amiga defaults\n");
-    }
-#else
-    if (access(RAP_SetupFilename(), 0))
-        EXIT_Error("You Must run SETUP.EXE First !!");
-
-    if (!INI_InitPreference(RAP_SetupFilename()))
-        EXIT_Error("SETUP Error");
-#endif
+    // No SETUP.INI is used anywhere in this Amiga port: all settings are
+    // fixed built-in defaults; configuration happens only via command-line
+    // parameters / icon ToolTypes (GFX=, MUSIC=, NOSOUND, NOMUSIC, NOJOY).
+    // ================================================
 
     fflush(stdout);
     KBD_Install();

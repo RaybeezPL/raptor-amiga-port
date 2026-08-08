@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68060/RTG)
 
-Version: 0.9.1 EC060
+Version: 0.9.2 MUSIC
 
 =====================================================
 
@@ -41,24 +41,34 @@ Graphics:   RTG with Picasso96 or CyberGraphX (CGX)
 Disk space: approx. 25 MB free (game files + saved games)
 Joystick:   Optional - port 1 (DB9); requires lowlevel.library v40+
             (included in AmigaOS 3.2); CD32 pads are also supported
-Sound:      AHI (ahi.device v4+) for sound effects;
-            music via MIDI out through camd.library (CAMD), with
-            automatic AdLib/OPL3 fallback when CAMD is unavailable
+Sound:      AHI (ahi.device v4+) for sound effects and for the
+            built-in AdLib/OPL3 music emulation (default music);
+            optionally music via MIDI out through camd.library
+            (CAMD) when started with MUSIC=CAMD
 
-Without an RTG card the game will attempt to open a standard custom
-chipset screen, but the supported and tested configuration is
-Picasso96 RTG.  When Picasso96 is not available the game falls back to
-CyberGraphX (CGX / cybergraphics.library) automatically.
+The default graphics mode (GFX=AUTO / GFX=RTG) requires RTG: the game
+tries Picasso96 first, then falls back to CyberGraphX (CGX /
+cybergraphics.library). If neither works, an English requester is
+shown and the game does NOT start (no silent fallback). On a machine
+without an RTG card start the game with GFX=AGA, which forces a
+standard custom chipset 320x200x8 screen. The supported and tested
+configuration is Picasso96 RTG.
 
 
 Installation
 ------------
 
-1. Copy the raptor executable to a directory of your choice,
-   e.g. Games:Raptor/
+1. Unpack the archive into a directory of your choice, e.g. Games:.
+   It contains a ready-to-use "Raptor" drawer with its own icon:
 
-2. Copy the game data files from the original game into the same
-   directory:
+   Raptor/           the game drawer (with icon)
+     raptor          main binary (68060 + FPU build), with icon
+     raptor_nofpu    soft-float binary for 68060 systems WITHOUT an
+                     FPU (68LC060/68EC060 or a broken FPU), with icon
+     README_AMIGA.md this file, with icon
+
+2. Copy the game data files from the original game into the Raptor
+   drawer:
 
    FILE0000.GLB
    FILE0001.GLB
@@ -69,10 +79,11 @@ Installation
    All five files are required. Only the full version 1.2 of the
    game provides all of them. File names are case insensitive.
 
-3. This Amiga port bypasses the existence of setup.ini. The game
-   does not require generating or placing a setup.ini file in the
-   directory. The game writes saved games and pilot profiles to the
-   program directory, so it must be writable.
+3. This Amiga port does not use SETUP.INI at all - all settings have
+   built-in defaults and are selected only with command line
+   parameters or icon ToolTypes (GFX=, MUSIC=, NOSOUND, ...). The
+   game writes saved games and pilot profiles to the program
+   directory, so it must be writable.
 
 
 Running
@@ -82,11 +93,12 @@ From Shell/CLI simply start the game:
 
    raptor
 
-Sound effects play through AHI (ahi.device) and music is sent as a
-MIDI stream through camd.library (CAMD). If camd.library is not
-installed, the game automatically falls back to the built-in
-AdLib/OPL3 emulation, so music always plays. See the "Sound
-(AHI + CAMD)" section below for details and MIDI configuration.
+Sound effects play through AHI (ahi.device) and music plays through
+the built-in AdLib/OPL3 emulation - the authentic Raptor sound -
+mixed into the AHI audio stream. To hear the music on an external
+synthesizer or a CAMD software synth instead, start the game with
+the MUSIC=CAMD parameter. See the "Sound (AHI + CAMD)" section below
+for details and MIDI configuration.
 
 
 Sound (AHI + CAMD)
@@ -102,16 +114,19 @@ Sound effects and music use two separate, native Amiga subsystems:
                    AHI-capable sound card works, as does the built-in
                    Paula through an AHI audio mode.
 
-   Music:          The game's MUS tracks are played as a General MIDI
-                   event stream through camd.library (CAMD), the
-                   standard Amiga MIDI API - the same way the Windows
-                   and Linux versions of the engine use WinMM and
-                   ALSA MIDI. MIDI data is sent to the CAMD cluster
-                   "out.0" by default; a different cluster name can be
-                   set with the SETUP.INI option:
+   Music:          By default the game's MUS tracks play through the
+                   built-in AdLib/OPL3 emulation (the authentic
+                   Raptor sound), mixed into the AHI audio stream -
+                   this always works, out of the box. The emulator
+                   uses the lightweight DOSBox dbopl core, which
+                   costs only a few percent of a 68060.
 
-                       [Setup]
-                       camd_cluster=<name>
+                   Alternatively, the MUSIC=CAMD parameter plays the
+                   MUS tracks as a General MIDI event stream through
+                   camd.library (CAMD), the standard Amiga MIDI API -
+                   the same way the Windows and Linux versions of the
+                   engine use WinMM and ALSA MIDI. MIDI data is sent
+                   to the fixed CAMD output cluster "out.0".
 
                    To actually hear CAMD music you need one of:
                    - a MIDI interface with an external synthesizer and
@@ -119,14 +134,17 @@ Sound effects and music use two separate, native Amiga subsystems:
                      driver from the camd40 package on Aminet), or
                    - a software synthesizer with a CAMD interface
                      (e.g. CAMD Toolkit, or Timidity with a CAMD
-                     driver) attached to the configured cluster.
+                     driver) attached to the "out.0" cluster.
 
-                   If camd.library is not installed at all, the game
-                   automatically falls back to the built-in AdLib/OPL3
-                   emulation (the authentic Raptor sound) mixed into
-                   the AHI audio stream - music always works.  The
-                   emulator uses the lightweight DOSBox dbopl core,
-                   which costs only a few percent of a 68060.
+                   WARNING: camd.library alone is NOT enough - if no
+                   MIDI driver or synthesizer is attached to the
+                   cluster, CAMD music is SILENT (sound effects still
+                   play). This includes CaffeineOS, where camd.library
+                   is installed but NOT configured by default. If you
+                   get no music with MUSIC=CAMD, simply go back to the
+                   default AdLib/OPL3 mode. (If camd.library cannot be
+                   opened at all, the game falls back to AdLib/OPL3
+                   automatically, so music still plays.)
 
 Audio status and diagnostics are printed to the console at startup
 (Shell/CLI). No log file is created automatically - to save them to a
@@ -148,6 +166,21 @@ accepted. Parameters may be combined in any order.
    -nomusic    Disables music only; sound effects (gun shots,
                explosions, etc.) keep playing through AHI.
                camd.library is never opened in this mode.
+
+   -music=M    Selects the music backend. M may be:
+                 ADLIB - built-in AdLib/OPL3 emulation mixed into
+                         the AHI audio stream (default; the
+                         authentic Raptor sound, always audible);
+                 CAMD  - General MIDI event stream through
+                         camd.library; needs a configured MIDI
+                         driver or a CAMD software synthesizer on
+                         the "out.0" cluster, otherwise the music
+                         is SILENT (see "Sound (AHI + CAMD)" above);
+                 OFF   - no music (same as -nomusic; sound effects
+                         keep playing through AHI).
+               The dashless form "MUSIC=CAMD" also works.
+               -nomusic / MUSIC=OFF always wins over MUSIC=ADLIB or
+               MUSIC=CAMD, regardless of parameter order.
 
    -gfx=M      Selects the graphics driver path used for the game
                screen. M may be:
@@ -219,7 +252,7 @@ Workbench. Parameters are passed via icon ToolTypes:
    per line, e.g.:
 
       NOSOUND
-      (NOMUSIC)
+      (MUSIC=CAMD)
       GFX=AGA
 
    A ToolType enclosed in parentheses is INACTIVE (ignored by the
@@ -231,7 +264,9 @@ Workbench. Parameters are passed via icon ToolTypes:
 3. Click "Save" and double-click the icon to start the game.
 
 Note: to run without audio from the Workbench, add the NOSOUND
-ToolType to the icon (NOMUSIC keeps sound effects enabled).
+ToolType to the icon (NOMUSIC - or MUSIC=OFF - keeps sound effects
+enabled). MUSIC=CAMD selects MIDI music instead of the default
+AdLib/OPL3 emulation.
 
 Note: when started from the Workbench icon the game produces no
 console output (no console window is opened at all). To see the
@@ -337,10 +372,15 @@ Menu controls (keyboard / mouse / joystick):
 Known Limitations
 -----------------
 
-- MIDI music through CAMD needs a MIDI driver or a CAMD software
-  synthesizer attached to the output cluster (default "out.0") -
-  otherwise CAMD music is silent (sound effects still play; install
-  no camd.library at all to force the AdLib/OPL3 fallback instead).
+- MIDI music (MUSIC=CAMD) needs a MIDI driver or a CAMD software
+  synthesizer attached to the "out.0" cluster - otherwise the music
+  is silent while sound effects still play. Note for CaffeineOS
+  users: camd.library is installed there but NOT configured by
+  default, so MUSIC=CAMD plays to nowhere - keep the default
+  AdLib/OPL3 music (or configure a CAMD driver first).
+- Volume/detail settings changed in the in-game options menu apply
+  to the current session only - they are not saved between runs
+  (this port does not use SETUP.INI at all).
 - No pause or menu exit directly from joystick (use keyboard).
 - No rumble / haptic support.
 - The Amiga system mouse pointer is hidden while the game is
