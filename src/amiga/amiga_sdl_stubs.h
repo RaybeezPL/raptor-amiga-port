@@ -1883,7 +1883,22 @@ static inline void SDL_CloseAudio(void)
     }
 
     if (g_AmigaAudio.taskRunning)
-        AmigaLog("AHI: WARNING - audio task did not stop in time!");
+    {
+        /* The task is wedged (should not happen - its loop is bounded by
+         * one buffer period).  Do NOT free the buffers or zero the state
+         * while the task may still touch them; leak a few KB instead of
+         * corrupting memory under a running task.  SDL_Quit() retries
+         * this same idempotent path. */
+        AmigaLog("AHI: WARNING - audio task did not stop in time (buffers left allocated)!");
+        return;
+    }
+
+    /* The task clears taskRunning as its very last g_AmigaAudio access,
+     * but the process then still executes the function epilogue and the
+     * dos process teardown.  Give it a couple of ticks to really die
+     * before we free the buffers here and the main process later exits
+     * (which would unload the seglist under a half-dead process). */
+    Delay(2);
 
     AmigaAudio_FreeBuffers();
 

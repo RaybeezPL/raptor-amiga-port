@@ -34,7 +34,7 @@ static inline void EXIT_Error(const char *fmt, ...)
     /* On Amiga, terminate via dos.library Exit() instead of the C
      * library exit(): the C runtime teardown (stdio/malloc arena
      * cleanup) trips on heap corruption accumulated during the game
-     * run and throws a recoverable alert (AN_FreeTwice 0100 0009).
+     * run and throws a recoverable alert (AN_BogusExcpt 0100 0009).
      * dos Exit() reclaims all process resources at the OS level
      * without walking the malloc arena. */
     Exit(1);

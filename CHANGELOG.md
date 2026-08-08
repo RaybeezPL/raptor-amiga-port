@@ -72,6 +72,16 @@ Version name: **0.9.1 EC060**
   Per-sample calls at 11025 Hz made the dbopl backend walk all 18 OPL
   channels per sample, so the priority +10 audio task never slept in
   WaitIO() and the game crawled at ~1 FPS. Event timing stays bit-exact.
+- Intermittent recoverable alert AN_BogusExcpt (0100 0009) at game
+  exit: the normal quit path called ShutDown(0) directly and then
+  EXIT_Clean(), which ran the whole shutdown sequence a SECOND time
+  (double free of g_highmem and the GLB arena, GLB_GetItem() after
+  GLB_FreeAll()). ShutDown() is now idempotent, the redundant direct
+  call is removed, and SND_DeInit() runs before GLB_FreeAll() so the
+  background audio task is fully stopped before the song/sample
+  buffers it reads are freed. SDL_CloseAudio() additionally waits for
+  the audio process to really die before freeing the AHI buffers, and
+  no longer frees them at all if the task failed to stop in time.
 
 ### Changed
 - RAPTOR.LOG is no longer created automatically; all startup/audio

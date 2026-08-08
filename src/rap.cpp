@@ -509,6 +509,17 @@ ShutDown(
 )
 {
     char* mem;
+    static int shutdown_done = 0;
+
+    /* Idempotence guard: the normal quit path calls ShutDown(0) directly
+     * and then EXIT_Clean(), which invokes this function a SECOND time via
+     * g_exit_shutdown_func.  Without the guard the second pass double-frees
+     * g_highmem and the GLB arena and calls GLB_GetItem() after
+     * GLB_FreeAll() - the intermittent AN_BogusExcpt (0100 0009)
+     * recoverable alert at game exit. */
+    if (shutdown_done)
+        return;
+    shutdown_done = 1;
 
     if (!errcode && !godmode)
         WIN_Order();
@@ -525,14 +536,21 @@ ShutDown(
         mem = GLB_GetItem(FILE001_LASTSCR1_TXT);     //Get ANSI Screen Shareware from GLB to char*
 
     closewindow();                                   //Close Main Window
+
+    /* Stop the audio task and the music backend BEFORE freeing any game
+     * data: FX_Fill() (called from the background audio task) keeps
+     * reading GLB-owned song/sample buffers until SDL_CloseAudio() has
+     * fully stopped the task - freeing them first is a use-after-free. */
+    SND_DeInit();
+
     I_LASTSCR(mem);                                  //Call to display ANSI Screen 
     GLB_FreeAll();
     IPT_CloJoy();
     SWD_End();
-    SND_DeInit();
     SDL_Quit();
     
     free(g_highmem);
+    g_highmem = NULL;
 }
 
 

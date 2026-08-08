@@ -681,7 +681,11 @@ WIN_AskExit(
         retraceflag = 1;
         GFX_FadeOut(60, 15, 2, 32);
         GFX_FadeOut(0, 0, 0, 6);
-        ShutDown(0);
+        /* EXIT_Clean() invokes ShutDown(0) via g_exit_shutdown_func and
+         * then exits through dos Exit(0) - calling ShutDown() directly
+         * here as well ran the whole shutdown sequence TWICE (double
+         * free of g_highmem / the GLB arena -> the intermittent
+         * AN_BogusExcpt 0100 0009 alert at exit). */
         EXIT_Clean();
     }
 }
