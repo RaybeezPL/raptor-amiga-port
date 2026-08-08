@@ -8,9 +8,11 @@ Amiga port of Raptor: Call of the Shadows, based on the open source
 engine reconstruction (reverse engineering) by skynettx/raptor.
 
 This port is developed exclusively for classic Amiga systems:
-AmigaOS 3.2, 68060 CPU with FPU, and RTG graphics (Picasso96).
-The game renders in 320x200 resolution with 8-bit palette on a
-dedicated RTG screen.
+AmigaOS 3.2, a 68060-class CPU (full 68060 with FPU, or
+68EC060/68LC060 via the soft-float raptor_nofpu binary), and RTG
+graphics (Picasso96/CyberGraphX) or a native AGA chipset screen
+(GFX=AGA). The game renders in 320x200 resolution with an 8-bit
+palette on a dedicated screen.
 
 NOTE: This repository does NOT contain game data files. You need
 your own legal copy of the original game files. Only the full
