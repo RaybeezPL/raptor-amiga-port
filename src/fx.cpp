@@ -151,9 +151,12 @@ int SND_InitSound(void)
     spec.freq = fx_freq;
     spec.format = AUDIO_S16SYS;
     spec.channels = 2;
-    /* 512 frames @ 11025 Hz on Amiga ~= 46 ms of runway per buffer -
-     * generous scheduling headroom for the audio task on a real 68060. */
-    spec.samples = 512;
+    /* Buffer runway per AHI buffer at 11025 Hz: 512 frames ~= 46 ms,
+     * 1024 frames ~= 93 ms. ADLIB/OPL3 music keeps the audio task busy
+     * with dbopl rendering, so give it the larger buffer as underrun
+     * headroom. CAMD MIDI and -nomusic keep 512: no OPL rendering there,
+     * and SFX latency stays lower. */
+    spec.samples = (g_music_mode == MUSIC_MODE_ADLIB && !g_nomusic) ? 1024 : 512;
     spec.callback = FX_Fill;
     spec.userdata = NULL;
 

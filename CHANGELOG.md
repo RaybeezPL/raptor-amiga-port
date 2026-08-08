@@ -2,6 +2,56 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.9.4] - 2026-08-08
+
+Version name: **0.9.4 BLIT**
+
+### Added
+- Native RTG blit fast paths, selected once at screen open and logged as
+  `[VIDEO] blit path: ...`: on Picasso96 the 320x200 chunky frame is pushed
+  with `p96WritePixelArray` (RGBFB_CLUT), on CyberGraphX with
+  `WritePixelArray` (RECTFMT_LUT8) - the RTG driver's own copy into the
+  screen bitmap, replacing the generic graphics.library `WriteChunkyPixels`
+  emulation layer. The CGX `WritePixelArray` LVO (0x7E), its register
+  assignment and RECTFMT_LUT8 (=3, not 0 as in the minimal NDK stub header)
+  were verified against the official CGraphX-DevKit VI
+  (`cybergraphics_lib.fd`, `inline/cybergraphics.h`) and the compiled devkit
+  example binary; the existing CGX mode-list offsets (0x48/0x3C/0x4E) were
+  re-confirmed against the same FD.
+- Custom 68060 chunky->planar (C2P) converter for the `GFX=AGA` path: the
+  frame is converted via 8x8 bit-matrix transposes (delta swaps) and written
+  as longword plane data straight into the screen's bitplanes in chip RAM -
+  about 4x fewer chip-memory bus cycles than the byte-oriented OS
+  conversion. Verified bit-exact against a brute-force reference in a
+  host-side test. `WriteChunkyPixels` remains the fallback on every path.
+  The C2P code is original work written for this port (GPL-2.0) using only
+  the well-known published transpose algorithm - no third-party/demo-scene
+  C2P code is used.
+
+### Changed
+- AHI stream buffers are 1024 frames (~93 ms of runway at 11025 Hz) when
+  ADLIB/OPL3 music is active - double the underrun headroom for the audio
+  task, which also renders the dbopl emulation. CAMD MIDI and -nomusic keep
+  512 frames (~46 ms), so SFX latency stays low there.
+
+### Fixed
+- PiStorm (A1200 + Emu68) regression: intro title screens skipped
+  themselves and demos exited instantly. Root cause: the accelerated RTG
+  blit made the event pump run much faster, so noise on the floating
+  joystick port lines passed the two-read debounce as phantom fire presses
+  (injected as RETURN = "ack"). The gameport is now polled at most at
+  50 Hz (the rate the old pacing produced), and a phantom-masked line only
+  unmasks after ~0.5 s of continuously CLEAR reads. One-time `[INPUT]`
+  log lines record the seeded port state and the first injected fire
+  press for field diagnosis.
+- Same symptom with `GFX=AGA` (seen on PiStorm with the soft-float
+  build): the phantom middle-mouse-button filter was only active on RTG
+  screens, so on a native chipset screen the Emu68 MIDDLEDOWN flood
+  passed as a permanent "ack". The middle button is ignored by design
+  in this port (special-weapon cycling is on SPACE), so the filter now
+  drops MIDDLEDOWN/MIDDLEUP unconditionally on every display path, with
+  a one-time `[INPUT]` log line when it first engages.
+
 ## [0.9.2] - 2026-08-08
 
 Version name: **0.9.2 MUSIC**

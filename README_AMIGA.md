@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68060/RTG)
 
-Version: 0.9.2 MUSIC
+Version: 0.9.4 BLIT
 
 =====================================================
 
@@ -53,6 +53,12 @@ shown and the game does NOT start (no silent fallback). On a machine
 without an RTG card start the game with GFX=AGA, which forces a
 standard custom chipset 320x200x8 screen. The supported and tested
 configuration is Picasso96 RTG.
+
+Frame presentation uses the fastest path available for the active
+driver: p96WritePixelArray on Picasso96, WritePixelArray on
+CyberGraphX, and a custom 68060 chunky-to-planar (C2P) converter on
+AGA. The active path is logged at startup ("[VIDEO] blit path: ...")
+when running from a Shell (raptor > RAPTOR.LOG).
 
 
 Installation
@@ -287,10 +293,11 @@ the bottom). If neither mode is available, an English requester
 appears asking you to either configure a suitable RTG mode or
 start the game with the classic chipset screen (GFX=AGA).
 
-Note: the middle mouse button is ignored. On some RTG machines it
-produces phantom presses that skip the intro logos, exit demos
-instantly and fight the steering. Cycling the special weapon is
-always available on SPACE. Left and right mouse buttons work
+Note: the middle mouse button is ignored. On some machines (notably
+A1200 + PiStorm/Emu68, on both RTG and AGA screens) it produces
+phantom presses that skip the intro logos, exit demos instantly and
+fight the steering. Cycling the special weapon is always available
+on SPACE. Left and right mouse buttons work
 normally in all modes.
 
 
@@ -429,6 +436,16 @@ Third-party components used by this port:
   used to call the respective AmigaOS system libraries at runtime.
 - src/amiga/proto/camd.h and src/amiga/inline/camd.h were hand-written
   for this port (LVO offsets verified against the official camd_lib.fd).
+- Display blit acceleration (src/amiga/amiga_sdl_stubs.h): the RTG paths
+  call the official Picasso96/CyberGraphX driver APIs; the CGX
+  WritePixelArray inline stub was hand-written for this port (LVO
+  offset verified against the official CGraphX-DevKit VI
+  cybergraphics_lib.fd).
+- The AGA chunky-to-planar (C2P) converter in the same file is original
+  code written for this port (GNU GPL-2.0), validated bit-exact against
+  a brute-force reference. It uses only the well-known published 8x8
+  bit-matrix transpose algorithm - no third-party/demo-scene C2P code
+  is used.
 
 
 GNU License Compliance / Source Code Notice:

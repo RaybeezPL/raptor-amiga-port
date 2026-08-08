@@ -24,7 +24,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.2 MUSIC**
+Current version: **0.9.4 BLIT**
 
 Working:
 
@@ -38,6 +38,11 @@ Working:
   falls back to 320x240x8 with letterbox on RTG cards that lack 320x200
 - **`GFX=AUTO|RTG|AGA`** parameter — controls the graphics driver path
   (CLI: `-gfx=RTG`; icon ToolType: `GFX=RTG`)
+- Accelerated frame presentation on every display path: Picasso96 uses
+  the driver's own `p96WritePixelArray`, CyberGraphX uses CGX
+  `WritePixelArray`, and the `GFX=AGA` chipset screen uses a custom
+  68060 chunky-to-planar converter — all replacing the generic
+  `WriteChunkyPixels` OS conversion (kept as fallback)
 - **`MUSIC=ADLIB|CAMD|OFF`** parameter — selects the music backend:
   built-in AdLib/OPL3 emulation (default), General MIDI via CAMD, or
   no music (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)

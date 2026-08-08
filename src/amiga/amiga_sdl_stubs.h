@@ -90,6 +90,18 @@ AMIGA_STUBS_DECL int AmigaGfxMode AMIGA_STUBS_INIT(AMIGA_GFX_AUTO);
  * 40 rows stay black, and mouse Y is clamped to the 0..199 play area. */
 AMIGA_STUBS_DECL int AmigaRTGLetterbox AMIGA_STUBS_INIT(0);
 
+/* Active frame-blit path, selected once in Amiga_OpenGameScreen:
+ *   AMIGA_BLIT_WCP     - graphics.library WriteChunkyPixels (generic fallback)
+ *   AMIGA_BLIT_P96     - p96WritePixelArray(RGBFB_CLUT)    (Picasso96 fast path)
+ *   AMIGA_BLIT_CGX     - CGX WritePixelArray(RECTFMT_LUT8) (CyberGraphX fast path)
+ *   AMIGA_BLIT_AGA_C2P - custom 68060 chunky->planar C2P into the screen bitmap
+ */
+#define AMIGA_BLIT_WCP      0
+#define AMIGA_BLIT_P96      1
+#define AMIGA_BLIT_CGX      2
+#define AMIGA_BLIT_AGA_C2P  3
+AMIGA_STUBS_DECL int AmigaBlitMode AMIGA_STUBS_INIT(AMIGA_BLIT_WCP);
+
 /* Physical screen parameters actually opened (filled in by
 * Amiga_OpenGameScreen). The game always draws to a logical 320x200
 * chunky buffer; only the final blit knows the physical mode. */
@@ -297,6 +309,26 @@ struct CyberModeNode
 #define CGX_BestCModeIDTagList(tags) \
     LP1(0x3C, ULONG, CGX_BestModeID, struct TagItem *, (tags), a0, , CyberGfxBase)
 
+/* CGX WritePixelArray: fast chunky->CLUT8 blit done by the CGX driver.
+ * LVO 0x7E (-126) and register assignment verified against the official
+ * CGraphX-DevKit VI files (cybergraphics_lib.fd + inline/cybergraphics.h)
+ * and the compiled devkit example binary. RECTFMT_LUT8 = 3 per the official
+ * cybergraphx/cybergraphics.h (the minimal NDK stub header says 0 - wrong). */
+#define AMIGA_CGX_RECTFMT_LUT8 3
+#define CGX_WritePixelArray(src, sx, sy, smod, rp, dx, dy, w, h, fmt) \
+    LP10(0x7E, ULONG, CGX_WritePixArray, \
+         APTR, (src), a0, \
+         UWORD, (sx), d0, \
+         UWORD, (sy), d1, \
+         UWORD, (smod), d2, \
+         struct RastPort *, (rp), a1, \
+         UWORD, (dx), d3, \
+         UWORD, (dy), d4, \
+         UWORD, (w), d5, \
+         UWORD, (h), d6, \
+         UBYTE, (fmt), d7, \
+         , CyberGfxBase)
+
 /* Selects a CGX display ModeID from the live cybergraphics.library mode list
  * that matches the requested resolution EXACTLY (width x height x depth).
  * Returns DisplayID of the first exact match, or INVALID_ID.
@@ -439,6 +471,9 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
              (AmigaGfxMode == AMIGA_GFX_RTG ? "RTG" : "AUTO"),
              gw, gh, gdepth);
 
+    /* Generic OS blit until a faster path is selected below. */
+    AmigaBlitMode = AMIGA_BLIT_WCP;
+
     if (AmigaGfxMode == AMIGA_GFX_AGA)
     {
         /* Native chipset 320x200x8 custom screen (no RTG required). */
@@ -466,6 +501,8 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         AmigaLog("[VIDEO] screen opened OK: actual %dx%dx%d, mode=AGA, letterbox=0",
                  AmigaPhysW, AmigaPhysH, AmigaPhysDepth);
         SetRast(&AmigaGameScreen->RastPort, 0);
+        AmigaBlitMode = AMIGA_BLIT_AGA_C2P;
+        AmigaLog("[VIDEO] blit path: custom 68060 C2P -> bitplanes");
         return AmigaGameScreen;
     }
 
@@ -479,16 +516,22 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         modeid = Amiga_FindP96GameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
         if (modeid != INVALID_ID) {
             AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x200x8", modeid);
-            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[P96]"))
+            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[P96]")) {
+                AmigaBlitMode = AMIGA_BLIT_P96;
+                AmigaLog("[VIDEO] blit path: p96WritePixelArray (RGBFB_CLUT)");
                 return AmigaGameScreen;
+            }
         }
         else {
             AmigaLog("[VIDEO] RTG: 320x200x8 unavailable, trying 320x240x8");
             modeid = Amiga_FindP96GameMode(320, 240, 8);
             if (modeid != INVALID_ID) {
                 AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x240x8", modeid);
-                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[P96]"))
+                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[P96]")) {
+                    AmigaBlitMode = AMIGA_BLIT_P96;
+                    AmigaLog("[VIDEO] blit path: p96WritePixelArray (RGBFB_CLUT)");
                     return AmigaGameScreen;
+                }
             }
             else {
                 AmigaLog("[VIDEO] RTG: no matching P96 mode found – will try CGX");
@@ -508,16 +551,22 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         modeid = Amiga_FindCGXGameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
         if (modeid != INVALID_ID) {
             AmigaLog("[VIDEO] CGX: selected mode 0x%08lx for 320x200x8", modeid);
-            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[CGX]"))
+            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[CGX]")) {
+                AmigaBlitMode = AMIGA_BLIT_CGX;
+                AmigaLog("[VIDEO] blit path: CGX WritePixelArray (RECTFMT_LUT8)");
                 return AmigaGameScreen;
+            }
         }
         else {
             AmigaLog("[VIDEO] CGX: 320x200x8 unavailable, trying 320x240x8");
             modeid = Amiga_FindCGXGameMode(320, 240, 8);
             if (modeid != INVALID_ID) {
                 AmigaLog("[VIDEO] CGX: selected mode 0x%08lx for 320x240x8", modeid);
-                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[CGX]"))
+                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[CGX]")) {
+                    AmigaBlitMode = AMIGA_BLIT_CGX;
+                    AmigaLog("[VIDEO] blit path: CGX WritePixelArray (RECTFMT_LUT8)");
                     return AmigaGameScreen;
+                }
             }
             else {
                 AmigaLog("[VIDEO] CGX: no matching mode found");
@@ -594,13 +643,93 @@ static inline void Amiga_CloseGameScreen(void)
     }
 }
 
+/* Converts 32 chunky pixels into 8 plane longwords using three 64-bit delta
+ * swaps (Hacker's Delight 8x8 bit-matrix transpose per 8-pixel group, with
+ * the four group results combined into one longword store per plane).
+ * Byte k of the transposed word (MSB first) holds plane (7-k) data.
+ * Verified bit-exact against a brute-force reference in a host-side test. */
+static inline void Amiga_C2P_Block32(const uint8_t *chunky, uint32_t **planes, int longofs)
+{
+    uint32_t pw[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    int g, k;
+
+    for (g = 0; g < 4; g++) {
+        const uint8_t *p = chunky + g * 8;
+        uint64_t x = 0, t;
+
+        for (k = 0; k < 8; k++)
+            x = (x << 8) | (uint64_t)p[k];
+
+        t = (x ^ (x >>  7)) & 0x00AA00AA00AA00AAULL; x = x ^ t ^ (t <<  7);
+        t = (x ^ (x >> 14)) & 0x0000CCCC0000CCCCULL; x = x ^ t ^ (t << 14);
+        t = (x ^ (x >> 28)) & 0x00000000F0F0F0F0ULL; x = x ^ t ^ (t << 28);
+
+        for (k = 0; k < 8; k++)
+            pw[7 - k] = (pw[7 - k] << 8) | (uint8_t)(x >> (56 - 8 * k));
+    }
+
+    for (k = 0; k < 8; k++)
+        planes[k][longofs] = pw[k];
+}
+
+/* Full-frame chunky->planar conversion for the native AGA screen (320x200x8).
+ * Writes plane longwords straight into the screen's BitMap (chip RAM), which
+ * needs ~4x fewer chip-memory bus cycles than byte-oriented OS conversion. */
+static inline void Amiga_C2P_BlitScreen(struct BitMap *bm, const uint8_t *chunky)
+{
+    int y, blk, k;
+
+    for (y = 0; y < AMIGA_GAME_HEIGHT; y++) {
+        const uint8_t *row = chunky + y * AMIGA_GAME_WIDTH;
+        uint32_t *pl[8];
+
+        for (k = 0; k < 8; k++)
+            pl[k] = (uint32_t *)((uint8_t *)bm->Planes[k] + y * bm->BytesPerRow);
+
+        for (blk = 0; blk < AMIGA_GAME_WIDTH / 32; blk++)
+            Amiga_C2P_Block32(row + blk * 32, pl, blk);
+    }
+}
+
 /* Blits the game's logical 320x200 frame to the physical screen 1:1.
- * 'chunky' is the game's 8-bit chunky buffer (320 bytes/row). */
+ * 'chunky' is the game's 8-bit chunky buffer (320 bytes/row).
+ * The blit path was selected once in Amiga_OpenGameScreen (AmigaBlitMode). */
 static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
 {
     if (!win || !win->RPort || !chunky) return;
 
-    /* Native 320x200x8: original 1:1 chunky blit. */
+    /* Picasso96 fast path: the P96 driver copies the chunky buffer straight
+     * into the CLUT8 screen bitmap - no OS conversion layers in between. */
+    if (AmigaBlitMode == AMIGA_BLIT_P96) {
+        struct RenderInfo ri;
+        ri.Memory = (APTR)chunky;
+        ri.BytesPerRow = AMIGA_GAME_WIDTH;
+        ri.pad = 0;
+        ri.RGBFormat = RGBFB_CLUT;
+        p96WritePixelArray(&ri, 0, 0, win->RPort,
+                           (UWORD)win->BorderLeft, (UWORD)win->BorderTop,
+                           AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT);
+        return;
+    }
+
+    /* CyberGraphX fast path: same idea through the CGX driver API. */
+    if (AmigaBlitMode == AMIGA_BLIT_CGX) {
+        CGX_WritePixelArray((APTR)chunky, 0, 0, AMIGA_GAME_WIDTH, win->RPort,
+                            (UWORD)win->BorderLeft, (UWORD)win->BorderTop,
+                            AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT,
+                            AMIGA_CGX_RECTFMT_LUT8);
+        return;
+    }
+
+    /* Native AGA path: custom 68060 C2P directly into the screen bitplanes. */
+    if (AmigaBlitMode == AMIGA_BLIT_AGA_C2P &&
+        AmigaGameScreen && AmigaGameScreen->RastPort.BitMap &&
+        AmigaGameScreen->RastPort.BitMap->Depth == 8) {
+        Amiga_C2P_BlitScreen(AmigaGameScreen->RastPort.BitMap, chunky);
+        return;
+    }
+
+    /* Generic OS 1:1 chunky blit (fallback). */
     WriteChunkyPixels(win->RPort,
         win->BorderLeft, win->BorderTop,
         win->BorderLeft + 319, win->BorderTop + 199,
@@ -2256,6 +2385,11 @@ AMIGA_STUBS_DECL ULONG AmigaJoyStatePrev AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL ULONG AmigaJoyRawPrev   AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL ULONG AmigaJoyPhantomMask AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int   AmigaJoySeeded    AMIGA_STUBS_INIT(0);
+/* Joystick poll rate limiter (50 Hz) + hardened phantom filter state. */
+AMIGA_STUBS_DECL Uint32 AmigaJoyLastPoll AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int    AmigaJoyClearStreak[5] AMIGA_STUBS_INIT({0});
+AMIGA_STUBS_DECL int    AmigaJoyFireLogged AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int    AmigaMiddleDropLogged AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL Uint32 AmigaFrameCount AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL Uint8 AmigaKeyboardState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0});
 
@@ -2342,14 +2476,18 @@ static inline void Amiga_PumpWindowEvents(void)
 {
     uint32_t now = SDL_GetTicks();
 
-    /* On AGA + RTG systems (notably A1200 + PiStorm/Emu68) the mouse-port
-     * middle/POT lines can float after opening an RTG custom screen and
-     * generate a button flood that acts like constant "ack"/menu input.
-     * This skips intro screens, exits attract/demo immediately and makes
-     * gameplay fall back to mouse takeover. Ignore middle-button traffic
-     * on all RTG screens. */
-    if ((AmigaUsingP96 || AmigaUsingCGX) && (code == MIDDLEDOWN || code == MIDDLEUP))
+    /* The game ignores the middle mouse button entirely (special-weapon
+     * cycling lives on SPACE), and on some machines (A1200 + PiStorm/Emu68)
+     * the middle/POT lines float and flood MIDDLEDOWN/MIDDLEUP regardless
+     * of the screen type - RTG *and* native AGA. The flood acts as a
+     * permanent "ack": intro logos skip, demos exit instantly and gameplay
+     * falls back to mouse takeover. Drop middle-button traffic always. */
+    if (code == MIDDLEDOWN || code == MIDDLEUP)
     {
+        if (!AmigaMiddleDropLogged) {
+            AmigaMiddleDropLogged = 1;
+            AmigaLog("[INPUT] middle mouse event dropped (phantom filter)");
+        }
         /* event dropped */
     }
 
@@ -2425,6 +2563,17 @@ static inline void SDL_PumpEvents(void) {
     Amiga_PumpWindowEvents();
 
     if (LowLevelBase && !AmigaJoyDisabled) {
+        /* Poll the gameport at most at ~50 Hz, like when the old slow blit
+         * paced the main loop. With the fast RTG blit paths the event pump
+         * runs much faster, and on A1200 + PiStorm/Emu68 the floating port
+         * lines then passed the two-read debounce below as phantom fire
+         * presses (injected as RETURN = ack: intro logos skipped, demos
+         * exited instantly). */
+        Uint32 joyNow = SDL_GetTicks();
+        if (joyNow - AmigaJoyLastPoll < 20)
+            return;
+        AmigaJoyLastPoll = joyNow;
+
         /* Trust the digital lines only: directions + fire (RED). Those
          * are pulled high and driven low, exactly like the mouse button,
          * so an empty port reads a clean "nothing pressed" on any board.
@@ -2464,8 +2613,28 @@ static inline void SDL_PumpEvents(void) {
             if (!AmigaJoySeeded) {
                 AmigaJoySeeded = 1;
                 AmigaJoyPhantomMask = raw;
+                AmigaLog("[INPUT] joystick seeded: raw=0x%08lx phantom=0x%08lx",
+                         (unsigned long)raw, (unsigned long)AmigaJoyPhantomMask);
             }
-            AmigaJoyPhantomMask &= raw;
+            /* Unmask a phantom bit only after the line has been CLEAR for 25
+             * consecutive stable polls (~0.5 s at the 50 Hz poll rate). A
+             * floating line flickers inside that window and stays masked;
+             * a real button is steady, so it unmasks quickly after release. */
+            {
+                static const ULONG jbits[5] = {
+                    JPF_JOY_UP, JPF_JOY_DOWN, JPF_JOY_LEFT, JPF_JOY_RIGHT,
+                    JPF_BUTTON_RED
+                };
+                int bi;
+                for (bi = 0; bi < 5; bi++) {
+                    if (raw & jbits[bi]) {
+                        AmigaJoyClearStreak[bi] = 0;
+                    } else if (AmigaJoyPhantomMask & jbits[bi]) {
+                        if (++AmigaJoyClearStreak[bi] >= 25)
+                            AmigaJoyPhantomMask &= ~jbits[bi];
+                    }
+                }
+            }
 
             ULONG joy = raw & ~AmigaJoyPhantomMask;
 
@@ -2491,6 +2660,10 @@ static inline void SDL_PumpEvents(void) {
             int prev_fire = (AmigaJoyStatePrev & fire_mask) ? 1 : 0;
             int curr_fire = (joy & fire_mask) ? 1 : 0;
             if (curr_fire != prev_fire) {
+                if (curr_fire && !AmigaJoyFireLogged) {
+                    AmigaJoyFireLogged = 1;
+                    AmigaLog("[INPUT] joystick fire (RED) -> RETURN");
+                }
                 Amiga_InjectKeyboardEvent(SDL_SCANCODE_RETURN, curr_fire);
             }
 

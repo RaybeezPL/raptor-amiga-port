@@ -14,7 +14,9 @@
 
 ### RTG rules
 - Prefer the existing SDL-stub/RTG path already used by this port.
-- Do not introduce classic chipset-specific rendering paths (copper, blitter, planar bitplanes) into this RTG-focused fork.
+- Do not introduce new classic chipset-specific rendering architectures (copper lists, blitter drawing, custom screen/Copper hijacking) into this RTG-focused fork.
+- Approved exception (2026-08, display-optimization work): inside the existing `GFX=AGA` branch only, the generic `WriteChunkyPixels` call may be replaced by a custom 68060 chunky-to-planar (C2P) routine that writes directly into the AGA screen's bitplanes. Keep it contained, guarded (AGA mode + 8-bit only) and always keep `WriteChunkyPixels` as the fallback.
+- For the RTG blit path, prefer the native driver APIs over generic graphics.library calls: `p96WritePixelArray` (RGBFB_CLUT) on Picasso96 and `WritePixelArray` (RECTFMT_LUT8) on CyberGraphX. CyberGraphX LVO offsets must be verified against the official CGraphX-DevKit VI FD (`cybergraphics_lib.fd`, bias 30).
 - If direct RTG bitmap access is truly needed, use Picasso96/CyberGraphX APIs carefully and release/cleanup resources correctly.
 - Prefer simpler and safer high-level paths over raw direct bitmap access unless there is a proven need.
 
