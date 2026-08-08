@@ -2,6 +2,40 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.9.1] - 2026-08-08
+
+Version name: **0.9.1 EC060**
+
+### Added
+- Support for 68060 systems without an FPU (68EC060/68LC060 or a broken
+  FPU): `make -f Makefile.amiga NOFPU=1` (or `build_amiga_nofpu.sh`)
+  produces `raptor_nofpu`. Objects are compiled with `-m68060
+  -msoft-float` but linked with `-m68000 -msoft-float`, which sidesteps a
+  bebbo gcc 6.5.0b quirk: the toolchain has no soft-float multilib, so a
+  plain `-m68060 -msoft-float` link still pulls `__adddf3` & co. from the
+  libm020/libm881 libnix `libm.a` as thunks returning through fp0 (FPU
+  instructions). Linking as m68000 selects the base libnix `libm.a`,
+  whose thunks call mathieeedoubbas.library (Kickstart ROM, software IEEE
+  double) with d0/d1 returns - the resulting binary contains zero FPU
+  instructions, verified automatically by the build script. Tested in
+  WinUAE with the 68060 FPU disabled. Runtime cost is negligible: the
+  game uses floating point only for the one-time OPL table init and
+  minor volume math.
+
+### Fixed
+- OPL music no longer starves the game: on Amiga, MUS_Mix renders in
+  chunks aligned to the MUS_Service (70 Hz) / MUS_Fader (50 Hz) /
+  GSS_Service (140 Hz) boundaries instead of one Mix() call per sample.
+  Per-sample calls at 11025 Hz made the dbopl backend walk all 18 OPL
+  channels per sample, so the priority +10 audio task never slept in
+  WaitIO() and the game crawled at ~1 FPS. Event timing stays bit-exact.
+
+### Changed
+- RAPTOR.LOG is no longer created automatically; all startup/audio
+  diagnostics go to the console (stdout) only. To capture them to a
+  file, run "raptor > RAPTOR.LOG" from a Shell. (Workbench launches
+  still redirect stdout to NIL:.)
+
 ## [0.9.0] - 2026-08-07
 
 Version name: **0.9.0 SOUND**

@@ -623,10 +623,77 @@ MUS_Mix(
     int len
 )
 {
-    int i;
-    
     if (!music_init || !music_device || !music_device->Mix)
         return;
+    
+#ifdef __AMIGA__
+    /* 68060: render in chunks aligned to the service boundaries instead of
+     * one Mix(stream, 1) call per sample.  With the OPL/dbopl backend each
+     * Mix() call walks all 18 OPL channels (indirect member-function calls
+     * plus per-channel Prepare/Silent work), so per-sample calls at 11025 Hz
+     * cost more than a whole 68060 - the priority +10 audio task then never
+     * sleeps in WaitIO() and starves the game to ~1 FPS.
+     *
+     * Each chunk ends exactly where the next service (MUS_Service 70 Hz /
+     * MUS_Fader 50 Hz / GSS_Service 140 Hz) would fire in the per-sample
+     * loop, so the event timing stays bit-exact while the emulator renders
+     * ~50-220 sample blocks with the per-channel setup amortised. */
+    while (len > 0)
+    {
+        int chunk = len;
+        int todo;
+        
+        /* Samples until the next service tick: the smallest k with
+         * cnt + k*rate >= fx_freq (counters are always < fx_freq here). */
+        todo = (fx_freq - music_cnt + musrate - 1) / musrate;
+        if (todo < chunk)
+            chunk = todo;
+        
+        todo = (fx_freq - music_cnt2 + musfaderate - 1) / musfaderate;
+        if (todo < chunk)
+            chunk = todo;
+        
+        if (gsshack)
+        {
+            todo = (fx_freq - music_cnt3 + gssrate - 1) / gssrate;
+            if (todo < chunk)
+                chunk = todo;
+        }
+        
+        if (chunk < 1)
+            chunk = 1;
+        
+        music_device->Mix(stream, chunk);
+        
+        music_cnt += musrate * chunk;
+        while (music_cnt >= fx_freq)
+        {
+            music_cnt -= fx_freq;
+            MUS_Service();
+        }
+        
+        music_cnt2 += musfaderate * chunk;
+        while (music_cnt2 >= fx_freq)
+        {
+            music_cnt2 -= fx_freq;
+            MUS_Fader();
+        }
+        
+        if (gsshack)
+        {
+            music_cnt3 += gssrate * chunk;
+            while (music_cnt3 >= fx_freq)
+            {
+                music_cnt3 -= fx_freq;
+                GSS_Service();
+            }
+        }
+        
+        stream += chunk * 2;
+        len -= chunk;
+    }
+#else
+    int i;
     
     for (i = 0; i < len; i++)
     {
@@ -658,6 +725,7 @@ MUS_Mix(
         }
         stream += 2;
     }
+#endif
 }
 
 /***************************************************************************

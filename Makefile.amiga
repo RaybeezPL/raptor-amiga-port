@@ -3,7 +3,8 @@
 # Cross-compilation using m68k-amigaos-gcc
 #
 # Usage:
-#   make -f Makefile.amiga              # Build the game
+#   make -f Makefile.amiga              # Build the game (68060 with FPU)
+#   make -f Makefile.amiga NOFPU=1      # Build for 68060 WITHOUT FPU
 #   make -f Makefile.amiga clean        # Clean build artifacts
 #   make -f Makefile.amiga VERBOSE=1    # Verbose build output
 # =============================================================================
@@ -19,15 +20,35 @@ STRIP     = $(PREFIX)-strip
 OBJDUMP   = $(PREFIX)-objdump
 
 # -----------------------------------------------------------------------------
-# Target
+# Build variant selection
 # -----------------------------------------------------------------------------
-TARGET    = raptor
-BUILDDIR  = build.amiga
+# NOFPU=0 (default): 68060 with FPU. Objects and libraries are compiled and
+#                    linked with -m68060 -m68881.
+# NOFPU=1:           68060 WITHOUT FPU (68LC060/68EC060 or a broken FPU).
+#                    Objects are compiled with -m68060 -msoft-float, but the
+#                    link is deliberately done with -m68000 -msoft-float:
+#                    the bebbo gcc 6.5.0b toolchain has no soft-float
+#                    multilib, so a -m68060 link would select the
+#                    libm020/libm881 multilib whose libnix libm.a provides
+#                    __adddf3 & co. as thunks returning through fp0 (real
+#                    FPU instructions - crash on an FPU-less 060).
+#                    Linking as -m68000 picks the base (68000) libnix libm.a
+#                    with soft-float mathieeedoubbas thunks (d0/d1 returns),
+#                    which yields a binary with zero FPU instructions.
+# -----------------------------------------------------------------------------
+NOFPU     ?= 0
 
-# -----------------------------------------------------------------------------
-# CPU and FPU flags for Motorola 68060
-# -----------------------------------------------------------------------------
-CPU_FLAGS = -m68060 -m68881
+ifeq ($(NOFPU),1)
+  TARGET     = raptor_nofpu
+  BUILDDIR   = build.amiga.nofpu
+  CPU_FLAGS  = -m68060 -msoft-float
+  LINK_FLAGS = -m68000 -msoft-float
+else
+  TARGET     = raptor
+  BUILDDIR   = build.amiga
+  CPU_FLAGS  = -m68060 -m68881
+  LINK_FLAGS = -m68060 -m68881
+endif
 
 # -----------------------------------------------------------------------------
 # Compiler flags
@@ -102,7 +123,7 @@ endif
 # -----------------------------------------------------------------------------
 # Linker flags
 # -----------------------------------------------------------------------------
-LDFLAGS   = $(CPU_FLAGS) \
+LDFLAGS   = $(LINK_FLAGS) \
             -noixemul \
             $(SDL_LIBDIR)
 
@@ -248,6 +269,8 @@ info:
 	@echo "Target:       $(TARGET)"
 	@echo "Compiler:     $(CXX)"
 	@echo "CPU flags:    $(CPU_FLAGS)"
+	@echo "Link flags:   $(LINK_FLAGS)"
+	@echo "NOFPU:        $(NOFPU)"
 	@echo "SDL2 dir:     $(SDL2_AMIGA_DIR)"
 	@echo "Use stubs:    $(USE_SDL_STUBS)"
 	@echo "Object files: $(words $(OBJS))"

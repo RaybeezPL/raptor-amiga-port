@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68060/RTG)
 
-Version: 0.9.0 SOUND
+Version: 0.9.1 EC060
 
 =====================================================
 
@@ -22,8 +22,13 @@ Requirements
 ------------
 
 Processor:  Motorola 68060 (or PiStorm / Emu68)
-FPU:        Built-in 68060 / 68881 / 68882 - REQUIRED
-            (binary compiled with -m68881)
+FPU:        Built-in 68060 / 68881 / 68882 - REQUIRED for the raptor
+            binary (compiled with -m68881).
+            Systems WITHOUT an FPU (68LC060/68EC060 or a broken FPU) can
+            use the raptor_nofpu binary instead - a soft-float build in
+            which floating point runs in software through
+            mathieeedoubbas.library (present in Kickstart ROM). Build it
+            with build_amiga_nofpu.sh or "make -f Makefile.amiga NOFPU=1".
 System:     AmigaOS 3.2 (intuition.library v39+, graphics.library v39+)
 Memory:     4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
             (standard). The game itself uses ~3 MB of Fast RAM; on RTG
@@ -123,8 +128,9 @@ Sound effects and music use two separate, native Amiga subsystems:
                    emulator uses the lightweight DOSBox dbopl core,
                    which costs only a few percent of a 68060.
 
-Audio status and diagnostics are printed at startup (Shell/CLI) and
-also written to RAPTOR.LOG in the game directory.
+Audio status and diagnostics are printed to the console at startup
+(Shell/CLI). No log file is created automatically - to save them to a
+file, redirect stdout, e.g.: "raptor > RAPTOR.LOG".
 
 
 Command Line Parameters
@@ -366,6 +372,23 @@ This port is based on the skynettx/raptor project.
 Thanks to nukeykt and the contributors of the reconstructed Raptor
 code, and to the Amiga community and the creators of RTG and AHI
 tools.
+
+
+Third-party components used by this port:
+
+- Game engine: skynettx/raptor reconstruction, GNU GPL-2.0 (see the
+  LICENSE file); includes code derived from Chocolate Doom (GNU GPL-2.0+).
+- dbopl OPL emulator (src/dbopl.cpp/h): DOSBox Team, GNU GPL-2.0+.
+- TinySoundFont (include/TinySoundFont/tsf.h): Bernhard Schelling, MIT
+  license (GPL-compatible).
+- AHI and CAMD interface headers (src/amiga/devices/ahi.h,
+  src/amiga/midi/, src/amiga/clib/camd_protos.h): vendored unmodified
+  from the official, freely distributable developer archives on Aminet
+  (AHI dev archive by Martin Blom; CAMD developer kit). They contain
+  interface definitions only (structures, constants, prototypes) and are
+  used to call the respective AmigaOS system libraries at runtime.
+- src/amiga/proto/camd.h and src/amiga/inline/camd.h were hand-written
+  for this port (LVO offsets verified against the official camd_lib.fd).
 
 
 GNU License Compliance / Source Code Notice:

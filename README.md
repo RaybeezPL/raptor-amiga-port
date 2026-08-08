@@ -24,11 +24,13 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.0 SOUND**
+Current version: **0.9.1 EC060**
 
 Working:
 
 - Native **m68k AmigaOS cross-build** (68060 + FPU)
+- Optional **soft-float build for 68060 without FPU** (68EC060/68LC060 or
+  a broken FPU): `build_amiga_nofpu.sh` produces `raptor_nofpu`
 - Full gameplay on real hardware (A2000, A1200 + PiStorm/Emu68) and WinUAE
 - Keyboard, mouse and joystick/CD32 pad input working simultaneously
 - RTG video path for **320x200x8-bit** output on a dedicated screen;

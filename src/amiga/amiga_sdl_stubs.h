@@ -12,15 +12,15 @@
 #include <stdio.h>
 
 /* Minimal Amiga video/window diagnostics logger (AmigaLog).
- * Writes one line to "RAPTOR.LOG" in the current directory (append) AND
- * mirrors it to the console, so it works whether the game is launched from
- * Workbench (where stdout is redirected to NIL:) or from a Shell. Failure to
- * open the log file is not fatal - console output still works. */
+ * Writes one line to the console (stdout) only - no log file is created.
+ * To capture the diagnostics to a file, redirect stdout when starting
+ * from a Shell, e.g.:  raptor > RAPTOR.LOG
+ * Note that Workbench launches redirect stdout to NIL: (see rap.cpp),
+ * so no diagnostics are visible in that case. */
 static inline void AmigaLog(const char *fmt, ...)
 {
     va_list ap;
     char line[256];
-    FILE *f;
 
     va_start(ap, fmt);
     vsnprintf(line, sizeof(line), fmt, ap);
@@ -28,13 +28,6 @@ static inline void AmigaLog(const char *fmt, ...)
 
     printf("%s\n", line);
     fflush(stdout);
-
-    f = fopen("RAPTOR.LOG", "a");
-    if (f)
-    {
-        fprintf(f, "%s\n", line);
-        fclose(f);
-    }
 }
 
 /* AmigaOS Intuition/Graphics support. */

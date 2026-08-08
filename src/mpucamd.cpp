@@ -39,8 +39,8 @@
 /* camd.library base (extern in proto/camd.h). */
 struct Library *CamdBase = NULL;
 
-/* Log to the console AND RAPTOR.LOG on the SDL-stub build (visible when
- * started from Workbench), plain console otherwise. */
+/* Log through AmigaLog on the SDL-stub build, plain console otherwise.
+ * Output goes to stdout only; run "raptor > RAPTOR.LOG" to capture it. */
 #ifdef USE_SDL_STUBS
 #define CAMD_LOG(...) AmigaLog(__VA_ARGS__)
 #else
