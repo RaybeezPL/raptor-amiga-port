@@ -48,6 +48,7 @@
  * not real command-line arguments. */
 #include <workbench/startup.h>
 #include <proto/icon.h>
+#include "mpumhi.h"
 #endif // __AMIGA__
 
 
@@ -293,9 +294,10 @@ RAP_ParseGfx(
  * RAP_ParseMusic() - handles the MUSIC=<mode> keyword from the CLI
  * ("-music=CAMD") and Workbench icon ToolTypes ("MUSIC=CAMD").
  * Values: ADLIB (default - built-in OPL3 emulation), CAMD (General MIDI
- * via camd.library), OFF (no music, same as -nomusic). Values are
- * recognized case-insensitively. Returns 1 when the argument was
- * recognized.
+ * via camd.library), MHI (MP3 files from the MP3/ drawer via an MHI
+ * decoder driver, e.g. LIBS:MHI/prismamhi.library), OFF (no music, same
+ * as -nomusic). Values are recognized case-insensitively. Returns 1 when
+ * the argument was recognized.
  */
 static int
 RAP_ParseMusic(
@@ -330,14 +332,52 @@ RAP_ParseMusic(
         g_music_mode = MUSIC_MODE_CAMD;
         printf("MUSIC=CAMD: General Midi music via camd.library\n");
     }
+    else if (RAP_StrCaseEqual(value, "mhi") ||
+             RAP_StrCaseEqual(value, "mp3"))
+    {
+        g_music_mode = MUSIC_MODE_MHI;
+        printf("MUSIC=MHI: MP3 music from the MP3/ drawer via an MHI driver\n");
+    }
     else
     {
-        printf("Unknown MUSIC '%s' - valid values: ADLIB, CAMD, OFF "
+        printf("Unknown MUSIC '%s' - valid values: ADLIB, CAMD, MHI, OFF "
                "(using default ADLIB)\n", value);
     }
 
     AmigaLog("[AUDIO] MUSIC parsed '%s' -> nomusic=%d music_mode=%d",
              value, g_nomusic, g_music_mode);
+    return 1;
+}
+
+/*
+ * RAP_ParseMHIDriver() - handles the optional MHIDRIVER=<name> keyword
+ * (CLI "-mhidriver=..." / icon ToolType "MHIDRIVER=..."): overrides the
+ * MHI decoder driver auto-detection with a specific driver library name
+ * or full path (e.g. "prismamhi.library" or "LIBS:MHI/mhimaspro.library").
+ * Only relevant together with MUSIC=MHI. Returns 1 when the argument was
+ * recognized.
+ */
+static int
+RAP_ParseMHIDriver(
+    const char *arg
+)
+{
+    const char *value;
+
+    if (RAP_StrCaseStartsWith(arg, "-mhidriver="))
+        value = arg + 11;
+    else if (RAP_StrCaseStartsWith(arg, "mhidriver="))
+        value = arg + 10;
+    else
+        return 0;
+
+    if (*value)
+    {
+        MHI_SetDriverOverride(value);
+        printf("MHIDRIVER=%s: MHI decoder driver override\n", value);
+    }
+
+    AmigaLog("[AUDIO] MHIDRIVER parsed '%s'", value);
     return 1;
 }
 
@@ -429,8 +469,8 @@ RAP_ParseWorkbenchToolTypes(
             RAP_ParseGfx(buf);
         }
 
-        /* MUSIC=ADLIB|CAMD|OFF - music backend selection (same values as
-         * the CLI parameter; see RAP_ParseMusic above). */
+        /* MUSIC=ADLIB|CAMD|MHI|OFF - music backend selection (same values
+         * as the CLI parameter; see RAP_ParseMusic above). */
         s = FindToolType((CONST_STRPTR *)tt, "MUSIC");
         if (s && *s)
         {
@@ -445,6 +485,24 @@ RAP_ParseWorkbenchToolTypes(
             }
             buf[6 + i] = 0;
             RAP_ParseMusic(buf);
+        }
+
+        /* MHIDRIVER=<name> - optional MHI decoder driver override (only
+         * relevant with MUSIC=MHI; see RAP_ParseMHIDriver above). */
+        s = FindToolType((CONST_STRPTR *)tt, "MHIDRIVER");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "mhidriver=");
+            while (s[i] && i < (int)sizeof(buf) - 11)
+            {
+                buf[10 + i] = s[i];
+                i++;
+            }
+            buf[10 + i] = 0;
+            RAP_ParseMHIDriver(buf);
         }
     }
 
@@ -1618,7 +1676,7 @@ main(
 #endif
 
     printf("--------------------------------------------------------\n");
-    printf(" Raptor: Call of the Shadows - Amiga Port - version 0.9.2 MUSIC\n");
+    printf(" Raptor: Call of the Shadows - Amiga Port - version 0.9.5 MHI\n");
 
     printf(" Port Author: RaybeezPL | AI Collaboration\n");
     printf(" Contact: cichy@cichy.com.pl\n");
@@ -1708,10 +1766,17 @@ main(
         else if (RAP_ParseGfx(argv[loop]))
         {
         }
-        /* -music=ADLIB|CAMD|OFF selects the music backend: built-in
-         * AdLib/OPL3 (default), General MIDI via camd.library, or no
-         * music. See RAP_ParseMusic() above. */
+        /* -music=ADLIB|CAMD|MHI|OFF selects the music backend: built-in
+         * AdLib/OPL3 (default), General MIDI via camd.library, MP3 files
+         * via an MHI decoder driver, or no music. See RAP_ParseMusic()
+         * above. */
         else if (RAP_ParseMusic(argv[loop]))
+        {
+        }
+        /* -mhidriver=<name> overrides the MHI decoder driver
+         * auto-detection (only relevant with MUSIC=MHI). See
+         * RAP_ParseMHIDriver() above. */
+        else if (RAP_ParseMHIDriver(argv[loop]))
         {
         }
 #endif

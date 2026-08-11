@@ -1,4 +1,4 @@
-# Raptor: Call of the Shadows - Amiga 68060 RTG/AGA Port
+# Raptor: Call of the Shadows - Amiga 68060 & EC/LC RTG/AGA Port
 
 This repository contains an AmigaOS 3.x port of **Raptor: Call of the Shadows**, based on the open-source reverse-engineered codebase by [skynettx/raptor](https://github.com/skynettx/raptor).
 
@@ -33,7 +33,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.4 BLIT**
+Current version: **0.9.5 AHI**
 
 Working:
 
@@ -52,9 +52,10 @@ Working:
   `WritePixelArray`, and the `GFX=AGA` chipset screen uses a custom
   68060 chunky-to-planar converter — all replacing the generic
   `WriteChunkyPixels` OS conversion (kept as fallback)
-- **`MUSIC=ADLIB|CAMD|OFF`** parameter — selects the music backend:
-  built-in AdLib/OPL3 emulation (default), General MIDI via CAMD, or
-  no music (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
+- **`MUSIC=ADLIB|CAMD|MHI|OFF`** parameter — selects the music backend:
+  built-in AdLib/OPL3 emulation (default), General MIDI via CAMD, MP3
+  files from the `MP3/` drawer via an MHI hardware decoder, or no music
+  (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
 - Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/GFX/MUSIC) via the
   official WBStartup + icon.library mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
@@ -73,7 +74,13 @@ Working:
   core, only a few percent of a 68060) mixed into the AHI stream -
   always audible; optional **General MIDI via CAMD** (camd.library)
   with `MUSIC=CAMD` for external synths / CAMD software synths
-  (cluster "out.0"; needs a configured MIDI driver or synth)
+  (cluster "out.0"; needs a configured MIDI driver or synth), or
+  **MP3 music via MHI** (`MUSIC=MHI`) for a Prisma Megamix / MAS /
+  Delfina hardware decoder, with files in the game's `MP3/` drawer
+- **Persistent audio volumes** via `amiga.cfg` in the game directory
+  (created on first run): separate startup volumes for AdLib/OPL3
+  music, MHI/MP3 music and sound effects; the in-game Options sliders
+  write their values back to it
 
 
 Work still in progress:

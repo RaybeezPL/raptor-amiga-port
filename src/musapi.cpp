@@ -3,6 +3,7 @@
 #include "common.h"
 #include "musapi.h"
 #include "fx.h"
+#include "mpumhi.h"
 #include "cards.h"
 #include "gssapi.h"
 #include "entypes.h"
@@ -740,6 +741,13 @@ MUS_SetVolume(
         return;
 
     music_currentvol = volume;
+
+#ifdef __AMIGA__
+    /* MUSIC=MHI: the MUS sequencer never runs in this mode, so forward
+     * the volume to the MHI driver (when it supports volume control). */
+    if (g_music_mode == MUSIC_MODE_MHI)
+        MHI_SetVolume(volume);
+#endif
 }
 
 /***************************************************************************

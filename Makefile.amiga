@@ -138,11 +138,13 @@ LIBS      = $(SDL_LIBS) \
 # Source files - Game
 #
 # NOTE: Platform-specific MIDI backends excluded (Windows/Linux/macOS).
-# The CAMD MIDI backend (mpucamd.cpp, Amiga music out), TinySoundFont
-# (mputsf.cpp, unused on Amiga) and the OPL music (AdLib fallback) are
-# included.  The OPL core is the lightweight DOSBox dbopl (dbopl.cpp +
-# opl3dbopl.cpp shim) instead of Nuked opl3.cpp, which is far too heavy
-# for a real 68060 (fixed ~49716 Hz internal render rate).
+# The CAMD MIDI backend (mpucamd.cpp, Amiga music out), the MHI MP3
+# backend (mpumhi.cpp, MUSIC=MHI, MP3 files from the MP3/ drawer through
+# an MHI decoder driver), TinySoundFont (mputsf.cpp, unused on Amiga) and
+# the OPL music (AdLib fallback) are included.  The OPL core is the
+# lightweight DOSBox dbopl (dbopl.cpp + opl3dbopl.cpp shim) instead of
+# Nuked opl3.cpp, which is far too heavy for a real 68060 (fixed ~49716 Hz
+# internal render rate).
 # Textscreen library (setup program) is NOT built in this Makefile.
 # -----------------------------------------------------------------------------
 SRCS_CXX  = \
@@ -172,6 +174,7 @@ SRCS_CXX  = \
     src/movie.cpp \
     src/movie_a.cpp \
     src/mpucamd.cpp \
+    src/mpumhi.cpp \
     src/mputsf.cpp \
     src/musapi.cpp \
     src/objects.cpp \
@@ -184,6 +187,7 @@ SRCS_CXX  = \
     src/shots.cpp \
     src/store.cpp \
     src/swdapi.cpp \
+    src/amiga/amiga_cfg.cpp \
     src/amiga/amiga_stubs_impl.cpp \
     src/tile.cpp \
     src/tile_a.cpp \

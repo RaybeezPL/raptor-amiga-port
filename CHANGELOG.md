@@ -2,6 +2,75 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.9.5] - 2026-08-11
+
+Version name: **0.9.5 AHI**
+
+### Added
+- MP3 music playback through MHI (the Amiga MPEG-audio driver standard
+  by Thomas Wenzel / Paul Qureshi), selected with `MUSIC=MHI` (CLI
+  `-music=`, dashless `MUSIC=`, and Workbench icon ToolType `MUSIC=`).
+  The new `src/mpumhi.cpp` backend plays MP3 files from the `MP3/`
+  drawer in the game directory through an installed MHI decoder driver
+  (e.g. `LIBS:MHI/prismamhi.library` for the Prisma Megamix), leaving
+  the AHI sound-effects stream untouched. Driver selection order:
+  `MHIDRIVER=` override (new optional parameter, CLI and ToolType),
+  prismamhi.library, mhimaspro/mhimasstd.library, mhimpegit.library,
+  mhimdev.library, then any other driver found in `LIBS:MHI/`. When no
+  driver can be opened the game falls back to AdLib/OPL3 music (same as
+  the CAMD fallback). Each GLB music item is mapped to a song title
+  fragment (`mhi_song_map` in `src/mpumhi.cpp`); the file lookup is a
+  case-insensitive substring match (`*.mp3`, first match in the drawer
+  wins) - no track numbers are used. The simplified naming scheme
+  (`Main Menu.mp3`, `Wave Music 1.mp3`, ..., `Apogee Fanfare.mp3`) is
+  documented in README_AMIGA.md. A song without a matching file stays
+  silent by design. Streaming runs in a dedicated "Raptor MHI Task"
+  (8 x 32 KB buffers, signal-driven refill, ID3v2/ID3v1 tag handling,
+  loop support, underrun restart) following the canonical pattern from
+  the MHI dev kit's `MHIplay.c`; driver volume control (`MHIP_VOLUME`)
+  is forwarded from the in-game music volume when the driver supports
+  it.
+- Vendored MHI interface headers (`src/amiga/libraries/mhi.h`,
+  `src/amiga/clib/mhi_protos.h` from the official MHI developer kit
+  v1.2, Aminet `driver/audio/mhi_dev.lha`) plus hand-written
+  `proto/mhi.h` / `inline/mhi.h` for GCC m68k (LVO offsets and register
+  assignments verified against the official `mhi_lib.fd`; see
+  `src/amiga/MHI-HEADERS.txt`).
+- Persistent audio volume configuration via `amiga.cfg` in the game
+  directory (`src/amiga/amiga_cfg.cpp/.h`): separate startup volumes
+  for AdLib/OPL3 music (`music_adlib`), MHI/MP3 music (`music_mhi`)
+  and sound effects (`sfx_volume`). The file is created with built-in
+  defaults on the first run (127/127/100), read at startup
+  (`SND_InitSound`), and rewritten whenever the in-game Options
+  sliders are changed (`windows.cpp` OPTS_EXIT).
+
+### Changed
+- MHI music volume cap lowered to **5%** of the driver's range
+  (`(volume * 5) / 127` instead of the initial 35%, then 28%, then
+  20%): the Prisma Megamix output is far louder than the AHI
+  sound-effects stream, so the music slider now scales a much lower
+  ceiling while remaining linear.
+- Removed the `[VIDEO]` diagnostic dump of the whole P96/CGX mode list
+  (one log line per display mode; ~50 lines of noise on startup).
+  `Amiga_DumpP96Modes()` / `Amiga_DumpCGXModes()` and their call sites
+  were deleted; the mode-selection logs (`selected ... mode`) remain.
+- README files updated: the MP3/ drawer and the exact simplified file
+  names are now documented (see README_AMIGA.md, "Sound (AHI + CAMD +
+  MHI)").
+
+### Fixed
+- Non-looping MHI songs never reported their end on drivers that do not
+  signal end-of-stream (e.g. Prisma Megamix): `MHI_Service()` only ran
+  on driver signals, so `g_mhi.state` stayed `MHISTATE_PLAYING` forever
+  and the Apogee/intro title screen waited for input (fire/LMB/Enter).
+  `MHI_SongPlaying()` now also reports the song as ended when the
+  buffer queue is empty or the driver has been silent for more than
+  4 seconds (`g_mhi.traffic_ticks` watchdog). Intro screens now advance
+  by themselves once the MP3 has finished.
+- Music volume changes in the Options menu (and the resulting music
+  volume) are now persisted to `amiga.cfg`, honoring the backend
+  actually in use (MHI vs every other backend).
+
 ## [0.9.4] - 2026-08-08
 
 Version name: **0.9.4 BLIT**

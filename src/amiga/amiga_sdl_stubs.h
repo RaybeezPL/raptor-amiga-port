@@ -192,42 +192,6 @@ static inline void Amiga_CloseCGX(void)
     AmigaUsingCGX = 0;
 }
 
-/* DIAGNOSTIC: enumerates every Picasso96 (P96) mode via the official
- * Picasso96API.library API and logs each ModeID with its width, height,
- * depth and monitor ID. It is called right after Amiga_OpenP96() and does
- * NOT change the normal screen-opening logic (the RTG branch below picks the
- * mode straight from this same P96 mode list). The list node type is the SDK's
- * own struct P96Mode; the list is always released with p96FreeModeList() on
- * every path. */
-static inline void Amiga_DumpP96Modes(void)
-{
-    struct TagItem tags[] = { TAG_DONE };
-    struct List *ml = p96AllocModeListTagList(tags);
-
-    if (!ml) {
-        AmigaLog("[VIDEO] P96 mode list: <empty>");
-        return;
-    }
-
-    AmigaLog("[VIDEO] P96 mode list:");
-    {
-        struct P96Mode *mn;
-        for (mn = (struct P96Mode *)(ml->lh_Head);
-             mn->Node.ln_Succ;
-             mn = (struct P96Mode *)mn->Node.ln_Succ) {
-            ULONG mid = mn->DisplayID;
-            AmigaLog("[VIDEO] P96 mode 0x%08lx: %lux%lu @ %lu-bit, monitor=0x%04lx",
-                     mid,
-                     p96GetModeIDAttr(mid, P96IDA_WIDTH),
-                     p96GetModeIDAttr(mid, P96IDA_HEIGHT),
-                     p96GetModeIDAttr(mid, P96IDA_DEPTH),
-                     (mid & MONITOR_ID_MASK) >> 16);
-        }
-    }
-
-    p96FreeModeList(ml);
-}
-
 static inline int Amiga_IsNativeChipsetMode(ULONG modeid)
 {
     /* Native chipset monitors: default (0x0000), NTSC (0x0001), PAL (0x0002).
@@ -375,42 +339,6 @@ static inline ULONG Amiga_FindCGXGameMode(int width, int height, int depth)
     }
 }
 
-/* DIAGNOSTIC: enumerates every CGX mode from cybergraphics.library and logs
- * each DisplayID with width, height, depth and monitor ID. Called after a
- * successful Amiga_OpenCGX(); does not alter screen-opening logic. */
-static inline void Amiga_DumpCGXModes(void)
-{
-    struct TagItem tags[] = { TAG_DONE };
-    struct List *ml;
-
-    if (!CyberGfxBase) {
-        AmigaLog("[VIDEO] CGX mode list: <empty> (no library)");
-        return;
-    }
-
-    ml = CGX_AllocCModeTagList(tags);
-
-    if (!ml) {
-        AmigaLog("[VIDEO] CGX mode list: <empty>");
-        return;
-    }
-
-    AmigaLog("[VIDEO] CGX mode list:");
-    {
-        struct CyberModeNode *mn;
-        for (mn = (struct CyberModeNode *)(ml->lh_Head);
-             mn->Node.ln_Succ;
-             mn = (struct CyberModeNode *)mn->Node.ln_Succ) {
-            AmigaLog("[VIDEO] CGX mode 0x%08lx: %ux%u @ %u-bit, monitor=0x%04lx",
-                     mn->DisplayID,
-                     (unsigned)mn->Width, (unsigned)mn->Height, (unsigned)mn->Depth,
-                     (mn->DisplayID & MONITOR_ID_MASK) >> 16);
-        }
-    }
-
-    CGX_FreeCModeList(ml);
-}
-
 /*----------------------------------------------------------------------------*/
 
 /* Shows an English system requester explaining that the game needs an RTG
@@ -510,8 +438,6 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
 
     /* --- P96 (Picasso96) first attempt --- */
     if (Amiga_OpenP96()) {
-        Amiga_DumpP96Modes();
-
         AmigaLog("[VIDEO] RTG: searching P96 mode 320x200x8");
         modeid = Amiga_FindP96GameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
         if (modeid != INVALID_ID) {
@@ -545,8 +471,6 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
 
     /* --- CGX (CyberGraphX) fallback --- */
     if (Amiga_OpenCGX()) {
-        Amiga_DumpCGXModes();
-
         AmigaLog("[VIDEO] CGX: searching mode 320x200x8");
         modeid = Amiga_FindCGXGameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
         if (modeid != INVALID_ID) {

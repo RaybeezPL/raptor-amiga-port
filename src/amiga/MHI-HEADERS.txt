@@ -1,0 +1,31 @@
+MHI (MPEG audio decoder driver) headers for the Amiga port
+===========================================================
+
+MHI is the Amiga MPEG-audio driver standard by Thomas Wenzel and Paul
+Qureshi.  There is no central "mhi.library" for applications: the
+application opens a decoder DRIVER library directly (drivers live in
+LIBS:MHI/, e.g. prismamhi.library for the Prisma Megamix, mhimaspro /
+mhimasstd.library for the MAS Player, mhimdev.library for mpeg.device
+hardware such as the Delfina, mhimpegit.library for the Prelude/MPEGit
+module).  All drivers implement the same 10-function interface.
+
+Vendored unmodified from the official MHI developer kit v1.2 (Aminet
+driver/audio/mhi_dev.lha):
+
+    libraries/mhi.h    - status flags, MHIQuery tags, MHISetParam params
+    clib/mhi_protos.h  - plain C prototypes (already has an extern "C"
+                         guard; the duplicated MHIQuery prototype from the
+                         original file was removed)
+
+Hand-written for this port (GCC m68k, NDK inline/macros.h convention):
+
+    inline/mhi.h       - register-argument inlines; LVO offsets (bias 30)
+                         and register assignments verified against the
+                         official fd/mhi_lib.fd from the same dev kit
+    proto/mhi.h        - NDK-style proto header
+
+Reference usage pattern (see MHIplay/MHIplay.c in the dev kit): open the
+driver library, AllocSignal, MHIAllocDecoder(FindTask(NULL), mask), queue
+several preloaded buffers with MHIQueueBuffer, MHIPlay, then on each
+driver signal refill the buffers returned by MHIGetEmpty; re-MHIPlay when
+MHIGetStatus reports MHIF_OUT_OF_DATA.

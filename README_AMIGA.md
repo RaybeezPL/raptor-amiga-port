@@ -1,6 +1,6 @@
-Raptor: Call of the Shadows - Amiga Port (68060/RTG)
+Raptor: Call of the Shadows - Amiga Port (68060 & EC/LC, RTG/AGA)
 
-Version: 0.9.4 BLIT
+Version: 0.9.5 AHI
 
 =====================================================
 
@@ -105,12 +105,14 @@ Sound effects play through AHI (ahi.device) and music plays through
 the built-in AdLib/OPL3 emulation - the authentic Raptor sound -
 mixed into the AHI audio stream. To hear the music on an external
 synthesizer or a CAMD software synth instead, start the game with
-the MUSIC=CAMD parameter. See the "Sound (AHI + CAMD)" section below
-for details and MIDI configuration.
+the MUSIC=CAMD parameter. To play the soundtrack as MP3 files
+through an MHI decoder driver (e.g. a Prisma Megamix card), use
+MUSIC=MHI. See the "Sound (AHI + CAMD + MHI)" section below
+for details and MIDI/MHI configuration.
 
 
-Sound (AHI + CAMD)
-------------------
+Sound (AHI + CAMD + MHI)
+------------------------
 
 Sound effects and music use two separate, native Amiga subsystems:
 
@@ -154,6 +156,67 @@ Sound effects and music use two separate, native Amiga subsystems:
                    opened at all, the game falls back to AdLib/OPL3
                    automatically, so music still plays.)
 
+   Music (MHI):   The MUSIC=MHI parameter plays the soundtrack as MP3
+                   files through an MHI decoder driver - the Amiga
+                   MPEG-audio standard used by hardware decoders such
+                   as the Prisma Megamix (prismamhi.library), MAS
+                   Player (mhimaspro/mhimasstd.library), Prelude
+                   MPEGit (mhimpegit.library) or mpeg.device hardware
+                   like the Delfina (mhimdev.library). The driver
+                   decodes and outputs the MP3 by itself, so it does
+                   not touch the AHI stream used by the sound effects.
+
+                   Create a drawer named "MP3" inside the game
+                   directory and copy the MP3 soundtrack files into
+                   it. Each in-game song is matched to a file by a
+                   case-insensitive title fragment (substring match,
+                   "*.mp3" only, first match in the drawer wins) - no
+                   track numbers are used, so keep exactly one file per
+                   song. The recommended (simplified) file names are:
+
+                       Main Menu.mp3
+                       Game Over.mp3
+                       Boss 1.mp3
+                       Boss 2.mp3
+                       Boss 3.mp3
+                       Credits.mp3
+                       Wave Music 1.mp3
+                       Wave Music 2.mp3
+                       Wave Music 3.mp3
+                       Wave Music 4.mp3
+                       Wave Music 5.mp3
+                       Wave Music 6.mp3
+                       Night Waves.mp3
+                       Hangar.mp3
+                       Raptor Intro.mp3
+                       Apogee Fanfare.mp3
+
+                   ("Fanfare for Duke II.mp3" is the DOS v1.1+
+                   replacement name of the Apogee fanfare; this port
+                   maps the Apogee logo to "Apogee Fanfare.mp3"
+                   instead, so that file is not required.)
+
+                   A song without a matching file simply stays silent
+                   (sound effects still play). The mapping (title
+                   fragment -> in-game song) is documented in
+The MHI volume is capped in code at **5%** of the driver's
+                   range (`(volume * 5) / 127`); this was tested on a
+                   Prisma Megamix and matches the AHI SFX level. If
+                   another MHI driver (MAS Player, Delfina, ...) sounds
+                   too quiet with this cap, please report it.
+                   src/mpumhi.cpp (mhi_song_map).
+
+                   The game picks the driver automatically: it tries
+                   prismamhi.library, mhimaspro/mhimasstd.library,
+                   mhimpegit.library, mhimdev.library, then scans
+                   LIBS:MHI/ for any other installed driver. The
+                   MHIDRIVER= parameter (e.g. -mhidriver=mhimaspro.library)
+                   forces a specific driver. If no MHI driver can be
+                   opened, the game falls back to AdLib/OPL3 music
+                   automatically. Note: there is no software-only MHI
+                   decoder for 68060 machines - MUSIC=MHI needs one of
+                   the hardware decoders above.
+
 Audio status and diagnostics are printed to the console at startup
 (Shell/CLI). No log file is created automatically - to save them to a
 file, redirect stdout, e.g.: "raptor > RAPTOR.LOG".
@@ -183,12 +246,25 @@ accepted. Parameters may be combined in any order.
                          camd.library; needs a configured MIDI
                          driver or a CAMD software synthesizer on
                          the "out.0" cluster, otherwise the music
-                         is SILENT (see "Sound (AHI + CAMD)" above);
+                         is SILENT (see "Sound (AHI + CAMD + MHI)"
+                         above);
+                 MHI   - MP3 files from the MP3/ drawer through an
+                         MHI decoder driver (e.g. the Prisma Megamix);
+                         falls back to ADLIB when no MHI driver is
+                         installed (see "Sound (AHI + CAMD + MHI)"
+                         above);
                  OFF   - no music (same as -nomusic; sound effects
                          keep playing through AHI).
-               The dashless form "MUSIC=CAMD" also works.
-               -nomusic / MUSIC=OFF always wins over MUSIC=ADLIB or
-               MUSIC=CAMD, regardless of parameter order.
+               The dashless form "MUSIC=MHI" also works.
+               -nomusic / MUSIC=OFF always wins over MUSIC=ADLIB,
+               MUSIC=CAMD or MUSIC=MHI, regardless of parameter
+               order.
+
+   -mhidriver=D Overrides the MHI decoder driver auto-detection
+               (only relevant together with MUSIC=MHI). D is a
+               driver library name or full path, e.g.
+               "-mhidriver=prismamhi.library" or
+               "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
    -gfx=M      Selects the graphics driver path used for the game
                screen. M may be:
@@ -273,8 +349,8 @@ Workbench. Parameters are passed via icon ToolTypes:
 
 Note: to run without audio from the Workbench, add the NOSOUND
 ToolType to the icon (NOMUSIC - or MUSIC=OFF - keeps sound effects
-enabled). MUSIC=CAMD selects MIDI music instead of the default
-AdLib/OPL3 emulation.
+enabled). MUSIC=CAMD selects MIDI music and MUSIC=MHI selects MP3
+music via an MHI driver, instead of the default AdLib/OPL3 emulation.
 
 Note: when started from the Workbench icon the game produces no
 console output (no console window is opened at all). To see the
@@ -387,9 +463,15 @@ Known Limitations
   users: camd.library is installed there but NOT configured by
   default, so MUSIC=CAMD plays to nowhere - keep the default
   AdLib/OPL3 music (or configure a CAMD driver first).
-- Volume/detail settings changed in the in-game options menu apply
-  to the current session only - they are not saved between runs
-  (this port does not use SETUP.INI at all).
+- MP3 music (MUSIC=MHI) needs an MHI decoder driver installed in
+  LIBS:MHI/ (Prisma Megamix, MAS Player, Prelude MPEGit or
+  mpeg.device hardware such as the Delfina). There is no
+  software-only MHI decoder for 68060 machines; without a driver
+  the game falls back to AdLib/OPL3 music. Songs whose MP3 file is
+  missing from the MP3/ drawer stay silent by design.
+- Music and sound-effect volumes changed in the in-game options menu
+  are saved to amiga.cfg in the game directory (created on first run)
+  and restored on the next start. Detail level is not persisted.
 - No pause or menu exit directly from joystick (use keyboard).
 - No rumble / haptic support.
 - The Amiga system mouse pointer is hidden while the game is
@@ -436,8 +518,15 @@ Third-party components used by this port:
   (AHI dev archive by Martin Blom; CAMD developer kit). They contain
   interface definitions only (structures, constants, prototypes) and are
   used to call the respective AmigaOS system libraries at runtime.
+- MHI interface headers (src/amiga/libraries/mhi.h,
+  src/amiga/clib/mhi_protos.h): vendored from the official MHI
+  developer kit v1.2 (Aminet driver/audio/mhi_dev.lha, MHI by Thomas
+  Wenzel and Paul Qureshi).
 - src/amiga/proto/camd.h and src/amiga/inline/camd.h were hand-written
   for this port (LVO offsets verified against the official camd_lib.fd).
+- src/amiga/proto/mhi.h and src/amiga/inline/mhi.h were hand-written
+  for this port (LVO offsets and register assignments verified against
+  the official mhi_lib.fd from the MHI developer kit).
 - Display blit acceleration (src/amiga/amiga_sdl_stubs.h): the RTG paths
   call the official Picasso96/CyberGraphX driver APIs; the CGX
   WritePixelArray inline stub was hand-written for this port (LVO

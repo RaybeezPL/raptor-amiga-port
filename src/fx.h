@@ -87,9 +87,13 @@ extern int g_nomusic;
  *   MUSIC_MODE_CAMD            : General MIDI event stream via camd.library;
  *              needs a configured MIDI driver/synth on cluster "out.0",
  *              otherwise the music is silent.
+ *   MUSIC_MODE_MHI             : MP3 files from the MP3/ drawer through an
+ *              MHI decoder driver (e.g. LIBS:MHI/prismamhi.library); needs
+ *              an installed MHI driver, otherwise it falls back to ADLIB.
  * MUSIC=OFF (or -nomusic) sets g_nomusic instead and always wins. */
 #define MUSIC_MODE_ADLIB 0
 #define MUSIC_MODE_CAMD  1
+#define MUSIC_MODE_MHI   2
 extern int g_music_mode;
 
 #include "SDL.h"

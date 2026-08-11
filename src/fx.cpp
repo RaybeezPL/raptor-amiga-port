@@ -12,6 +12,8 @@
 #include "rap.h"
 #include "gssapi.h"
 #include "fileids.h"
+#include "mpumhi.h"
+#include "amiga/amiga_cfg.h"
 #include "entypes.h"
 
 int music_volume;
@@ -189,16 +191,48 @@ int SND_InitSound(void)
     fx_device = SND_NONE;
 
     /* No SETUP.INI is used anywhere in this Amiga port - all settings are
-     * fixed built-in defaults.  Music volume starts at max; the in-game
-     * options sliders adjust it for the current session. */
+     * fixed built-in defaults, overridable by amiga.cfg (music_adlib /
+     * music_mhi / sfx_volume).  Music volume picks the key of the active
+     * backend; the in-game options sliders adjust it for the session and
+     * write it back to amiga.cfg. */
     music_volume = 127;
 #ifdef __AMIGA__
+    AmigaCfg_Load();
+    music_volume = (g_music_mode == MUSIC_MODE_MHI)
+                       ? amiga_cfg_music_mhi
+                       : amiga_cfg_music_adlib;
+    if (music_volume < 0)   music_volume = 0;
+    if (music_volume > 127) music_volume = 127;
     /* Amiga: the music backend is selected with the MUSIC= command-line
      * parameter / icon ToolType (parsed in main(), src/rap.cpp):
-     * AdLib/OPL3 emulation (default, always audible in the AHI stream) or
+     * AdLib/OPL3 emulation (default, always audible in the AHI stream),
      * General MIDI via camd.library (MUSIC=CAMD, with automatic fallback
-     * to AdLib/OPL3 below when CAMD cannot be opened). */
+     * to AdLib/OPL3 below when CAMD cannot be opened), or MP3 files via an
+     * MHI decoder driver (MUSIC=MHI, mpumhi.cpp). */
     music_card = (g_music_mode == MUSIC_MODE_CAMD) ? M_GMIDI : M_ADLIB;
+
+    /* MUSIC=MHI: stream MP3 files from the MP3/ drawer through an MHI
+     * decoder driver (e.g. LIBS:MHI/prismamhi.library).  On success the
+     * MUS/OPL3 sequencer is bypassed entirely (music_card = M_NONE and
+     * MUS_Init() is never called below); the SND_PlaySong/_StopSong/
+     * _IsSongPlaying entry points route to the MHI backend instead.
+     * On failure (no driver installed) fall back to AdLib/OPL3, same as
+     * the CAMD fallback.  -nomusic wins: MHI is never started then. */
+    if (g_music_mode == MUSIC_MODE_MHI && !g_nomusic)
+    {
+        if (MHI_MusicInit())
+        {
+            music_card = M_NONE;
+            AmigaLog("AUDIO: MHI music enabled (driver '%s')", MHI_DriverName());
+            MHI_SetVolume(music_volume);
+        }
+        else
+        {
+            AmigaLog("[AUDIO] MHI unavailable - falling back to AdLib/OPL3 music.");
+            printf("[AUDIO] MHI init failed (no MHI driver?) - falling back to AdLib/OPL3\n");
+            g_music_mode = MUSIC_MODE_ADLIB;
+        }
+    }
 #else
     music_card = M_NONE;
     sys_midi = 0;
@@ -267,7 +301,9 @@ int SND_InitSound(void)
     /* Printed after backend selection so it names the real (possibly
      * fallen-back) music device. */
 #ifdef __AMIGA__
-    if (!g_nomusic && music_card == M_GMIDI)
+    if (!g_nomusic && g_music_mode == MUSIC_MODE_MHI && MHI_IsActive())
+        printf("Music Enabled (MP3 via MHI: %s)\n", MHI_DriverName());
+    else if (!g_nomusic && music_card == M_GMIDI)
         printf("Music Enabled (General Midi via CAMD)\n");
     else if (!g_nomusic && music_card == M_ADLIB)
         printf("Music Enabled (AdLib/OPL3)\n");
@@ -281,7 +317,9 @@ int SND_InitSound(void)
      * channels (upstream default is 2, max 8; when full, the oldest voice
      * is stolen) - plenty for shots/explosions/voices and halves the mixer
      * work on the 68060. */
-    fx_volume = 127;
+    fx_volume = amiga_cfg_sfx;
+    if (fx_volume < 0)   fx_volume = 0;
+    if (fx_volume > 127) fx_volume = 127;
     fx_card = M_SB;
     fx_chans = 4;
 #else
@@ -371,7 +409,12 @@ void SND_DeInit(void)
     /* Shut down the music backend first: sends all-notes-off on every
      * channel and (on Amiga) removes the CAMD link/node and closes
      * camd.library.  MUS_DeInit() early-outs when music was never
-     * initialised. */
+     * initialised.  MUSIC=MHI never initialises MUS: it has its own
+     * shutdown (stops the feeder task and closes the MHI driver). */
+#ifdef __AMIGA__
+    if (g_music_mode == MUSIC_MODE_MHI)
+        MHI_MusicDeInit();
+#endif
     MUS_DeInit();
 
     /* Stops the audio task and closes ahi.device (Amiga SDL stub). */
@@ -1157,6 +1200,32 @@ void SND_PlaySong(int item, int chainflag, int fadeflag)
     if (music_volume <= 1)
         return;
     
+#ifdef __AMIGA__
+    /* MUSIC=MHI: play the MP3 mapped to this song item through the MHI
+     * driver instead of the MUS sequencer.  No GLB item is locked (the
+     * MUS data is never loaded), and fadeflag is ignored: MHI stops are
+     * immediate.  When no MP3 matches the item, the song stays silent. */
+    if (g_music_mode == MUSIC_MODE_MHI)
+    {
+        if (music_song == item)
+            return;
+        
+        if (music_song != -1)
+        {
+            MHI_StopSong();
+            music_song = -1;
+        }
+        
+        if (item != -1)
+        {
+            music_song = item;
+            AmigaLog("AUDIO: SND_PlaySong MHI item=%d loop=%d", item, chainflag);
+            MHI_PlaySongItem(item, chainflag);
+        }
+        return;
+    }
+#endif
+    
     if (music_song == item)
         return;
     
@@ -1192,6 +1261,10 @@ SND_IsSongPlaying () - Is current song playing
  ***************************************************************************/
 int SND_IsSongPlaying(void) 
 {
+#ifdef __AMIGA__
+    if (g_music_mode == MUSIC_MODE_MHI)
+        return MHI_SongPlaying();
+#endif
     return MUS_SongPlaying();
 }
 
@@ -1200,6 +1273,19 @@ SND_FadeOutSong () - Fades current song out and stops playing music
  ***************************************************************************/
 void SND_FadeOutSong(void)
 {
+#ifdef __AMIGA__
+    /* MUSIC=MHI: no fade-out on the MHI driver - stop immediately.  No
+     * GLB item was ever locked in this mode (see SND_PlaySong). */
+    if (g_music_mode == MUSIC_MODE_MHI)
+    {
+        if (music_song != -1)
+        {
+            MHI_StopSong();
+            music_song = -1;
+        }
+        return;
+    }
+#endif
     if (music_song != -1)
     {
         if (MUS_SongPlaying())

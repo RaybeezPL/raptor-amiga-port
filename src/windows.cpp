@@ -23,6 +23,7 @@
 #include "windows.h"
 #include "fileids.h"
 #include "winids.h"
+#include "amiga/amiga_cfg.h"
 
 #define HANGAR_MISSION   0
 #define HANGAR_SUPPLIES  1
@@ -407,12 +408,21 @@ WIN_Opts(
             switch (dlg.field)
             {
             case OPTS_EXIT:
-                /* No SETUP.INI in this Amiga port: option changes apply to
-                 * the current session only and are not saved to disk. */
                 if (opt_vol[MUSIC_VOL] >= 0 && opt_vol[MUSIC_VOL] < 128)
                     music_volume = opt_vol[MUSIC_VOL];
                 if (opt_vol[FX_VOL] >= 0 && opt_vol[FX_VOL] < 128)
                     fx_volume = opt_vol[FX_VOL];
+#ifdef __AMIGA__
+                /* Persist the adjusted volumes to amiga.cfg.  The music
+                 * slider writes to the key of the backend actually in use
+                 * (MHI drives Prisma; everything else goes through AHI). */
+                if (g_music_mode == MUSIC_MODE_MHI)
+                    amiga_cfg_music_mhi = music_volume;
+                else
+                    amiga_cfg_music_adlib = music_volume;
+                amiga_cfg_sfx = fx_volume;
+                AmigaCfg_Save();
+#endif
                 SND_Patch(FX_SWEP, 127);
                 goto exit_opts;
             
