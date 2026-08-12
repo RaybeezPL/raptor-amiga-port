@@ -11,8 +11,10 @@ Port jest rozwijany wyłącznie z myślą o klasycznych systemach Amiga:
 AmigaOS 3.2, procesorze klasy 68060 (pełny 68060 z FPU albo
 68EC060/68LC060 z użyciem binarnego raptor_nofpu w wersji soft-float)
 oraz grafice RTG (Picasso96/CyberGraphX) lub natywnym ekranie chipsetu
-AGA (GFX=AGA). Gra renderuje obraz w rozdzielczości 320x200, z paletą
-8-bitową, na dedykowanym ekranie.
+AGA (GFX=AGA). Działa również na dowolnej Amidze z PiStorm-em i RTG
+(A500, A600, A1200, A2000 itp.) lub natywnym RTG/AGA (A1200, A4000
+i być może AA3000 — do sprawdzenia). Gra renderuje obraz w
+rozdzielczości 320x200, z paletą 8-bitową, na dedykowanym ekranie.
 
 UWAGA: To repozytorium NIE zawiera plików danych gry. Potrzebujesz
 własnej, legalnej kopii oryginalnych plików gry. Obsługiwana jest
@@ -201,12 +203,6 @@ podsystemów Amigi:
                     Jeśli dla utworu nie ma pasującego pliku, pozostaje on
                     cichy (efekty dźwiękowe nadal działają). Mapowanie
                     (fragment tytułu -> utwór w grze) opisano w
-Głośność MHI jest w kodzie ograniczona do **5%** zakresu
-                     drivera (`(volume * 5) / 127`); wartość
-                     przetestowano na Prisma Megamix — jest wyrównana
-                     z poziomem SFX przez AHI. Jeśli inny MHI driver
-                     (MAS Player, Delfina, ...) gra za cicho przy tym
-                     limicie, prosimy o zgłoszenie.
                     src/mpumhi.cpp (mhi_song_map).
 
                     Gra automatycznie wybiera driver: próbuje kolejno

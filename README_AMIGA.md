@@ -11,8 +11,10 @@ This port is developed exclusively for classic Amiga systems:
 AmigaOS 3.2, a 68060-class CPU (full 68060 with FPU, or
 68EC060/68LC060 via the soft-float raptor_nofpu binary), and RTG
 graphics (Picasso96/CyberGraphX) or a native AGA chipset screen
-(GFX=AGA). The game renders in 320x200 resolution with an 8-bit
-palette on a dedicated screen.
+(GFX=AGA). Also works on any Amiga with PiStorm RTG (A500, A600,
+A1200, A2000, etc.) or native RTG/AGA (A1200, A4000, and possibly
+AA3000 — to be confirmed). The game renders in 320x200 resolution
+with an 8-bit palette on a dedicated screen.
 
 NOTE: This repository does NOT contain game data files. You need
 your own legal copy of the original game files. Only the full
@@ -199,11 +201,6 @@ Sound effects and music use two separate, native Amiga subsystems:
                    A song without a matching file simply stays silent
                    (sound effects still play). The mapping (title
                    fragment -> in-game song) is documented in
-The MHI volume is capped in code at **5%** of the driver's
-                   range (`(volume * 5) / 127`); this was tested on a
-                   Prisma Megamix and matches the AHI SFX level. If
-                   another MHI driver (MAS Player, Delfina, ...) sounds
-                   too quiet with this cap, please report it.
                    src/mpumhi.cpp (mhi_song_map).
 
                    The game picks the driver automatically: it tries

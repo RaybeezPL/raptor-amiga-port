@@ -6,9 +6,8 @@
  * Format:  key = value        (0..127, value clamped)
  *          ';' or '#' at line start = comment, blank lines allowed.
  *
- * Defaults when the file is missing: music_adlib=127, music_mhi=100,
- * sfx_volume=127.  MHI keeps a 5% hardware volume cap in mpumhi.cpp; the
- * Prisma Megamix output was tested as much louder than the AHI stream.
+ * Defaults when the file is missing: music_adlib=127, music_mhi=127,
+ * sfx_volume=127.
  ***************************************************************************/
 
 #ifdef __AMIGA__
@@ -19,7 +18,7 @@
 #include "amiga/amiga_cfg.h"
 
 int amiga_cfg_music_adlib = 127;
-int amiga_cfg_music_mhi   = 100;
+int amiga_cfg_music_mhi   = 127;
 int amiga_cfg_sfx         = 127;
 
 /***************************************************************************

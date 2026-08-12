@@ -7,11 +7,11 @@
  *
  * - music_adlib : ADLIB/OPL3 music, mixed into the AHI stream.
  * - music_mhi   : MP3 music via MHI (Prisma Megamix), separate hardware
- *                 output, extra 2% software cap in mpumhi.cpp.
+ *                 output.
  * - sfx_volume  : sound effects through the AHI stream.
  *
  * AmigaCfg_Load() is called at startup (SND_InitSound) - file wins over
- * the built-in 127/127/100 defaults.  AmigaCfg_Save() is called when the
+ * the built-in 127/127/127 defaults.  AmigaCfg_Save() is called when the
  * in-game Options sliders are exited, so manual edits and slider changes
  * both stick. */
 
@@ -23,7 +23,7 @@ extern int amiga_cfg_music_mhi;
 extern int amiga_cfg_sfx;
 
 /* Loads amiga.cfg from the current directory.  Missing file = built-in
- * defaults (127 / 127 / 100).  Idempotent in memory (re-reads file). */
+ * defaults (127 / 127 / 127).  Idempotent in memory (re-reads file). */
 void AmigaCfg_Load(void);
 
 /* Writes the current amiga_cfg_* values back to amiga.cfg. */

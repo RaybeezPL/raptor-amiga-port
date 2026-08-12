@@ -6,6 +6,10 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
 
 Version name: **0.9.5 AHI**
 
+This port also works on any Amiga with PiStorm RTG (A500, A600,
+A1200, A2000, etc.) or native RTG/AGA (A1200, A4000, and possibly
+AA3000 — to be confirmed).
+
 ### Added
 - MP3 music playback through MHI (the Amiga MPEG-audio driver standard
   by Thomas Wenzel / Paul Qureshi), selected with `MUSIC=MHI` (CLI
@@ -40,16 +44,15 @@ Version name: **0.9.5 AHI**
   directory (`src/amiga/amiga_cfg.cpp/.h`): separate startup volumes
   for AdLib/OPL3 music (`music_adlib`), MHI/MP3 music (`music_mhi`)
   and sound effects (`sfx_volume`). The file is created with built-in
-  defaults on the first run (127/127/100), read at startup
+  defaults on the first run (127/127/127), read at startup
   (`SND_InitSound`), and rewritten whenever the in-game Options
   sliders are changed (`windows.cpp` OPTS_EXIT).
 
 ### Changed
-- MHI music volume cap lowered to **5%** of the driver's range
-  (`(volume * 5) / 127` instead of the initial 35%, then 28%, then
-  20%): the Prisma Megamix output is far louder than the AHI
-  sound-effects stream, so the music slider now scales a much lower
-  ceiling while remaining linear.
+- Removed the 5% MHI volume cap — the issue was specific to the
+  author's Prisma Megamix setup. `MHI_SetVolume()` now passes the
+  music volume 0..127 directly to the driver (was `(volume * 5) / 127`).
+  Default `music_mhi` raised from 100 to 127 (100/100/100).
 - Removed the `[VIDEO]` diagnostic dump of the whole P96/CGX mode list
   (one log line per display mode; ~50 lines of noise on startup).
   `Amiga_DumpP96Modes()` / `Amiga_DumpCGXModes()` and their call sites

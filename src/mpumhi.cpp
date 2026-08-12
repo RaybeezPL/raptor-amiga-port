@@ -995,18 +995,16 @@ MHI_MusicInit(
     g_mhi.queued = 0;
     g_mhi.stop_incomplete = 0;
     g_mhi.vol_supported = 0;
-    g_mhi.volume = 5;               /* ~5% cap, see MHI_SetVolume() */
+    g_mhi.volume = 127;
     g_mhi.open_error = 0;
     g_mhi.traffic_ticks = 0;
     g_mhi.driver_name[0] = 0;
-    g_mhi.open_error = 0;
     g_mhi.debug_open = 0;
     g_mhi.debug_seek_end = 0;
     g_mhi.debug_seek_back = 0;
     g_mhi.debug_read10 = 0;
     g_mhi.debug_start = 0;
     g_mhi.debug_end = 0;
-    g_mhi.driver_name[0] = 0;
     g_mhi.opened_path[0] = 0;
 
     for (i = 0; i < MHI_NUM_BUFS; i++)
@@ -1273,10 +1271,7 @@ MHI_SongPlaying(
 }
 
 /***************************************************************************
- * MHI_SetVolume() - Raptor music volume 0..127 -> MHI 0..5: the MHI
- * output is capped at ~5% of the driver's range (the decoder plays
- * noticeably louder than the AHI SFX mix).  Tune the 5 below to change
- * the cap.
+ * MHI_SetVolume() - Raptor music volume 0..127 -> driver 0..127.
  ***************************************************************************/
 void
 MHI_SetVolume(
@@ -1288,7 +1283,7 @@ MHI_SetVolume(
     if (volume > 127)
         volume = 127;
 
-    g_mhi.volume = (volume * 5) / 127;
+    g_mhi.volume = volume;
 
     if (!MHI_IsActive())
         return;
