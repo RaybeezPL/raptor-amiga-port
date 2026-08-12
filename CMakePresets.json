@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "amiga",
+      "displayName": "Amiga (m68k / AmigaOS 3.x) - in-tree SDL2 stub",
+      "description": "Cross-build the Raptor Amiga port using the in-tree SDL2 stub (no external SDL2). Compiler/SDK paths come from the toolchain file variables.",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build.amiga.cmake",
+      "toolchainFile": "${sourceDir}/cmake/amiga-toolchain.cmake",
+      "cacheVariables": {
+        "RAPTOR_AMIGA": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "amiga",
+      "configurePreset": "amiga",
+      "targets": ["raptor"]
+    }
+  ]
+}

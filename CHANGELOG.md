@@ -2,6 +2,15 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.9.6] - 2026-08-12
+
+Version name: **0.9.6 (AHI/MHI/CAMD, AGA/RTG)**
+
+### Changed
+- README.md: expanded PiStorm compatibility list to explicitly name A500, A600, A1200, A2000, A3000, A4000 as supported with PiStorm/Emu68 + RTG
+- Version bumped to 0.9.6 across all files (README.md, README_AMIGA.md, README_AMIGA_PL.md, src/rap.cpp)
+- Version string format unified to "0.9.6 (AHI/MHI/CAMD, AGA/RTG)"
+
 ## [0.9.5] - 2026-08-11
 
 Version name: **0.9.5 AHI**

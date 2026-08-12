@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68060 & EC/LC, RTG/AGA)
 
-Version: 0.9.5 AHI
+Version: 0.9.6 (AHI/MHI/CAMD, AGA/RTG)
 
 =====================================================
 

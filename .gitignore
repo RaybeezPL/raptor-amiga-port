@@ -12,3 +12,4 @@ raptor_nofpu
 build.amiga.nofpu/
 RAPTOR.LOG
 build_run.log
+build.amiga.cmake/

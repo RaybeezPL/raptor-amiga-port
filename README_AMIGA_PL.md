@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows — port na Amigę (68060 & EC/LC, RTG/AGA)
 
-Wersja: 0.9.5 AHI
+Wersja: 0.9.6 (AHI/MHI/CAMD, AGA/RTG)
 
 =====================================================
 

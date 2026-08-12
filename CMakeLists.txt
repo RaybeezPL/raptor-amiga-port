@@ -12,6 +12,32 @@ endif()
 
 project(raptor)
 
+# ===========================================================================
+# Amiga port detection.
+#
+# The Amiga port (AmigaOS 3.x / 68k) uses its OWN minimal SDL2 stub layer in
+# src/amiga/ (SDL.h -> amiga_sdl_stubs.h, enabled with -DUSE_SDL_STUBS), so an
+# Amiga build must NOT call find_package(SDL2) and must NOT link SDL2::SDL2 /
+# SDL2::SDL2main.  SDL2 is required only for the host (Windows/Linux/macOS/
+# Android) builds.
+#
+# Detection (a cross toolchain file should set CMAKE_SYSTEM_NAME, e.g.
+# "AmigaOS"):
+#   - CMAKE_SYSTEM_NAME       matches "Amiga", or
+#   - CMAKE_SYSTEM_PROCESSOR  matches "m68k", or
+#   - explicit -DRAPTOR_AMIGA=ON.
+# ===========================================================================
+if(NOT DEFINED RAPTOR_AMIGA)
+    if(CMAKE_SYSTEM_NAME MATCHES "Amiga" OR CMAKE_SYSTEM_PROCESSOR MATCHES "m68k")
+        set(RAPTOR_AMIGA TRUE)
+    else()
+        set(RAPTOR_AMIGA FALSE)
+    endif()
+endif()
+
+# SDL2 discovery below is host-only.  The Amiga port skips it entirely and
+# relies on its in-tree stub (see the AMIGA BUILD branch further down).
+if(NOT RAPTOR_AMIGA)
 if(ANDROID)
     include(FetchContent)
     FetchContent_Declare(
@@ -44,11 +70,124 @@ else()
     find_package(SDL2 REQUIRED)
     include_directories(${SDL2_INCLUDE_DIRS})
 endif()
+endif()
 
-include_directories(./include/textscreen/include/)
+# The textscreen library (setup-program UI) is a host-only third-party
+# component.  It is added only when the directory is actually present in the
+# tree (the Amiga port and the bare checkout do not ship it).
 include_directories(./include/TinySoundFont/)
 
-add_subdirectory(./include/textscreen/include)
+if(NOT RAPTOR_AMIGA)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/include/textscreen/include/CMakeLists.txt)
+        include_directories(./include/textscreen/include/)
+        add_subdirectory(./include/textscreen/include)
+    else()
+        message(WARNING "textscreen subdirectory not found - 'raptorsetup' and any textscreen-dependent linking will be skipped.")
+    endif()
+endif()
+
+# ---------------------------------------------------------------------------
+# AMIGA BUILD - uses the in-tree SDL2 stub.  NO external/system SDL2.
+# Source set and definitions match Makefile.amiga.
+# ---------------------------------------------------------------------------
+if(RAPTOR_AMIGA)
+    set(AMIGA_SOURCE_FILES
+        src/anims.cpp
+        src/bonus.cpp
+        src/demo.cpp
+        src/dspapi.cpp
+        src/enemy.cpp
+        src/eshot.cpp
+        src/flame.cpp
+        src/fx.cpp
+        src/gfxapi.cpp
+        src/gfxapi_a.cpp
+        src/glbapi.cpp
+        src/gssapi.cpp
+        src/help.cpp
+        src/i_lastscr.cpp
+        src/i_oplmusic.cpp
+        src/i_video.cpp
+        src/imsapi.cpp
+        src/input.cpp
+        src/intro.cpp
+        src/joyapi.cpp
+        src/kbdapi.cpp
+        src/loadsave.cpp
+        src/m_misc.cpp
+        src/movie.cpp
+        src/movie_a.cpp
+        src/mpucamd.cpp
+        src/mpumhi.cpp
+        src/mputsf.cpp
+        src/musapi.cpp
+        src/objects.cpp
+        src/dbopl.cpp
+        src/opl3dbopl.cpp
+        src/ptrapi.cpp
+        src/ptrapi_a.cpp
+        src/rap.cpp
+        src/shadow.cpp
+        src/shots.cpp
+        src/store.cpp
+        src/swdapi.cpp
+        src/amiga/amiga_cfg.cpp
+        src/amiga/amiga_stubs_impl.cpp
+        src/tile.cpp
+        src/tile_a.cpp
+        src/vmemapi.cpp
+        src/windows.cpp
+        )
+
+    add_executable(${PROJECT_NAME} ${AMIGA_SOURCE_FILES})
+
+    target_include_directories(${PROJECT_NAME} PRIVATE
+        src
+        src/amiga
+        include/TinySoundFont
+        )
+
+    # The Amiga stub SDL layer plus the native AmigaOS code paths.
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        AMIGA
+        __AMIGA__
+        USE_SDL_STUBS
+        NDEBUG
+        )
+
+    # Base AmigaOS C/C++ libraries (same as Makefile.amiga: -lm -lstdc++).
+    target_link_libraries(${PROJECT_NAME} PRIVATE m stdc++)
+
+    # -----------------------------------------------------------------------
+    # AmigaOS CRT / CPU flags matching Makefile.amiga.
+    # The essential -noixemul selects the libnix (non-ixemul, newlib) CRT,
+    # which is what supplies access() and the AmigaOS syscall hooks
+    # (_gettimeofday etc.).  CPU/ABI flags are cache variables so an FPU-less
+    # (NOFPU) build can override them, exactly like Makefile.amiga NOFPU=1.
+    # -----------------------------------------------------------------------
+    set(RAPTOR_AMIGA_CPU_FLAGS "-m68060 -m68881" CACHE STRING
+        "Amiga CPU/ABI flags (see Makefile.amiga; empty for none)")
+    set(RAPTOR_AMIGA_LINK_FLAGS "-m68060 -m68881" CACHE STRING
+        "Amiga link flags (see Makefile.amiga; empty for none)")
+    separate_arguments(RAPTOR_AMIGA_CPU_FLAGS_LIST UNIX_COMMAND "${RAPTOR_AMIGA_CPU_FLAGS}")
+    separate_arguments(RAPTOR_AMIGA_LINK_FLAGS_LIST UNIX_COMMAND "${RAPTOR_AMIGA_LINK_FLAGS}")
+
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        -noixemul
+        ${RAPTOR_AMIGA_CPU_FLAGS_LIST}
+        -fomit-frame-pointer
+        -fno-exceptions
+        -fno-rtti
+        )
+    target_link_options(${PROJECT_NAME} PRIVATE
+        -noixemul
+        ${RAPTOR_AMIGA_LINK_FLAGS_LIST}
+        )
+
+    message(STATUS "Raptor: building the Amiga port with the in-tree SDL2 stub (external SDL2 NOT used).")
+
+else()
+
 
 set(SOURCE_FILES
     src/tile.cpp
@@ -139,7 +278,9 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     add_executable( ${PROJECT_NAME} ${SOURCE_FILES} )
-    target_sources(raptor PRIVATE rsrc/resource.rc)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rsrc/resource.rc)
+        target_sources(raptor PRIVATE rsrc/resource.rc)
+    endif()
     target_link_libraries(raptor
         winmm.lib
         textscreen
@@ -165,23 +306,26 @@ else()
 endif()
 
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Android")
-    add_executable( raptorsetup ${SOURCE_SETUP_FILES} )
-    if(WIN32)
-        target_sources(raptorsetup PRIVATE rsrc/setup/resource.rc)
-    endif()
-    target_link_libraries(raptorsetup
-        textscreen
-        SDL2::SDL2main
-        SDL2::SDL2
-        )
-    if(${CMAKE_BUILD_TYPE} MATCHES "RelWithDebInfo" OR ${CMAKE_BUILD_TYPE} MATCHES "Release")
-        if(MSVC)
-            target_link_options(raptorsetup PRIVATE /subsystem:windows /ENTRY:mainCRTStartup)
-        elseif(WIN32)
-            target_link_options(raptorsetup PRIVATE -mwindows)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/setup)
+        add_executable( raptorsetup ${SOURCE_SETUP_FILES} )
+        if(WIN32 AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rsrc/setup/resource.rc)
+            target_sources(raptorsetup PRIVATE rsrc/setup/resource.rc)
         endif()
-    elseif(WIN32 AND NOT MSVC)
-        target_link_options(raptorsetup PRIVATE -mconsole)
+        target_link_libraries(raptorsetup
+            textscreen
+            SDL2::SDL2main
+            SDL2::SDL2
+            )
+        if(${CMAKE_BUILD_TYPE} MATCHES "RelWithDebInfo" OR ${CMAKE_BUILD_TYPE} MATCHES "Release")
+            if(MSVC)
+                target_link_options(raptorsetup PRIVATE /subsystem:windows /ENTRY:mainCRTStartup)
+            elseif(WIN32)
+                target_link_options(raptorsetup PRIVATE -mwindows)
+            endif()
+        elseif(WIN32 AND NOT MSVC)
+            target_link_options(raptorsetup PRIVATE -mconsole)
+        endif()
     endif()
 endif()
-   
+endif()
+

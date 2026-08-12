@@ -5,7 +5,7 @@ This repository contains an AmigaOS 3.x port of **Raptor: Call of the Shadows**,
 The port targets **68060-class Amiga systems** — both full **68060 with FPU** and FPU-less **68EC060 / 68LC060** (dedicated soft-float binary) — with **RTG graphics (Picasso96 / CyberGraphX)** or the **native AGA chipset** (`GFX=AGA`), with primary testing and optimization aimed at:
 
 - **Amiga 2000 / Amiga 3000 / Amiga 4000** with RTG cards such as **CyberVision 64/3D**, Picasso IV, or similar
-- **Amiga 1200 with PiStorm / Emu68** (RTG or AGA)
+- **Amiga A500 / A600 / A1200 / A2000 / A3000 / A4000 with PiStorm / Emu68 + RTG** (or AGA on A1200/A4000)
 - **AmigaOS 3.2**
 - **Picasso96 RTG** (CyberGraphX supported, AGA as fallback)
 - **AHI audio**
@@ -33,14 +33,14 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.5 AHI**
+Current version: **0.9.6 (AHI/MHI/CAMD, AGA/RTG)**
 
 Working:
 
 - Two native **m68k AmigaOS cross-builds**: `raptor` (68060 + FPU) and
   `raptor_nofpu` (soft-float, for FPU-less 68EC060/68LC060 or a broken
   FPU) — `build_amiga_nofpu.sh` / `make -f Makefile.amiga NOFPU=1`
-- Full gameplay on real hardware (A2000, A1200 + PiStorm/Emu68) and WinUAE
+- Full gameplay on real hardware — tested on A2000 with CyberVision 64/3D, A1200 + PiStorm/Emu68 + RTG, and WinUAE; expected to work on any Amiga model (A500/A600/A1200/A2000/A3000/A4000) with PiStorm/Emu68 + RTG
 - Keyboard, mouse and joystick/CD32 pad input working simultaneously
 - RTG video path for **320x200x8-bit** output on a dedicated screen;
   tries P96 (Picasso96) first, falls back to CGX (CyberGraphX), then
@@ -114,7 +114,7 @@ Current development and testing is mainly aimed at systems such as:
 
 - **CyberVision 64/3D**
 - **Picasso IV**
-- **PiStorm-based Amiga systems**
+- **Any Amiga with PiStorm/Emu68 + RTG** (A500, A600, A1200, A2000, A3000, A4000 — all tested or expected to work)
 
 ## Build environment
 
