@@ -1,5 +1,5 @@
 /***************************************************************************
- * mpumhi.cpp - MHI (MPEG audio) music backend, Amiga port only.
+* mpumhi.cpp - MHI (MPEG audio) music backend, Amiga port only.
  *
  * Plays the game's music as MP3 files through an MHI decoder driver
  * instead of the built-in MUS/OPL3 sequencer.  Opt-in via MUSIC=MHI
@@ -55,6 +55,16 @@
 
 #include <libraries/mhi.h>
 #include <proto/mhi.h>
+
+
+/* Volume scaling helper function */
+static ULONG MHI_ScaleVolume(int volume)
+{
+    if (volume < 0) volume = 0;
+    if (volume > 127) volume = 127;
+    return (ULONG)((volume * 100 + 63) / 127);
+}
+
 
 /* MHI driver library base - the inline calls in inline/mhi.h use it.
  * Written by the feeder task, which is also the only caller of MHI
@@ -113,10 +123,11 @@ static struct MHIState
      * feeder clears cmd when the command has been consumed. */
     volatile ULONG  cmd;
     volatile ULONG  cmd_loop;       /* PLAY: loop flag */
-    volatile ULONG  cmd_volume;     /* VOLUME: 0..100 */
+    volatile ULONG  cmd_volume;     /* VOLUME: 0..127 (Raptor scale) */
     char            cmd_path[300];  /* PLAY: full path to the MP3 file */
 
     /* Owned by the feeder task (main must not touch these). */
+
     ULONG  cmd_sigmask;             /* feeder signal poked by commands */
     struct Library *base;           /* opened MHI driver library (== MHIBase) */
     APTR   decoder;                 /* MHI decoder handle */
@@ -130,7 +141,8 @@ static struct MHIState
     volatile LONG stop_incomplete;  /* a stop left buffers in the driver */
     volatile ULONG traffic_ticks;   /* last driver traffic (SDL_GetTicks) */
     LONG   vol_supported;           /* driver has MHIQ_VOLUME_CONTROL */
-    LONG   volume;                  /* last requested volume 0..100 */
+    LONG   volume;                  /* last requested volume 0..127 (Raptor scale; scaled to 0..100 for MHI driver) */
+
     volatile LONG open_error;       /* last PLAY could not open the file */
     volatile LONG debug_open;
     volatile LONG debug_seek_end;
@@ -626,6 +638,7 @@ MHI_Service(
 /******************************************************************************************
  * MHI_HandleCommand() - consume a pending command.  Returns 1 on QUIT.
  ******************************************************************************************/
+
 static int
 MHI_HandleCommand(
     void
@@ -646,9 +659,10 @@ MHI_HandleCommand(
             {
                 g_mhi.traffic_ticks = SDL_GetTicks();
                 if (g_mhi.vol_supported)
-                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, (ULONG)g_mhi.volume);
+                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, MHI_ScaleVolume(g_mhi.volume));
 
                 MHIPlay(g_mhi.decoder);
+
                 g_mhi.state = MHISTATE_PLAYING;
             }
             else
@@ -666,7 +680,7 @@ MHI_HandleCommand(
         case MHICMD_VOLUME:
             g_mhi.volume = (LONG)g_mhi.cmd_volume;
             if (g_mhi.vol_supported && g_mhi.decoder)
-                MHISetParam(g_mhi.decoder, MHIP_VOLUME, (ULONG)g_mhi.volume);
+                MHISetParam(g_mhi.decoder, MHIP_VOLUME, MHI_ScaleVolume(g_mhi.volume));
             break;
 
         case MHICMD_QUIT:
@@ -1271,7 +1285,9 @@ MHI_SongPlaying(
 }
 
 /***************************************************************************
- * MHI_SetVolume() - Raptor music volume 0..127 -> driver 0..127.
+ * MHI_SetVolume() - Raptor music volume 0..127, stored as-is; the actual
+ * scaling to the MHI driver's 0..100 range happens in MHI_ScaleVolume()
+ * at the MHISetParam() call sites in MHI_HandleCommand().
  ***************************************************************************/
 void
 MHI_SetVolume(

@@ -34,8 +34,11 @@ void MHI_StopSong(void);
 /* 1 while a song is playing (or looping), 0 when idle/ended/stopped. */
 int MHI_SongPlaying(void);
 
-/* Music volume 0..127 (Raptor scale); forwarded to the MHI driver when
- * it supports MHIQ_VOLUME_CONTROL, otherwise ignored. */
+/* Music volume 0..127 (Raptor scale, same as the in-game slider and
+ * MUS_SetVolume).  Internally stored as-is; scaled to the MHI driver's
+ * 0..100 MHIP_VOLUME range (percent) inside the feeder task via
+ * MHI_ScaleVolume() when the driver supports MHIQ_VOLUME_CONTROL,
+ * otherwise ignored. Note: Volume scaling from 0..127 to 0..100 is handled internally. */
 void MHI_SetVolume(int volume);
 
 /* Optional driver override from the MHIDRIVER= CLI parameter / icon

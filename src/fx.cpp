@@ -108,6 +108,22 @@ void FX_Fill(void *userdata, uint8_t *stream, int len)
     GSS_Mix((int16_t*)stream, frames);
 
     DSP_Mix((int16_t*)stream, frames);
+
+    /* --- AMIGA MASTER GAIN ---
+     * Amplifies the mixed software stream (SFX + AdLib) by 2x 
+     * to match the volume of the hardware MP3 decoder (MHI).
+     * Uses a 32-bit variable for clamping to prevent wrap-around clicks. */
+    int16_t *buf = (int16_t *)stream;
+    int total_samples = frames * 2; // 2 channels (Stereo)
+    
+    for (int i = 0; i < total_samples; i++) {
+        int32_t val = buf[i] * 2; // <--- GAIN MULTIPLIER HERE (e.g. * 2 or * 3)
+        
+        if (val > 32767) val = 32767;
+        else if (val < -32768) val = -32768;
+        
+        buf[i] = (int16_t)val;
+    }
 }
 
 /***************************************************************************
@@ -224,7 +240,7 @@ int SND_InitSound(void)
         {
             music_card = M_NONE;
             AmigaLog("AUDIO: MHI music enabled (driver '%s')", MHI_DriverName());
-            MHI_SetVolume(music_volume);
+            MUS_SetVolume(music_volume);
         }
         else
         {
