@@ -83,7 +83,7 @@ MOVIE_Play(
         
         case M_FADEOUT:
             GFX_FadeOut(curfld->red, curfld->green, curfld->blue, curfld->startsteps);
-            [[fallthrough]];
+            /* fall through */
         case M_ERASE:
             memset(displaybuffer, 0, 64000);
             GFX_MarkUpdate(0, 0, 320, 200);

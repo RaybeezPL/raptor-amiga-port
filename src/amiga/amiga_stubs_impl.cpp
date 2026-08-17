@@ -10,5 +10,4 @@
  */
 
 #define AMIGA_STUBS_OWNER   /* trigger definitions, not extern declarations */
-#define USE_SDL_STUBS
 #include "amiga_sdl_stubs.h"

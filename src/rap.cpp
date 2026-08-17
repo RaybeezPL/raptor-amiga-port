@@ -1846,8 +1846,8 @@ main(
             numfiles++;
     }
 
-    if ((access("FILE0000.GLB", 0) && !RAP_CheckFileInPath("FILE0000.GLB")) &&
-        (access("file0000.glb", 0) && !RAP_CheckFileInPath("file0000.glb")) ||
+    if (((access("FILE0000.GLB", 0) && !RAP_CheckFileInPath("FILE0000.GLB")) &&
+        (access("file0000.glb", 0) && !RAP_CheckFileInPath("file0000.glb"))) ||
         !numfiles)
     {
         printf("All game data files NOT FOUND cannot proceed !!\n");

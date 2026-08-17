@@ -1527,7 +1527,7 @@ GFX_StrPixelLen(
     
     for (loop = 0; loop < maxloop; loop++)
     {
-        outlen += infont->width[instr[loop]] + fontspacing;
+        outlen += infont->width[(uint8_t)instr[loop]] + fontspacing;
     }
     
     return outlen;

@@ -614,7 +614,7 @@ WIN_AskBool(
             {
             case ASK_YES:
                 rval = 1;
-                [[fallthrough]];
+                /* fall through */
             case ASK_NO:
                 SWD_DestroyWindow(ask_window);
                 GFX_DisplayUpdate();
