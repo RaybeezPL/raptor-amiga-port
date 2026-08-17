@@ -1,4 +1,4 @@
-# Raptor: Call of the Shadows - Amiga 68060 & EC/LC RTG/AGA Port
+# Raptor: Call of the Shadows - Amiga Port (68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
 This repository contains an AmigaOS 3.x port of **Raptor: Call of the Shadows**, based on the open-source reverse-engineered codebase by [skynettx/raptor](https://github.com/skynettx/raptor).
 
@@ -33,7 +33,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.6 (AHI/MHI/CAMD, AGA/RTG)**
+Current version: **0.9.6_MHI**
 
 Working:
 

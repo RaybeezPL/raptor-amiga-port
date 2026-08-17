@@ -2,6 +2,29 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.9.6_MHI] - 2026-08-17
+
+Version name: **0.9.6_MHI**
+
+### Fixed
+- MHI volume slider scaling: Raptor's 0..127 volume is now converted to
+  the MHI driver's 0..100 percent scale with rounding
+  (`MHI_ScaleVolume()`), applied at both `MHISetParam(MHIP_VOLUME)`
+  call sites (PLAY path and MHICMD_VOLUME handler). Sound through MHI
+  works great, but a dead zone may still occur above 1/4 of the slider
+  length.
+
+### Changed
+- 2x master gain applied to the AHI software stream (SFX + AdLib) in
+  `FX_Fill()` with 32-bit clamping — matches the output level of the
+  MHI hardware MP3 decoder.
+- `MUS_SetVolume()` is used during init instead of `MHI_SetVolume()`
+  so `music_currentvol` stays in sync.
+- `GLB_InitSystem()` now searches 5 files (FILE0000..FILE0004.GLB)
+  instead of 6 — the obsolete FILE0005.GLB is no longer looked for.
+- Version bumped to 0.9.6_MHI across all files (README.md,
+  README_AMIGA.md, README_AMIGA_PL.md, src/rap.cpp).
+
 ## [0.9.6] - 2026-08-12
 
 Version name: **0.9.6 (AHI/MHI/CAMD, AGA/RTG)**

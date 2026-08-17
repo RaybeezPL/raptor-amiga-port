@@ -1,6 +1,6 @@
-Raptor: Call of the Shadows — port na Amigę (68060 & EC/LC, RTG/AGA)
+Raptor: Call of the Shadows - Amiga Port (68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Wersja: 0.9.6 (AHI/MHI/CAMD, AGA/RTG)
+Wersja: 0.9.6_MHI
 
 =====================================================
 
