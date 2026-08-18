@@ -80,9 +80,9 @@ struct Library *MHIBase = NULL;
 #define MHI_LOG(...) do { printf(__VA_ARGS__); printf("\n"); fflush(stdout); } while (0)
 #endif
 
-/* Stream buffers: 8 x 32 KB = 256 KB total (~16 s at 128 kbit/s), owned
+/* Stream buffers: 4 x 32 KB = 128 KB total (~8 s at 128 kbit/s), owned
  * by the main task (MEMF_PUBLIC) and only used by the feeder task. */
-#define MHI_NUM_BUFS   8
+#define MHI_NUM_BUFS   4
 #define MHI_BUF_SIZE   (32 * 1024)
 
 /* Commands main task -> feeder task (g_mhi.cmd). */

@@ -117,7 +117,7 @@ void FX_Fill(void *userdata, uint8_t *stream, int len)
     int total_samples = frames * 2; // 2 channels (Stereo)
     
     for (int i = 0; i < total_samples; i++) {
-        int32_t val = buf[i] * 2; // <--- GAIN MULTIPLIER HERE (e.g. * 2 or * 3)
+        int32_t val = buf[i];
         
         if (val > 32767) val = 32767;
         else if (val < -32768) val = -32768;
@@ -328,16 +328,13 @@ int SND_InitSound(void)
     printf("Music Enabled (%s)\n", g_nomusic ? "Disabled (-nomusic)" : cards[music_card]);
 
 #ifdef __AMIGA__
-    /* Amiga: fixed built-in defaults - no SETUP.INI.  M_SB = digital SFX
-     * through the DSP software mixer into the AHI stream; 4 DSP mixer
-     * channels (upstream default is 2, max 8; when full, the oldest voice
-     * is stolen) - plenty for shots/explosions/voices and halves the mixer
-     * work on the 68060. */
+    /* Amiga: digital SFX through the DSP mixer into the AHI stream.
+    * Two mixer channels reduce 68060 CPU usage. */
     fx_volume = amiga_cfg_sfx;
     if (fx_volume < 0)   fx_volume = 0;
     if (fx_volume > 127) fx_volume = 127;
     fx_card = M_SB;
-    fx_chans = 4;
+    fx_chans = 2;
 #else
     fx_volume = 127;
     fx_card = M_NONE;
