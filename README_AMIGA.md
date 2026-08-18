@@ -8,13 +8,18 @@ Amiga port of Raptor: Call of the Shadows, based on the open source
 engine reconstruction (reverse engineering) by skynettx/raptor.
 
 This port is developed exclusively for classic Amiga systems:
-AmigaOS 3.2, a 68060-class CPU (full 68060 with FPU, or
-68EC060/68LC060 via the soft-float raptor_nofpu binary), and RTG
-graphics (Picasso96/CyberGraphX) or a native AGA chipset screen
-(GFX=AGA). Also works on any Amiga with PiStorm RTG (A500, A600,
-A1200, A2000, etc.) or native RTG/AGA (A1200, A4000, and possibly
-AA3000 — to be confirmed). The game renders in 320x200 resolution
-with an 8-bit palette on a dedicated screen.
+AmigaOS 3.2, a 68030-class or 68060-class CPU, and RTG graphics
+(Picasso96/CyberGraphX) or a native AGA chipset screen (GFX=AGA).
+Supported builds are:
+- raptor         full 68060 with FPU
+- raptor_nofpu   68060 without an FPU (68EC060/68LC060 or a broken
+                 FPU) - soft-float
+- raptor_030_fpu 68030 with an external 68881/68882 FPU
+- raptor_030     68030 without an FPU - soft-float
+Also works on any Amiga with PiStorm RTG (A500, A600, A1200, A2000,
+etc.) or native RTG/AGA (A1200, A4000, and possibly AA3000 - to be
+confirmed). The game renders in 320x200 resolution with an 8-bit
+palette on a dedicated screen.
 
 NOTE: This repository does NOT contain game data files. You need
 your own legal copy of the original game files. Only the full
@@ -25,14 +30,20 @@ https://store.steampowered.com/app/358360/Raptor_Call_of_the_Shadows_1994_Classi
 Requirements
 ------------
 
-Processor:  Motorola 68060 (or PiStorm / Emu68)
-FPU:        Built-in 68060 / 68881 / 68882 - REQUIRED for the raptor
-            binary (compiled with -m68881).
-            Systems WITHOUT an FPU (68LC060/68EC060 or a broken FPU) can
-            use the raptor_nofpu binary instead - a soft-float build in
-            which floating point runs in software through
-            mathieeedoubbas.library (present in Kickstart ROM). Build it
-            with build_amiga_nofpu.sh or "make -f Makefile.amiga NOFPU=1".
+Processor:  Motorola 68030 with an external 68881/68882 FPU, or a
+            68060 (or PiStorm / Emu68). Four build targets:
+              raptor         - 68060 + on-die FPU (compiled with -m68881)
+              raptor_nofpu   - 68060 without an FPU (68EC060/68LC060 or a
+                               broken FPU), soft-float
+              raptor_030_fpu - 68030 + external 68881/68882 FPU (-m68030)
+              raptor_030     - 68030 without an FPU, soft-float
+FPU:        The raptor and raptor_030_fpu builds REQUIRE an FPU. The
+            soft-float builds (raptor_nofpu, raptor_030) run floating
+            point in software through mathieeedoubbas.library (present
+            in Kickstart ROM). Build the 68030 variants with:
+              build_amiga_030.sh               or  make -f Makefile.amiga CPU=030 NOFPU=1
+              build_amiga_030_fpu.sh           or  make -f Makefile.amiga CPU=030 NOFPU=0
+            (the 68060 soft-float build uses build_amiga_nofpu.sh / NOFPU=1).
 System:     AmigaOS 3.2 (intuition.library v39+, graphics.library v39+)
 Memory:     4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
             (standard). The game itself uses ~3 MB of Fast RAM; on RTG
@@ -75,6 +86,9 @@ Installation
      raptor          main binary (68060 + FPU build), with icon
      raptor_nofpu    soft-float binary for 68060 systems WITHOUT an
                      FPU (68LC060/68EC060 or a broken FPU), with icon
+     raptor_030_fpu  68030 + external 68881/68882 FPU build, with icon
+     raptor_030      soft-float binary for 68030 systems WITHOUT an
+                     FPU, with icon
      README_AMIGA.md this file, with icon
 
 2. Copy the game data files from the original game into the Raptor

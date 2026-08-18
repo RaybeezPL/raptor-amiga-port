@@ -5,6 +5,8 @@
 # Usage:
 #   make -f Makefile.amiga              # Build the game (68060 with FPU)
 #   make -f Makefile.amiga NOFPU=1      # Build for 68060 WITHOUT FPU
+#   make -f Makefile.amiga CPU=030 NOFPU=1   # Build for 68030 (soft-float) -> raptor_030
+#   make -f Makefile.amiga CPU=030 NOFPU=0   # Build for 68030 + 68881/68882   -> raptor_030_fpu
 #   make -f Makefile.amiga clean        # Clean build artifacts
 #   make -f Makefile.amiga VERBOSE=1    # Verbose build output
 # =============================================================================
@@ -22,32 +24,57 @@ OBJDUMP   = $(PREFIX)-objdump
 # -----------------------------------------------------------------------------
 # Build variant selection
 # -----------------------------------------------------------------------------
-# NOFPU=0 (default): 68060 with FPU. Objects and libraries are compiled and
-#                    linked with -m68060 -m68881.
-# NOFPU=1:           68060 WITHOUT FPU (68LC060/68EC060 or a broken FPU).
-#                    Objects are compiled with -m68060 -msoft-float, but the
-#                    link is deliberately done with -m68000 -msoft-float:
-#                    the bebbo gcc 6.5.0b toolchain has no soft-float
-#                    multilib, so a -m68060 link would select the
-#                    libm020/libm881 multilib whose libnix libm.a provides
-#                    __adddf3 & co. as thunks returning through fp0 (real
-#                    FPU instructions - crash on an FPU-less 060).
-#                    Linking as -m68000 picks the base (68000) libnix libm.a
-#                    with soft-float mathieeedoubbas thunks (d0/d1 returns),
-#                    which yields a binary with zero FPU instructions.
+# CPU selects the target processor core (decides the instruction set):
+#   CPU=060 (default) - 68060. Combined with NOFPU:
+#     NOFPU=0 -> raptor        (68060 + on-die FPU, -m68881)
+#     NOFPU=1 -> raptor_nofpu (68060 no FPU, soft-float)
+#   CPU=030            - 68030. Combined with NOFPU:
+#     NOFPU=0 -> raptor_030_fpu  (68030 + external 68881/68882, -m68881)
+#     NOFPU=1 -> raptor_030      (68030 with no FPU, soft-float)
+# -----------------------------------------------------------------------------
+# Soft-float link rationale (both NOFPU soft-float variants):
+# the bebbo gcc 6.5.0b toolchain has no soft-float multilib, so a soft-float
+# compile linked as its own arch would pick libm020's libm.a whose float math
+# returns through fp0 (real FPU instructions - crash on an FPU-less 030/060).
+# Linking as -m68000 picks the base (68000) libnix libm.a with soft-float
+# mathieeedoubbas thunks -> a binary with zero FPU instructions.
+# The 68030 FPU variant links -m68030 -m68881, which resolves to the same
+# libm020/libm881 group the 68060 FPU build links today (no 68040/68060-only
+# CPU instructions: the 68030 compiler ISA is strictly -m68030).
 # -----------------------------------------------------------------------------
 NOFPU     ?= 0
+CPU       ?= 060
 
-ifeq ($(NOFPU),1)
-  TARGET     = raptor_nofpu
-  BUILDDIR   = build.amiga.nofpu
-  CPU_FLAGS  = -m68060 -msoft-float
-  LINK_FLAGS = -m68000 -msoft-float
+ifeq ($(CPU),030)
+  # ---- 68030 variants ----
+  ifeq ($(NOFPU),1)
+    # 68030 without any FPU (soft-float): raptor_030
+    TARGET     = raptor_030
+    BUILDDIR   = build.amiga.030
+    CPU_FLAGS  = -m68030 -msoft-float
+    LINK_FLAGS = -m68000 -msoft-float
+  else
+    # 68030 with external 68881/68882 FPU: raptor_030_fpu
+    TARGET     = raptor_030_fpu
+    BUILDDIR   = build.amiga.030.fpu
+    CPU_FLAGS  = -m68030 -m68881
+    LINK_FLAGS = -m68030 -m68881
+  endif
+else ifeq ($(CPU),060)
+  # ---- 68060 variants (existing behavior, unchanged) ----
+  ifeq ($(NOFPU),1)
+    TARGET     = raptor_nofpu
+    BUILDDIR   = build.amiga.nofpu
+    CPU_FLAGS  = -m68060 -msoft-float
+    LINK_FLAGS = -m68000 -msoft-float
+  else
+    TARGET     = raptor
+    BUILDDIR   = build.amiga
+    CPU_FLAGS  = -m68060 -m68881
+    LINK_FLAGS = -m68060 -m68881
+  endif
 else
-  TARGET     = raptor
-  BUILDDIR   = build.amiga
-  CPU_FLAGS  = -m68060 -m68881
-  LINK_FLAGS = -m68060 -m68881
+  $(error Unsupported CPU=$(CPU). Supported values: 060 (default), 030)
 endif
 
 # -----------------------------------------------------------------------------
@@ -271,6 +298,7 @@ clean:
 info:
 	@echo "Target:       $(TARGET)"
 	@echo "Compiler:     $(CXX)"
+	@echo "CPU:          $(CPU)"
 	@echo "CPU flags:    $(CPU_FLAGS)"
 	@echo "Link flags:   $(LINK_FLAGS)"
 	@echo "NOFPU:        $(NOFPU)"
