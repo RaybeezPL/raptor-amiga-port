@@ -204,11 +204,12 @@ static const struct
  * test hardware of this port); afterwards the LIBS:MHI/ drawer is
  * scanned for any other installed driver. */
 static const char * const mhi_default_drivers[] = {
-    "LIBS:MHI/prismamhi.library",   /* Prisma Megamix (clockport MP3)   */
-    "LIBS:MHI/mhimaspro.library",   /* MAS Player Pro                   */
-    "LIBS:MHI/mhimasstd.library",   /* MAS Player standard              */
-    "LIBS:MHI/mhimpegit.library",   /* Prelude / MPEGit module          */
-    "LIBS:MHI/mhimdev.library",     /* mpeg.device bridge (Delfina, ...)*/
+    "LIBS:MHI/prismamhi.library",       /* Prisma Megamix (clockport MP3)   */
+    "LIBS:MHI/mhimaspro.library",       /* MAS Player Pro                   */
+    "LIBS:MHI/mhiArmedWarp.library",    /* Warp                             */
+    "LIBS:MHI/mhimasstd.library",       /* MAS Player standard              */
+    "LIBS:MHI/mhimpegit.library",       /* Prelude / MPEGit module          */
+    "LIBS:MHI/mhimdev.library",         /* mpeg.device bridge (Delfina, ...)*/
     NULL
 };
 

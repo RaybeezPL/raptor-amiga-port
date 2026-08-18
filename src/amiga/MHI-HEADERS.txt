@@ -7,7 +7,8 @@ application opens a decoder DRIVER library directly (drivers live in
 LIBS:MHI/, e.g. prismamhi.library for the Prisma Megamix, mhimaspro /
 mhimasstd.library for the MAS Player, mhimdev.library for mpeg.device
 hardware such as the Delfina, mhimpegit.library for the Prelude/MPEGit
-module).  All drivers implement the same 10-function interface.
+module, mhiArmedWarp.libraryfor Warp). All drivers implement the same
+10-function interface.
 
 Vendored unmodified from the official MHI developer kit v1.2 (Aminet
 driver/audio/mhi_dev.lha):
