@@ -2,6 +2,30 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [Unreleased]
+
+### Added
+- `MOUSE=ON|OFF` and `NOMOUSE` input options (CLI `-mouse=on|off`,
+  `-nomouse`, dashless `MOUSE=ON|OFF` / `NOMOUSE`; Workbench icon
+  ToolTypes `MOUSE=ON|OFF` / `NOMOUSE`). With the mouse disabled the
+  IDCMP window mask omits `IDCMP_MOUSEMOVE`/`IDCMP_MOUSEBUTTONS`, so no
+  mouse events are registered or processed at all; the cursor is not
+  updated and in-game mouse steering is off. Default is ON.
+- `JOYSTICK=ON|OFF` input option (CLI `-joystick=on|off`, dashless
+  `JOYSTICK=ON|OFF`; Workbench icon ToolType `JOYSTICK=ON|OFF`). With
+  the joystick disabled the game port is never polled and the joystick
+  is reported as absent. The legacy `NOJOY` flag is kept. Default is ON.
+- Precedence rule (same for both devices, consistent with the existing
+  `MUSIC=OFF`-wins convention): an explicit `KEYWORD=value` wins over
+  the legacy bare flag regardless of argument order (`MOUSE=ON` beats
+  `NOMOUSE`; `JOYSTICK=ON` beats `NOJOY`). Two conflicting `=value`
+  entries in the same source: CLI - last one wins; Workbench -
+  `FindToolType()` returns only the first occurrence, so the first one
+  wins (keep it unambiguous).
+- These options are a performance/troubleshooting aid: disabling an
+  input device removes its per-frame processing. Mouse input is a
+  candidate, not a confirmed cause, of the demo slowdown.
+
 ## [0.9.6_MHI] - 2026-08-17
 
 Version name: **0.9.6_MHI**

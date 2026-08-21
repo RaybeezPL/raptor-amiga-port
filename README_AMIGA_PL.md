@@ -258,13 +258,41 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                MUSIC=ADLIB, MUSIC=CAMD i MUSIC=MHI, niezależnie od kolejności
                parametrów.
 
-   -mhidriver=D Zastępuje automatyczne wykrywanie MHI decoder drivera
-               (istotne wyłącznie razem z MUSIC=MHI). D to nazwa biblioteki
-               drivera albo pełna ścieżka, np.
-               "-mhidriver=prismamhi.library" lub
-               "MHIDRIVER=LIBS:MHI/mhimaspro.library".
+    -mhidriver=D Zastępuje automatyczne wykrywanie MHI decoder drivera
+                (istotne wyłącznie razem z MUSIC=MHI). D to nazwa biblioteki
+                drivera albo pełna ścieżka, np.
+                "-mhidriver=prismamhi.library" lub
+                "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
-   -gfx=M      Wybiera ścieżkę drivera grafiki używaną dla ekranu gry.
+    -mouse=ON|OFF
+                Włącza lub wyłącza urządzenie myszy. OFF (albo starsza
+                forma -nomouse) wyłącza całą obsługę myszy: okno nie
+                rejestruje żadnych zdarzeń myszy (brak IDCMP_MOUSEMOVE/
+                MOUSEBUTTONS), kursor nie jest aktualizowany, a sterowanie
+                statkiem myszą w grze jest wyłączone. Jest to opcja
+                wydajnościowa/diagnostyczna — przy wyłączonej myszy
+                przetwarzanie zdarzeń myszy w każdej klatce jest całkowicie
+                pomijane. Domyślnie ON. Działa również forma bez myślnika:
+                "MOUSE=OFF". Jawna forma =wartość ma zawsze pierwszeństwo
+                przed starszą flagą NOMOUSE, niezależnie od kolejności
+                parametrów.
+
+    -nomouse    Starsza forma MOUSE=OFF (patrz wyżej).
+
+    -joystick=ON|OFF
+                Włącza lub wyłącza odpytywanie joysticka/pada CD32.
+                OFF (albo starsza forma -nojoy) wyłącza całe odpytywanie
+                portu gier: port nie jest w ogóle czytany, a joystick jest
+                raportowany jako nieobecny. Jest to opcja wydajnościowa/
+                diagnostyczna — przydatna do namierzania fantomowych
+                wejść na prawdziwym sprzęcie bez rekompilacji. Domyślnie
+                ON. Działa również forma bez myślnika: "JOYSTICK=OFF".
+                Jawna forma =wartość ma zawsze pierwszeństwo przed starszą
+                flagą NOJOY, niezależnie od kolejności parametrów.
+
+    -nojoy      Starsza forma JOYSTICK=OFF (patrz wyżej).
+
+    -gfx=M      Wybiera ścieżkę drivera grafiki używaną dla ekranu gry.
                M może przyjąć wartość:
                  AUTO  — najpierw próbuje P96 (Picasso96) RTG; jeśli P96
                          nie jest dostępne albo nie oferuje pasującego trybu,
@@ -329,6 +357,10 @@ Parametry są przekazywane za pomocą ToolTypes ikony:
       NOSOUND
       (MUSIC=CAMD)
       GFX=AGA
+      MOUSE=OFF
+      (NOMOUSE)
+      JOYSTICK=OFF
+      (NOJOY)
 
    ToolType ujęty w nawiasy jest NIEAKTYWNY (ignorowany przez grę) —
    to wygodny sposób przechowywania opcji w ikonie bez jej włączania.
@@ -340,6 +372,13 @@ Uwaga: aby uruchomić grę bez dźwięku z Workbench, dodaj do ikony
 ToolType NOSOUND (NOMUSIC — albo MUSIC=OFF — pozostawia włączone efekty
 dźwiękowe). MUSIC=CAMD wybiera muzykę MIDI, a MUSIC=MHI muzykę MP3
 przez MHI driver zamiast domyślnej emulacji AdLib/OPL3.
+
+Uwaga: MOUSE=OFF / NOMOUSE wyłącza mysz, a JOYSTICK=OFF / NOJOY wyłącza
+joystick (obie opcje domyślnie ON). Jawna forma =wartość ma pierwszeństwo
+przed starszą flagą. Wyłączenie urządzenia wejściowego to opcja
+wydajnościowa/diagnostyczna: przy wyłączonej myszy okno nie rejestruje
+żadnych zdarzeń myszy, a przy wyłączonym joysticku port gier nie jest
+w ogóle odpytywany.
 
 Uwaga: po uruchomieniu z ikony Workbench gra nie generuje żadnego
 wyjścia konsolowego (nie otwiera w ogóle okna konsoli). Aby zobaczyć
@@ -374,6 +413,13 @@ W tym porcie klawiatura, mysz i joystick działają jednocześnie — nie ma
 potrzeby wybierania urządzenia w options. Mysz przejmuje sterowanie
 statkiem po fizycznym poruszeniu nią (albo przytrzymaniu przycisku myszy);
 klawiatura i joystick pozostają aktywne przez cały czas.
+
+Uwaga: mysz i joystick można całkowicie wyłączyć parametrami
+MOUSE=OFF / NOMOUSE oraz JOYSTICK=OFF / NOJOY (patrz „Parametry Command
+Line” powyżej). Jest to opcja wydajnościowa/diagnostyczna: przy
+wyłączonej myszy okno nie rejestruje żadnych zdarzeń myszy, a przy
+wyłączonym joysticku port gier nie jest w ogóle odpytywany. Sterowanie
+klawiaturą pozostaje bez zmian.
 
 Klawiatura — podczas gry:
 

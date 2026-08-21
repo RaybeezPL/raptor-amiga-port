@@ -382,6 +382,97 @@ RAP_ParseMHIDriver(
 }
 
 /*
+ * RAP_ParseJoystick() - handles the JOYSTICK=<on|off> keyword from the
+ * CLI ("-joystick=off") and Workbench icon ToolTypes ("JOYSTICK=OFF").
+ * An explicit =value always wins over the legacy NOJOY flag regardless
+ * of argument order (same convention as MUSIC=OFF winning over -nomusic).
+ * Returns 1 when the argument was recognized.
+ */
+static int
+RAP_ParseJoystick(
+    const char *arg
+)
+{
+    extern int AmigaJoyDisabled;
+    const char *value;
+
+    if (RAP_StrCaseStartsWith(arg, "-joystick="))
+        value = arg + 10;
+    else if (RAP_StrCaseStartsWith(arg, "joystick="))
+        value = arg + 9;
+    else
+        return 0;
+
+    if (RAP_StrCaseEqual(value, "off") ||
+        RAP_StrCaseEqual(value, "nojoy"))
+    {
+        AmigaJoyDisabled = 1;
+        printf("JOYSTICK=OFF: joystick polling disabled\n");
+    }
+    else if (RAP_StrCaseEqual(value, "on"))
+    {
+        AmigaJoyDisabled = 0;
+        printf("JOYSTICK=ON: joystick polling enabled\n");
+    }
+    else
+    {
+        printf("Unknown JOYSTICK '%s' - valid values: ON, OFF "
+               "(using default ON)\n", value);
+    }
+
+    AmigaLog("[INPUT] JOYSTICK parsed '%s' -> disabled=%d",
+             value, AmigaJoyDisabled);
+    return 1;
+}
+
+/*
+ * RAP_ParseMouse() - handles the MOUSE=<on|off> keyword from the CLI
+ * ("-mouse=off") and Workbench icon ToolTypes ("MOUSE=OFF"). An explicit
+ * =value always wins over the legacy NOMOUSE flag regardless of argument
+ * order (same convention as MUSIC=OFF winning over -nomusic). Disabling
+ * the mouse is a performance/troubleshooting aid: with the mouse off the
+ * IDCMP window mask omits MOUSEMOVE/MOUSEBUTTONS, so no mouse events are
+ * registered or processed at all. Returns 1 when the argument was
+ * recognized.
+ */
+static int
+RAP_ParseMouse(
+    const char *arg
+)
+{
+    extern int AmigaMouseDisabled;
+    const char *value;
+
+    if (RAP_StrCaseStartsWith(arg, "-mouse="))
+        value = arg + 7;
+    else if (RAP_StrCaseStartsWith(arg, "mouse="))
+        value = arg + 6;
+    else
+        return 0;
+
+    if (RAP_StrCaseEqual(value, "off") ||
+        RAP_StrCaseEqual(value, "nomouse"))
+    {
+        AmigaMouseDisabled = 1;
+        printf("MOUSE=OFF: mouse input disabled\n");
+    }
+    else if (RAP_StrCaseEqual(value, "on"))
+    {
+        AmigaMouseDisabled = 0;
+        printf("MOUSE=ON: mouse input enabled\n");
+    }
+    else
+    {
+        printf("Unknown MOUSE '%s' - valid values: ON, OFF "
+               "(using default ON)\n", value);
+    }
+
+    AmigaLog("[INPUT] MOUSE parsed '%s' -> disabled=%d",
+             value, AmigaMouseDisabled);
+    return 1;
+}
+
+/*
  * RAP_ParseWorkbenchToolTypes() - parses the icon ToolTypes when the
  * game is started from the Workbench. This is the ONLY way Workbench
  * parameters reach us: in a Workbench launch argc is 0 and argv is
@@ -449,6 +540,49 @@ RAP_ParseWorkbenchToolTypes(
             extern int AmigaJoyDisabled;
             AmigaJoyDisabled = 1;
             printf("NOJOY tooltype: joystick polling disabled\n");
+        }
+
+        if (FindToolType((CONST_STRPTR *)tt, "NOMOUSE"))
+        {
+            extern int AmigaMouseDisabled;
+            AmigaMouseDisabled = 1;
+            printf("NOMOUSE tooltype: mouse input disabled\n");
+        }
+
+        /* JOYSTICK=ON|OFF - explicit joystick selection (wins over the
+         * legacy NOJOY flag; see RAP_ParseJoystick above). */
+        s = FindToolType((CONST_STRPTR *)tt, "JOYSTICK");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "joystick=");
+            while (s[i] && i < (int)sizeof(buf) - 10)
+            {
+                buf[9 + i] = s[i];
+                i++;
+            }
+            buf[9 + i] = 0;
+            RAP_ParseJoystick(buf);
+        }
+
+        /* MOUSE=ON|OFF - explicit mouse selection (wins over the legacy
+         * NOMOUSE flag; see RAP_ParseMouse above). */
+        s = FindToolType((CONST_STRPTR *)tt, "MOUSE");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "mouse=");
+            while (s[i] && i < (int)sizeof(buf) - 7)
+            {
+                buf[6 + i] = s[i];
+                i++;
+            }
+            buf[6 + i] = 0;
+            RAP_ParseMouse(buf);
         }
 
         /* FindToolType() returns a pointer to the value part after '='
@@ -1760,6 +1894,29 @@ main(
             extern int AmigaJoyDisabled;
             AmigaJoyDisabled = 1;
             printf("-nojoy specified: joystick polling disabled\n");
+        }
+        /* -nomouse kills all mouse handling (IDCMP mouse events, cursor,
+         * in-game mouse steering). A performance/troubleshooting aid: with
+         * the mouse disabled the IDCMP window mask omits MOUSEMOVE/
+         * MOUSEBUTTONS, so no mouse events are registered or processed. */
+        else if (RAP_StrCaseEqual(argv[loop], "-nomouse") ||
+                 RAP_StrCaseEqual(argv[loop], "nomouse"))
+        {
+            extern int AmigaMouseDisabled;
+            AmigaMouseDisabled = 1;
+            printf("-nomouse specified: mouse input disabled\n");
+        }
+        /* -joystick=ON|OFF selects joystick polling explicitly. An
+         * explicit =value always wins over the legacy NOJOY flag. See
+         * RAP_ParseJoystick() above. */
+        else if (RAP_ParseJoystick(argv[loop]))
+        {
+        }
+        /* -mouse=ON|OFF selects mouse handling explicitly. An explicit
+         * =value always wins over the legacy NOMOUSE flag. See
+         * RAP_ParseMouse() above. */
+        else if (RAP_ParseMouse(argv[loop]))
+        {
         }
         /* -gfx=AUTO|RTG|AGA selects the graphics path (RTG vs classic
          * chipset). See RAP_ParseGfx() above. */

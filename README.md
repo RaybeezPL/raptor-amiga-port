@@ -56,8 +56,16 @@ Working:
   built-in AdLib/OPL3 emulation (default), General MIDI via CAMD, MP3
   files from the `MP3/` drawer via an MHI hardware decoder, or no music
   (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
-- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/GFX/MUSIC) via the
-  official WBStartup + icon.library mechanism
+- **`MOUSE=ON|OFF`** / **`NOMOUSE`** and **`JOYSTICK=ON|OFF`** / **`NOJOY`**
+  parameters — enable/disable the mouse and joystick input devices (CLI:
+  `-mouse=off`, `-nomouse`, `-joystick=off`, `-nojoy`; icon ToolTypes:
+  `MOUSE=OFF`, `NOMOUSE`, `JOYSTICK=OFF`, `NOJOY`). Both default to ON.
+  An explicit `KEYWORD=value` wins over the legacy bare flag. Disabling an
+  input device is a performance/troubleshooting option: with the mouse off
+  the window registers no mouse events at all, and with the joystick off
+  the game port is never polled.
+- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/MUSIC/
+  JOYSTICK/MOUSE) via the official WBStartup + icon.library mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
   launches no console window is opened at all (nothing is left behind
   when the game exits)

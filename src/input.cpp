@@ -104,13 +104,17 @@ IPT_GetButtons(
     
     /* Amiga: mouse buttons are always active in-game too, regardless of
      * the selected control device (m_lookup = [Mouse] in setup.ini):
-     * LMB -> Fire, RMB -> Fire Special, MMB -> Change Special. */
-    if (mouseb1)
-        buttons[m_lookup[0]] = 1;
-    if (mouseb2)
-        buttons[m_lookup[1]] = 1;
-    if (mouseb3)
-        buttons[m_lookup[2]] = 1;
+     * LMB -> Fire, RMB -> Fire Special, MMB -> Change Special.
+     * Skipped entirely when the mouse was disabled with -nomouse. */
+    if (!AmigaMouseDisabled)
+    {
+        if (mouseb1)
+            buttons[m_lookup[0]] = 1;
+        if (mouseb2)
+            buttons[m_lookup[1]] = 1;
+        if (mouseb3)
+            buttons[m_lookup[2]] = 1;
+    }
 #endif
 }
 
@@ -324,6 +328,12 @@ IPT_GetMouse(
 )
 {
     int plx, ply, ptrx, ptry;
+
+#ifdef __AMIGA__
+    /* -nomouse: mouse steering is disabled entirely. */
+    if (AmigaMouseDisabled)
+        return;
+#endif
     
     plx = playerx + (PLAYERWIDTH / 2);
     ply = playery + (PLAYERHEIGHT / 2);
@@ -481,7 +491,9 @@ IPT_MovePlayer(
              * player positioning, original I_MOUSE mode) engages only when
              * the physical mouse actually moved since the previous frame or
              * a mouse button is held.  cur_mx/cur_my are refreshed every
-             * frame by PTR_MouseHandler() in I_GetEvent(). */
+             * frame by PTR_MouseHandler() in I_GetEvent().
+             * Skipped entirely when the mouse was disabled with -nomouse. */
+            if (!AmigaMouseDisabled)
             {
                 static int old_cur_mx = -1;
                 static int old_cur_my = -1;

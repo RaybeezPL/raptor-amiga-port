@@ -63,6 +63,13 @@ AMIGA_STUBS_DECL struct Library       *LowLevelBase  AMIGA_STUBS_INIT(NULL);
  * hardware without recompiling anything. */
 AMIGA_STUBS_DECL int AmigaJoyDisabled AMIGA_STUBS_INIT(0);
 
+/* Set by the -nomouse command line switch (rap.cpp) to hard-disable all
+ * mouse handling (IDCMP mouse events, cursor, in-game mouse steering).
+ * A performance/troubleshooting aid: with the mouse disabled the IDCMP
+ * window mask omits MOUSEMOVE/MOUSEBUTTONS, so no mouse events are
+ * registered or processed at all. */
+AMIGA_STUBS_DECL int AmigaMouseDisabled AMIGA_STUBS_INIT(0);
+
 /* Shared joystick state polled in SDL_PumpEvents and read by controller APIs. */
 AMIGA_STUBS_DECL ULONG AmigaJoyState AMIGA_STUBS_INIT(0);
 
@@ -1371,7 +1378,11 @@ static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y, int 
         WA_RMBTrap,       TRUE,
         WA_ReportMouse,   TRUE,
         WA_GimmeZeroZero, TRUE,
-        WA_IDCMP,         IDCMP_CLOSEWINDOW | IDCMP_RAWKEY | IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE,
+        /* With -nomouse the window registers no mouse events at all:
+         * IDCMP_MOUSEMOVE/MOUSEBUTTONS are omitted, so Intuition never
+         * posts them (RAWKEY + CLOSEWINDOW always remain). */
+        WA_IDCMP,         IDCMP_CLOSEWINDOW | IDCMP_RAWKEY |
+                          (AmigaMouseDisabled ? 0 : (IDCMP_MOUSEBUTTONS | IDCMP_MOUSEMOVE)),
         TAG_DONE);
 
     if (!win->amiga_window) {
@@ -2376,7 +2387,7 @@ static inline void Amiga_PumpWindowEvents(void)
             }
         }
 
-        else if (class_ == IDCMP_MOUSEMOVE)
+        else if (class_ == IDCMP_MOUSEMOVE && !AmigaMouseDisabled)
         {
             /* Physical window coordinates -> logical 320x200 mouse space.
              * In the RTG letterbox case the window is 320x240, so clamp
@@ -2396,7 +2407,7 @@ static inline void Amiga_PumpWindowEvents(void)
             Amiga_PushEvent(&ev);
         }
 
-        else if (class_ == IDCMP_MOUSEBUTTONS)
+        else if (class_ == IDCMP_MOUSEBUTTONS && !AmigaMouseDisabled)
 {
     uint32_t now = SDL_GetTicks();
 
@@ -2635,6 +2646,13 @@ static inline uint32_t SDL_GetModState(void) {
 
 static inline uint32_t SDL_GetMouseState(int *x, int *y) {
 #ifdef __AMIGA__
+    if (AmigaMouseDisabled) {
+        /* -nomouse: report the centered position and no buttons so
+         * nothing downstream can mistake a dead mouse for input. */
+        if (x) *x = AMIGA_GAME_WIDTH / 2;
+        if (y) *y = AMIGA_GAME_HEIGHT / 2;
+        return 0;
+    }
     if (x) *x = AmigaMouseX;
     if (y) *y = AmigaMouseY;
 
@@ -2764,9 +2782,10 @@ static inline int SDL_GameControllerGetAttached(SDL_GameController *c) {
     (void)c;
 #ifdef __AMIGA__
     /* The Amiga emulated controller is always attached while
-     * lowlevel.library is open.  Without this the game's joystick
-     * state polling (I_HandleJoystickEvent) was dead code. */
-    return LowLevelBase ? 1 : 0;
+     * lowlevel.library is open and the user didn't kill it with
+     * -nojoy.  Without this the game's joystick state polling
+     * (I_HandleJoystickEvent) was dead code. */
+    return (LowLevelBase && !AmigaJoyDisabled) ? 1 : 0;
 #else
     return 1;
 #endif

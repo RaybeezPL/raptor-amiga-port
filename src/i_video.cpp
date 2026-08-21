@@ -462,7 +462,11 @@ void I_GetEvent(void)
             case SDL_MOUSEBUTTONDOWN:
             case SDL_MOUSEBUTTONUP:
             case SDL_MOUSEWHEEL:
+#ifdef __AMIGA__
+                if (usemouse && !nomouse && !AmigaMouseDisabled && window_focused)
+#else
                 if (usemouse && !nomouse && window_focused)
+#endif
                 {
                     I_HandleMouseEvent(&sdlevent);
                 }
@@ -502,7 +506,9 @@ void I_GetEvent(void)
      * SDL_PumpEvents() already called Amiga_ReadJoystick() above, so
      * AmigaJoyState is current. Now call I_HandleJoystickEvent() with a
      * synthetic dummy event so it reads the fresh AmigaJoyState into the
-     * Up/Down/Left/Right/AButton/... booleans used by the rest of the game. */
+     * Up/Down/Left/Right/AButton/... booleans used by the rest of the game.
+     * Skipped entirely when the joystick was disabled with -nojoy. */
+    if (!AmigaJoyDisabled)
     {
         SDL_Event joy_dummy;
         joy_dummy.type = SDL_CONTROLLERAXISMOTION;
@@ -513,8 +519,14 @@ void I_GetEvent(void)
     if ((control == 2) && (!joy_ipt_MenuNew))
         PTR_JoyHandler();
     
+#ifdef __AMIGA__
+    if (!AmigaMouseDisabled &&
+        ((control != 2) || (control == 2 && joy_ipt_MenuNew)))
+        PTR_MouseHandler();
+#else
     if ((control != 2) || (control == 2 && joy_ipt_MenuNew))
         PTR_MouseHandler();
+#endif
     
     if (!textmode)
         PTR_UpdateCursor();

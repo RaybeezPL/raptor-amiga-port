@@ -271,13 +271,41 @@ accepted. Parameters may be combined in any order.
                MUSIC=CAMD or MUSIC=MHI, regardless of parameter
                order.
 
-   -mhidriver=D Overrides the MHI decoder driver auto-detection
-               (only relevant together with MUSIC=MHI). D is a
-               driver library name or full path, e.g.
-               "-mhidriver=prismamhi.library" or
-               "MHIDRIVER=LIBS:MHI/mhimaspro.library".
+    -mhidriver=D Overrides the MHI decoder driver auto-detection
+                (only relevant together with MUSIC=MHI). D is a
+                driver library name or full path, e.g.
+                "-mhidriver=prismamhi.library" or
+                "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
-   -gfx=M      Selects the graphics driver path used for the game
+    -mouse=ON|OFF
+                Enables or disables the mouse input device. OFF (or
+                the legacy -nomouse) disables all mouse handling:
+                the window registers no mouse events at all (no
+                IDCMP_MOUSEMOVE/MOUSEBUTTONS), the cursor is not
+                updated and in-game mouse steering is off. This is a
+                performance/troubleshooting option - with the mouse
+                disabled the per-frame mouse event processing is
+                skipped entirely. Default is ON. The dashless form
+                "MOUSE=OFF" also works. An explicit =value always
+                wins over the legacy NOMOUSE flag, regardless of
+                parameter order.
+
+    -nomouse    Legacy form of MOUSE=OFF (see above).
+
+    -joystick=ON|OFF
+                Enables or disables the joystick/CD32 pad polling.
+                OFF (or the legacy -nojoy) disables all gameport
+                polling: the port is never read and the joystick is
+                reported as absent. This is a performance/
+                troubleshooting option - handy for tracking down
+                phantom input on real hardware without recompiling.
+                Default is ON. The dashless form "JOYSTICK=OFF" also
+                works. An explicit =value always wins over the legacy
+                NOJOY flag, regardless of parameter order.
+
+    -nojoy      Legacy form of JOYSTICK=OFF (see above).
+
+    -gfx=M      Selects the graphics driver path used for the game
                screen. M may be:
                  AUTO  - try P96 (Picasso96) RTG first; if P96 is not
                          available or does not offer a matching mode,
@@ -349,6 +377,10 @@ Workbench. Parameters are passed via icon ToolTypes:
       NOSOUND
       (MUSIC=CAMD)
       GFX=AGA
+      MOUSE=OFF
+      (NOMOUSE)
+      JOYSTICK=OFF
+      (NOJOY)
 
    A ToolType enclosed in parentheses is INACTIVE (ignored by the
    game) - this is a convenient way to keep an option in the icon
@@ -362,6 +394,13 @@ Note: to run without audio from the Workbench, add the NOSOUND
 ToolType to the icon (NOMUSIC - or MUSIC=OFF - keeps sound effects
 enabled). MUSIC=CAMD selects MIDI music and MUSIC=MHI selects MP3
 music via an MHI driver, instead of the default AdLib/OPL3 emulation.
+
+Note: MOUSE=OFF / NOMOUSE disables the mouse and JOYSTICK=OFF / NOJOY
+disables the joystick (both default to ON). An explicit =value wins
+over the legacy bare flag. Disabling an input device is a
+performance/troubleshooting option: with the mouse off the window
+registers no mouse events at all, and with the joystick off the game
+port is never polled.
 
 Note: when started from the Workbench icon the game produces no
 console output (no console window is opened at all). To see the
@@ -398,6 +437,13 @@ In this port keyboard, mouse and joystick work simultaneously -
 there is no need to select a device in the options. The mouse takes
 over ship control when you physically move it (or hold a mouse
 button); keyboard and joystick remain active at all times.
+
+Note: the mouse and joystick can be disabled entirely with the
+MOUSE=OFF / NOMOUSE and JOYSTICK=OFF / NOJOY parameters (see
+"Command Line Parameters" above). This is a performance/
+troubleshooting option: with the mouse off the window registers no
+mouse events at all, and with the joystick off the game port is
+never polled. Keyboard control is unaffected.
 
 Keyboard - in game:
 
