@@ -12,6 +12,7 @@
 #define HOTSPOTCOLOR  255
 
 int g_drawcursor;
+int g_window_is_hangar = 0;      /* 0 domyślnie, 1 tylko podczas ekranu hangaru */
 static int mousepresent;
 static int joyactive;
 static int joy_mx, joy_my;
@@ -491,6 +492,13 @@ PTR_DrawCursor(
 {
     if (ptractive)
     {
+#ifdef __AMIGA__
+        /* Amiga: with the mouse disabled (-nomouse / MOUSE=OFF) the software
+           crosshair is hidden everywhere except the hangar (g_window_is_hangar). */
+        extern int AmigaMouseDisabled;
+        if (AmigaMouseDisabled && !g_window_is_hangar)
+            flag = 0;
+#endif
         if (!flag && ptrerase == 1)
         {
             if (ptrclip)

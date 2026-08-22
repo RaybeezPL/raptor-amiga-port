@@ -1111,6 +1111,10 @@ WIN_Hangar(
     kflag = 0;
     local_cnt = GFX_GetFrameCount();
     pic_cnt = 0;
+
+    /* Amiga: crosshair remains visible in the hangar even with the mouse
+       disabled (-nomouse); every other screen hides it (see PTR_DrawCursor). */
+    g_window_is_hangar = 1;
     
     PTR_DrawCursor(0);
     
@@ -1410,7 +1414,9 @@ keyboard_part:
         }
     
     hangar_exit:
-        
+
+        g_window_is_hangar = 0;
+
         PTR_DrawCursor(0);
         
         GFX_FadeOut(0, 0, 0, 16);
