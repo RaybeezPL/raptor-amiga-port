@@ -1507,7 +1507,7 @@ static inline int    SDL_RenderSetLogicalSize(SDL_Renderer *r, int w, int h) {
 
 static inline int    SDL_RenderSetIntegerScale(SDL_Renderer *r, SDL_bool e) { (void)r; (void)e; return 0; }
 static inline void   SDL_RenderClear(SDL_Renderer *r) { (void)r; }
-static inline int    SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *t, const SDL_Rect *s, const SDL_Rect *d) { (void)r; (void)t; (void)s; (void)d; return 0; }
+static inline int    SDL_RenderCopy(SDL_Renderer *r, SDL_Texture *t, const SDL_Rect *s, const SDL_Rect *d) { if (!r || !t) return 0; (void)s; (void)d; return 0; }
 
 /* Flips the cached chunky buffer to the screen. */
 static inline void SDL_RenderPresent(SDL_Renderer *r) {
@@ -1521,7 +1521,7 @@ static inline void SDL_RenderPresent(SDL_Renderer *r) {
 #endif
 }
 
-static inline int    SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) { (void)r; (void)t; return 0; }
+static inline int    SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) { if (!t) return 0; (void)r; (void)t; return 0; }
 static inline int    SDL_SetRenderDrawColor(SDL_Renderer *r, uint8_t rr, uint8_t g, uint8_t b, uint8_t a) { (void)r; (void)rr; (void)g; (void)b; (void)a; return 0; }
 
 /* Calculates scale and viewport using physical and logical dimensions. */
@@ -1555,7 +1555,7 @@ static inline SDL_Texture* SDL_CreateTexture(SDL_Renderer *r, uint32_t f, int a,
 
 static inline void SDL_DestroyTexture(SDL_Texture *t) { free(t); }
 
-static inline int    SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *r, const void *p, int pi) { (void)t; (void)r; (void)p; (void)pi; return 0; }
+static inline int    SDL_UpdateTexture(SDL_Texture *t, const SDL_Rect *r, const void *p, int pi) { if (!t) return 0; (void)r; (void)p; (void)pi; return 0; }
 
 /* Surface handling */
 static inline SDL_Surface* SDL_CreateRGBSurface(uint32_t flags, int w, int h, int depth,
