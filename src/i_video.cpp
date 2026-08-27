@@ -840,6 +840,7 @@ void I_FinishUpdate (void)
 
     // Update the intermediate texture with the contents of the RGBA buffer.
 
+#ifndef __AMIGA__
     SDL_UpdateTexture(texture, NULL, argbbuffer->pixels, argbbuffer->pitch);
 
     // Make sure the pillarboxes are kept clear each frame.
@@ -856,6 +857,7 @@ void I_FinishUpdate (void)
 
     SDL_SetRenderTarget(renderer, NULL);
     SDL_RenderCopy(renderer, texture_upscaled, NULL, NULL);
+#endif
 
     // Draw!
 
