@@ -15,3 +15,5 @@ build_run.log
 build.amiga.cmake/
 raptor_030
 raptor_030_fpu
+
+build.amiga.*/
