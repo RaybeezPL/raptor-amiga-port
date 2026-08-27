@@ -1450,7 +1450,9 @@ static void SetVideoMode(void)
 
     // Initially create the upscaled texture for rendering to screen
 
+#ifndef __AMIGA__
     CreateUpscaledTexture(true);
+#endif // __AMIGA__
 }
 
 void I_InitGraphics(uint8_t *pal)
