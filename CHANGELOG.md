@@ -26,6 +26,16 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   input device removes its per-frame processing. Mouse input is a
   candidate, not a confirmed cause, of the demo slowdown.
 
+### Changed
+- Amiga rendering cleanup: skip `CreateUpscaledTexture(true)` and no-op
+  per-frame SDL renderer calls in `I_FinishUpdate()` under `__AMIGA__`,
+  while preserving the required `SDL_LowerBlit()` and
+  `SDL_RenderPresent()` presentation path.
+- Added defensive NULL guards for renderer and texture arguments in the
+  Amiga SDL render stubs.
+- Unified Amiga build scripts with consistent headers and output, and
+  clean generated `*.o` and `*.d` files before each build.
+
 ## [0.9.6_MHI] - 2026-08-17
 
 Version name: **0.9.6_MHI**
