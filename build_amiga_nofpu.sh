@@ -1,44 +1,42 @@
-#!/bin/bash
-# =============================================================================
-# build_amiga_nofpu.sh - Raptor for AmigaOS 3.x on 68060 WITHOUT FPU
-#
-# Soft-float build: objects compiled with -m68060 -msoft-float, linked with
-# -m68000 -msoft-float (see Makefile.amiga, NOFPU=1, for the rationale).
-#
-# Produces: raptor_nofpu
-#
-# The script fails if the resulting binary contains any FPU instruction.
-#
-# Before every build, all generated object (*.o) and dependency (*.d) files
-# are removed so the build always starts from clean compilation artifacts.
-# =============================================================================
+#!/usr/bin/env bash
+# build_amiga_nofpu.sh
+# Raptor for AmigaOS 3.x on 68060 without FPU
 
-set -e
+set -Eeuo pipefail
 
-export PATH=/opt/amiga/bin:$PATH
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 
-cd /mnt/c/amiga-raptor/raptor
+export PATH="/opt/amiga/bin:$PATH"
 
-echo "=== Cleaning object and dependency files ==="
+cd "$PROJECT_DIR"
 
-find . -name '*.o' -delete
-find . -name '*.d' -delete
+echo "=== Cleaning generated object and dependency files ==="
 
+find . -type f \( -name '*.o' -o -name '*.d' \) -delete
 rm -rf build.amiga.nofpu
 rm -f raptor_nofpu
 
 echo "=== Building Raptor for 68060 without FPU ==="
 
-make -f Makefile.amiga NOFPU=1 VERBOSE=1
+make -f Makefile.amiga \
+    NOFPU=1 \
+    BUILD_DIR=build.amiga.nofpu \
+    VERBOSE=1
 
-echo "=== Verifying: no FPU instructions in raptor_nofpu ==="
+echo "=== Verifying no FPU instructions ==="
 
-FPU_COUNT=$(m68k-amigaos-objdump -d raptor_nofpu | awk -F'\t' '$3 ~ /^f[a-z]/' | wc -l)
+FPU_COUNT="$(
+    m68k-amigaos-objdump -d raptor_nofpu |
+    awk -F'\t' '$3 ~ /^f[a-z]/ { count++ } END { print count + 0 }'
+)"
 
 if [ "$FPU_COUNT" != "0" ]; then
     echo "ERROR: raptor_nofpu contains $FPU_COUNT FPU instructions:"
-    m68k-amigaos-objdump -d raptor_nofpu | awk -F'\t' '$3 ~ /^f[a-z]/' | head -20
-    echo "A 68060 without FPU cannot run this binary - aborting."
+    m68k-amigaos-objdump -d raptor_nofpu |
+        awk -F'\t' '$3 ~ /^f[a-z]/' |
+        head -20
+    echo "A 68060 without FPU cannot run this binary."
     exit 1
 fi
 

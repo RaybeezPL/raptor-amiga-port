@@ -1,30 +1,27 @@
-#!/bin/bash
-# =============================================================================
-# build_amiga.sh - Raptor for AmigaOS 3.x on 68060 with FPU
-#
-# Produces: raptor
-#
-# Before every build, all generated object (*.o) and dependency (*.d) files
-# are removed so the build always starts from clean compilation artifacts.
-# =============================================================================
+#!/usr/bin/env bash
+# build_amiga.sh
+# Raptor for AmigaOS 3.x on 68060 with FPU
 
-set -e
+set -Eeuo pipefail
 
-export PATH=/opt/amiga/bin:$PATH
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$SCRIPT_DIR"
 
-cd /mnt/c/amiga-raptor/raptor
+export PATH="/opt/amiga/bin:$PATH"
 
-echo "=== Cleaning object and dependency files ==="
+cd "$PROJECT_DIR"
 
-find . -name '*.o' -delete
-find . -name '*.d' -delete
+echo "=== Cleaning generated object and dependency files ==="
 
+find . -type f \( -name '*.o' -o -name '*.d' \) -delete
 rm -rf build.amiga
 rm -f raptor
 
 echo "=== Building Raptor for 68060 with FPU ==="
 
-make -f Makefile.amiga VERBOSE=1
+make -f Makefile.amiga \
+    BUILD_DIR=build.amiga \
+    VERBOSE=1
 
 echo "=== Build complete ==="
 
