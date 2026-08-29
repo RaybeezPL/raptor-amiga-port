@@ -148,6 +148,14 @@ AMIGA_STUBS_DECL int AmigaPhysDepth AMIGA_STUBS_INIT(8);
 AMIGA_STUBS_DECL struct Screen *AmigaGameScreen AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL struct Window *AmigaGameWindow AMIGA_STUBS_INIT(NULL);
 
+/* Cached BitMap pointer for the native AGA screen (BLIT_AGA_C2P path only).
+ * Set once in Amiga_OpenGameScreen after the AGA screen opens and the bitmap
+ * is validated (non-NULL && Depth==AMIGA_GAME_DEPTH). Cleared to NULL in
+ * Amiga_CloseGameScreen before CloseScreen() frees the bitmap. Lets
+ * Amiga_BlitScreen skip the per-frame AmigaGameScreen->RastPort.BitMap
+ * dereference + Depth==8 check. RTG (P96/CGX) paths never set or read it. */
+AMIGA_STUBS_DECL struct BitMap *AmigaAGABitmap AMIGA_STUBS_INIT(NULL);
+
 /* Pending chunky blit buffer set by SDL_LowerBlit and consumed by SDL_RenderPresent. */
 AMIGA_STUBS_DECL const uint8_t *AmigaPendingChunky AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL int AmigaPendingW AMIGA_STUBS_INIT(0);
@@ -479,6 +487,16 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
                  AmigaPhysW, AmigaPhysH, AmigaPhysDepth);
         SetRast(&AmigaGameScreen->RastPort, 0);
         AmigaBlitMode = AMIGA_BLIT_AGA_C2P;
+        /* Cache the validated AGA bitmap once; invariant for this screen's
+         * lifetime. Mirrors the per-frame guard: bitmap non-NULL and
+         * Depth==AMIGA_GAME_DEPTH. If validation fails the cache stays NULL
+         * and BlitScreen falls through to the generic WriteChunkyPixels
+         * fallback, exactly as today. */
+        AmigaAGABitmap =
+            (AmigaGameScreen->RastPort.BitMap &&
+             AmigaGameScreen->RastPort.BitMap->Depth == AMIGA_GAME_DEPTH)
+                ? AmigaGameScreen->RastPort.BitMap
+                : NULL;
         AmigaLog("[VIDEO] blit path: custom 68060 C2P -> bitplanes");
         return AmigaGameScreen;
     }
@@ -618,6 +636,10 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
 
 static inline void Amiga_CloseGameScreen(void)
 {
+    /* Invalidate the cached bitmap BEFORE CloseScreen frees it, so no stale
+     * pointer ever survives the close. Harmless in RTG mode (already NULL). */
+    AmigaAGABitmap = NULL;
+
     if (AmigaGameScreen) {
         CloseScreen(AmigaGameScreen);
         AmigaGameScreen = NULL;
@@ -726,10 +748,8 @@ static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
     }
 
     /* Native AGA path: custom 68060 C2P directly into the screen bitplanes. */
-    if (AmigaBlitMode == AMIGA_BLIT_AGA_C2P &&
-        AmigaGameScreen && AmigaGameScreen->RastPort.BitMap &&
-        AmigaGameScreen->RastPort.BitMap->Depth == 8) {
-        Amiga_C2P_BlitScreen(AmigaGameScreen->RastPort.BitMap, chunky);
+    if (AmigaBlitMode == AMIGA_BLIT_AGA_C2P && AmigaAGABitmap) {
+        Amiga_C2P_BlitScreen(AmigaAGABitmap, chunky);
         return;
     }
 
