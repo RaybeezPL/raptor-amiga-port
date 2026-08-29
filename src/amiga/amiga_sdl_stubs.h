@@ -658,17 +658,40 @@ static inline void Amiga_C2P_Block32(const uint8_t *chunky, uint32_t **planes, i
  * needs ~4x fewer chip-memory bus cycles than byte-oriented OS conversion. */
 static inline void Amiga_C2P_BlitScreen(struct BitMap *bm, const uint8_t *chunky)
 {
-    int y, blk, k;
+    int y, blk;
+    uint8_t *p0 = (uint8_t *)bm->Planes[0];
+    uint8_t *p1 = (uint8_t *)bm->Planes[1];
+    uint8_t *p2 = (uint8_t *)bm->Planes[2];
+    uint8_t *p3 = (uint8_t *)bm->Planes[3];
+    uint8_t *p4 = (uint8_t *)bm->Planes[4];
+    uint8_t *p5 = (uint8_t *)bm->Planes[5];
+    uint8_t *p6 = (uint8_t *)bm->Planes[6];
+    uint8_t *p7 = (uint8_t *)bm->Planes[7];
 
     for (y = 0; y < AMIGA_GAME_HEIGHT; y++) {
         const uint8_t *row = chunky + y * AMIGA_GAME_WIDTH;
         uint32_t *pl[8];
 
-        for (k = 0; k < 8; k++)
-            pl[k] = (uint32_t *)((uint8_t *)bm->Planes[k] + y * bm->BytesPerRow);
+        pl[0] = (uint32_t *)p0;
+        pl[1] = (uint32_t *)p1;
+        pl[2] = (uint32_t *)p2;
+        pl[3] = (uint32_t *)p3;
+        pl[4] = (uint32_t *)p4;
+        pl[5] = (uint32_t *)p5;
+        pl[6] = (uint32_t *)p6;
+        pl[7] = (uint32_t *)p7;
 
         for (blk = 0; blk < AMIGA_GAME_WIDTH / 32; blk++)
             Amiga_C2P_Block32(row + blk * 32, pl, blk);
+
+        p0 += bm->BytesPerRow;
+        p1 += bm->BytesPerRow;
+        p2 += bm->BytesPerRow;
+        p3 += bm->BytesPerRow;
+        p4 += bm->BytesPerRow;
+        p5 += bm->BytesPerRow;
+        p6 += bm->BytesPerRow;
+        p7 += bm->BytesPerRow;
     }
 }
 
