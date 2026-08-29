@@ -35,6 +35,7 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   Amiga SDL render stubs.
 - Unified Amiga build scripts with consistent headers and output, and
   clean generated `*.o` and `*.d` files before each build.
+- Documented native AGA PAL/NTSC behavior in README_AMIGA.md and README_AMIGA_PL.md: the 320x200 AGA image is top-aligned; PAL may leave unused lower display area black; NTSC requires the Amiga system to be booted in NTSC mode. Clarified that VIDEO=AUTO preserves the system mode and VIDEO=NTSC does not switch a PAL-configured Amiga.
 
 ## [0.9.6_MHI] - 2026-08-17
 
