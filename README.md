@@ -124,6 +124,29 @@ Current development and testing is mainly aimed at systems such as:
 - **Picasso IV**
 - **Any Amiga with PiStorm/Emu68 + RTG** (A500, A600, A1200, A2000, A3000, A4000 — all tested or expected to work)
 
+### Native AGA display notes (PAL/NTSC)
+
+- Native AGA mode is selected with `GFX=AGA`.
+- The game always renders a fixed logical 320x200 image from the top-left.
+- On a PAL-configured Amiga, the remaining lower native PAL display area may
+  be black. This is normal and intentional.
+- To use native NTSC timing so the 320x200 image fills the native NTSC screen
+  vertically, the Amiga itself must be configured/booted in NTSC before
+  starting the game.
+- On AmigaOS 3.x: reset/reboot, hold both mouse buttons to open Early Startup
+  Control, select NTSC in Display Options, boot AmigaOS, then start Raptor
+  with `GFX=AGA`.
+- `VIDEO=AUTO` preserves the system-selected native AGA mode.
+- `VIDEO=NTSC` alone does **not** change a PAL-configured Amiga to NTSC; the
+  Amiga itself must be booted in NTSC as described above.
+- The game does not install, copy, delete, or modify anything under
+  `DEVS:Monitors`.
+- As Workbench ToolTypes, set them on separate lines:
+  ```
+  GFX=AGA
+  VIDEO=AUTO
+  ```
+
 ## Build environment
 
 Primary development environment:

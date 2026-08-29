@@ -429,6 +429,31 @@ on SPACE. Left and right mouse buttons work
 normally in all modes.
 
 
+Native AGA display notes (PAL/NTSC)
+-----------------------------------
+
+- Native AGA chipset mode is selected with `GFX=AGA` (no RTG card required).
+- The game always renders a fixed logical 320x200 image drawn from the
+  top-left of the native AGA screen.
+- On a PAL-configured Amiga the remaining lower native PAL display area may
+  be black. This is normal and intentional.
+- To use native NTSC timing so the 320x200 image fills the native NTSC screen
+  vertically, the Amiga itself must be configured and booted in NTSC before
+  launching Raptor.
+- On AmigaOS 3.x: reset/reboot, hold both mouse buttons to open Early Startup
+  Control, select NTSC in Display Options, boot AmigaOS, then start Raptor
+  with `GFX=AGA`.
+- `VIDEO=AUTO` preserves the system-selected native AGA display mode.
+- `VIDEO=NTSC` alone does **not** switch a PAL-configured Amiga into NTSC;
+  the Amiga itself must be booted in NTSC as described above.
+- The game does not install, copy, delete, or modify anything under
+  `DEVS:Monitors`.
+- As Workbench ToolTypes, set them on separate lines:
+
+      GFX=AGA
+      VIDEO=AUTO
+
+
 Controls
 --------
 
