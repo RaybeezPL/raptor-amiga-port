@@ -291,6 +291,50 @@ RAP_ParseGfx(
 }
 
 /*
+ * RAP_ParseVideo() - handles the VIDEO=<standard> keyword from the CLI
+ * ("-video=pal") and Workbench icon ToolTypes ("VIDEO=PAL"). Values:
+ * AUTO (default), PAL, NTSC. Returns 1 when the argument was recognized.
+ *
+ * VIDEO=PAL and VIDEO=NTSC are accepted but NOT implemented as forced mode
+ * selection: on native AGA, forcing the standard requires SA_DisplayID, which
+ * changes the viewport origin/physical geometry and was proven (on real AGA
+ * hardware) to stretch/crop the verified 320x200 presentation.
+ * Amiga_OpenGameScreen() (amiga_sdl_stubs.h) logs this and falls back to the
+ * default native AGA mode (AUTO). On RTG, VIDEO is ignored.
+ */
+static int
+RAP_ParseVideo(
+    const char *arg
+)
+{
+    extern int AmigaVideoMode;
+    const char *value;
+
+    if (RAP_StrCaseStartsWith(arg, "-video="))
+        value = arg + 7;
+    else if (RAP_StrCaseStartsWith(arg, "video="))
+        value = arg + 6;
+    else
+        return 0;
+
+    if (RAP_StrCaseEqual(value, "auto"))
+        AmigaVideoMode = AMIGA_VIDEO_AUTO;
+    else if (RAP_StrCaseEqual(value, "pal"))
+        AmigaVideoMode = AMIGA_VIDEO_PAL;
+    else if (RAP_StrCaseEqual(value, "ntsc"))
+        AmigaVideoMode = AMIGA_VIDEO_NTSC;
+    else
+    {
+        printf("Unknown VIDEO '%s' - valid values: AUTO, PAL, NTSC "
+               "(using default AUTO)\n", value);
+        AmigaVideoMode = AMIGA_VIDEO_AUTO;
+    }
+
+    AmigaLog("[VIDEO] VIDEO parsed '%s' -> mode=%d", value, AmigaVideoMode);
+    return 1;
+}
+
+/*
  * RAP_ParseMusic() - handles the MUSIC=<mode> keyword from the CLI
  * ("-music=CAMD") and Workbench icon ToolTypes ("MUSIC=CAMD").
  * Values: ADLIB (default - built-in OPL3 emulation), CAMD (General MIDI
@@ -601,6 +645,25 @@ RAP_ParseWorkbenchToolTypes(
             }
             buf[4 + i] = 0;
             RAP_ParseGfx(buf);
+        }
+
+        /* VIDEO=AUTO|PAL|NTSC - video standard for native AGA. Separate
+         * ToolType entry: FindToolType() matches one key per entry, so a
+         * combined "GFX=AGA VIDEO=PAL" line is intentionally not supported. */
+        s = FindToolType((CONST_STRPTR *)tt, "VIDEO");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "video=");
+            while (s[i] && i < (int)sizeof(buf) - 7)
+            {
+                buf[6 + i] = s[i];
+                i++;
+            }
+            buf[6 + i] = 0;
+            RAP_ParseVideo(buf);
         }
 
         /* MUSIC=ADLIB|CAMD|MHI|OFF - music backend selection (same values
@@ -1921,6 +1984,13 @@ main(
         /* -gfx=AUTO|RTG|AGA selects the graphics path (RTG vs classic
          * chipset). See RAP_ParseGfx() above. */
         else if (RAP_ParseGfx(argv[loop]))
+        {
+        }
+        /* -video=AUTO|PAL|NTSC selects the video standard for native AGA.
+         * Forced PAL/NTSC is not implemented (it would change the verified
+         * 320x200 presentation); AUTO uses the default native AGA mode.
+         * See RAP_ParseVideo() above. */
+        else if (RAP_ParseVideo(argv[loop]))
         {
         }
         /* -music=ADLIB|CAMD|MHI|OFF selects the music backend: built-in

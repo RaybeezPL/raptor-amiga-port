@@ -92,6 +92,19 @@ AMIGA_STUBS_DECL int AmigaUsingCGX AMIGA_STUBS_INIT(0);
 #define AMIGA_GFX_AGA  2
 AMIGA_STUBS_DECL int AmigaGfxMode AMIGA_STUBS_INIT(AMIGA_GFX_AUTO);
 
+/* VIDEO display-standard selection, chosen at runtime via the VIDEO keyword
+ * (CLI "-video=..." / icon ToolType "VIDEO=..."). On native AGA the
+ * standard is picked by Intuition when the screen opens; forcing it requires
+ * a ModeID (SA_DisplayID), which changes the viewport origin/physical
+ * geometry and was proven (on real AGA hardware) to stretch/crop the
+ * verified 320x200 presentation. Therefore only AUTO is honored; PAL/NTSC
+ * are accepted and logged, then the default native AGA mode opens unchanged.
+ * Values: AUTO (default), PAL, NTSC. */
+#define AMIGA_VIDEO_AUTO  0
+#define AMIGA_VIDEO_PAL   1
+#define AMIGA_VIDEO_NTSC  2
+AMIGA_STUBS_DECL int AmigaVideoMode AMIGA_STUBS_INIT(AMIGA_VIDEO_AUTO);
+
 /* Set to 1 when an RTG 320x240x8 screen was opened instead of 320x200x8:
  * the game draws its 320x200 image at the top of the screen, the bottom
  * 40 rows stay black, and mouse Y is clamped to the 0..199 play area. */
@@ -413,6 +426,22 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
     {
         /* Native chipset 320x200x8 custom screen (no RTG required). */
         AmigaRTGLetterbox = 0;
+
+        /* VIDEO=PAL/VIDEO=NTSC only set the monitor standard; on native AGA
+         * forcing it means forcing a ModeID via SA_DisplayID, which changes
+         * the viewport origin/physical geometry and was proven (on real AGA
+         * hardware) to stretch/crop the verified 320x200 presentation. Defer:
+         * the default native AGA mode opens unchanged (tags below omit
+         * SA_DisplayID by design). */
+        if (AmigaVideoMode == AMIGA_VIDEO_PAL)
+            AmigaLog("[VIDEO] AGA: VIDEO=PAL requested; forced PAL selection is "
+                     "not enabled because it would change the verified 320x200 "
+                     "presentation. Using AUTO/default native AGA mode.");
+        else if (AmigaVideoMode == AMIGA_VIDEO_NTSC)
+            AmigaLog("[VIDEO] AGA: VIDEO=NTSC requested; forced NTSC selection is "
+                     "not enabled because it would change the verified 320x200 "
+                     "presentation. Using AUTO/default native AGA mode.");
+
         AmigaGameScreen = OpenScreenTags(NULL,
             SA_Width, (ULONG)AMIGA_GAME_WIDTH,
             SA_Height, (ULONG)AMIGA_GAME_HEIGHT,
@@ -430,6 +459,19 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
             return NULL;
         }
 
+        /* Read-only diagnostics only: identify the actual standard the
+         * default AGA mode opened as. GetVPModeID() reads the already-open
+         * ViewPort; it must NOT alter screen creation or rendering. */
+        {
+            ULONG openedModeID = (ULONG)GetVPModeID(&AmigaGameScreen->ViewPort);
+            const char *openedStd =
+                (openedModeID & 0xFFFF0000UL) == 0x00020000UL ? "PAL"
+              : (openedModeID & 0xFFFF0000UL) == 0x00010000UL ? "NTSC"
+              : "default";
+            AmigaLog("[VIDEO] AGA: opened native modeID=0x%08lx standard=%s",
+                     openedModeID, openedStd);
+        }
+
         AmigaPhysW = AmigaGameScreen->Width;
         AmigaPhysH = AmigaGameScreen->Height;
         AmigaPhysDepth = AMIGA_GAME_DEPTH;
@@ -440,6 +482,14 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         AmigaLog("[VIDEO] blit path: custom 68060 C2P -> bitplanes");
         return AmigaGameScreen;
     }
+
+    /* VIDEO selection applies only to the native AGA path above; on RTG
+     * (AUTO/RTG) PAL/NTSC are ignored because forcing the standard would
+     * change the verified presentation geometry. */
+    if (AmigaVideoMode == AMIGA_VIDEO_PAL)
+        AmigaLog("[VIDEO] RTG: VIDEO=PAL ignored; VIDEO applies only to native AGA.");
+    else if (AmigaVideoMode == AMIGA_VIDEO_NTSC)
+        AmigaLog("[VIDEO] RTG: VIDEO=NTSC ignored; VIDEO applies only to native AGA.");
 
     /* AUTO / RTG (strict): RTG required, no silent fallback to AGA. */
 
