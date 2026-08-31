@@ -385,18 +385,21 @@ wyjścia konsolowego (nie otwiera w ogóle okna konsoli). Aby zobaczyć
 komunikaty startowe, uruchom grę z Shell/CLI.
 
 
-Problemy z obrazem na PiStorm / Emu68
--------------------------------------
+Obraz na PiStorm / Emu68
+------------------------
 
-W przypadku niektórych RTG driverów (szczególnie PiStorm/Emu68 VideoCore
-driver) natywny ekran 320x200x8 może być wyświetlany nieprawidłowo —
-obraz gry może być ściśnięty do lewej połowy ekranu albo jego dolna
-część może być obcięta. Port najpierw próbuje użyć ekranu RTG 320x200x8;
-jeśli ta rozdzielczość nie występuje na liście trybów drivera, przełącza
-się na ekran 320x240x8 (z czarnym pasem wysokości 40 wierszy na dole).
-Jeśli żaden z trybów nie jest dostępny, pojawi się angielski requester
-z prośbą o skonfigurowanie odpowiedniego trybu RTG albo uruchomienie gry
-z ekranem klasycznego chipsetu (GFX=AGA).
+Wyjście obrazu zostało zweryfikowane jako poprawnie działające na
+PiStorm/Emu68 zarówno przez AGA, jak i RTG. Port najpierw próbuje użyć
+ekranu RTG 320x200x8; jeśli ta rozdzielczość nie występuje na liście
+trybów drivera, przełącza się na ekran 320x240x8 (z czarnym pasem
+wysokości 40 wierszy na dole). Jeśli żaden z trybów nie jest dostępny,
+pojawi się angielski requester z prośbą o skonfigurowanie odpowiedniego
+trybu RTG albo uruchomienie gry z ekranem klasycznego chipsetu (GFX=AGA).
+
+Notatka o wyświetlaniu (PAL/NTSC): W trybie PAL na dole ekranu może być
+widoczny czarny pasek, ponieważ gra używa obszaru obrazu 320x200. Aby
+pionowo wypełnić ekran, przed uruchomieniem wybierz NTSC w Amiga Early
+Startup; gra otworzy się wtedy na pełnym ekranie w rozdzielczości 320x200.
 
 Uwaga: środkowy przycisk myszy jest ignorowany. Na niektórych komputerach
 (w szczególności A1200 + PiStorm/Emu68, zarówno na ekranach RTG, jak i AGA)

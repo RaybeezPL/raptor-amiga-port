@@ -408,18 +408,22 @@ startup messages, start the game from Shell/CLI instead.
 
 
 
-PiStorm / Emu68 Display Troubleshooting
----------------------------------------
+PiStorm / Emu68 Display Notes
+-----------------------------
 
-On some RTG drivers (notably the PiStorm/Emu68 VideoCore driver)
-the native 320x200x8 screen may be displayed incorrectly - the
-game image appears squeezed into the left half of the screen,
-or with the bottom half cut off. This port tries a 320x200x8 RTG
+Display output has been verified to work correctly on PiStorm/
+Emu68 through both AGA and RTG. This port tries a 320x200x8 RTG
 screen first; if that resolution is not in the driver's mode list
 it falls back to a 320x240x8 screen (with a 40-row black bar at
 the bottom). If neither mode is available, an English requester
 appears asking you to either configure a suitable RTG mode or
 start the game with the classic chipset screen (GFX=AGA).
+
+Display note (PAL/NTSC): In PAL mode, a black band may be visible
+at the bottom of the screen because the game uses a 320x200
+display area. To fill the screen vertically, select NTSC in Amiga
+Early Startup before booting; the game will then open full-screen
+at 320x200.
 
 Note: the middle mouse button is ignored. On some machines (notably
 A1200 + PiStorm/Emu68, on both RTG and AGA screens) it produces

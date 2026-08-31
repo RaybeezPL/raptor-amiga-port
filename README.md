@@ -40,7 +40,7 @@ Working:
 - Two native **m68k AmigaOS cross-builds**: `raptor` (68060 + FPU) and
   `raptor_nofpu` (soft-float, for FPU-less 68EC060/68LC060 or a broken
   FPU) — `build_amiga_nofpu.sh` / `make -f Makefile.amiga NOFPU=1`
-- Full gameplay on real hardware — tested on A2000 with CyberVision 64/3D, A1200 + PiStorm/Emu68 + RTG, and WinUAE; expected to work on any Amiga model (A500/A600/A1200/A2000/A3000/A4000) with PiStorm/Emu68 + RTG
+- Full gameplay on real hardware — tested on A2000 with CyberVision 64/3D, A1200 + PiStorm/Emu68 (display output verified via both RTG and AGA), and WinUAE; expected to work on any Amiga model (A500/A600/A1200/A2000/A3000/A4000) with PiStorm/Emu68 + RTG
 - Keyboard, mouse and joystick/CD32 pad input working simultaneously
 - RTG video path for **320x200x8-bit** output on a dedicated screen;
   tries P96 (Picasso96) first, falls back to CGX (CyberGraphX), then
@@ -108,7 +108,10 @@ Recommended baseline target:
 - **Graphics:** RTG board with Picasso96 (P96) support; also works
   with CyberGraphX (CGX / cybergraphics.library) or a native AGA
   chipset screen (`GFX=AGA`, no RTG card required)
-- **Display mode:** 320x200, 8-bit paletted
+- **Display mode:** 320x200, 8-bit paletted. In PAL mode, a black band may
+  be visible at the bottom of the screen because the game uses a 320x200
+  display area. To fill the screen vertically, select NTSC in Amiga Early
+  Startup before booting; the game will then open full-screen at 320x200.
 - **RAM:** 4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
   (the game itself uses ~3 MB of Fast RAM; on RTG the screen bitmap
   lives in graphics card memory, so Chip RAM is only needed by the OS)
