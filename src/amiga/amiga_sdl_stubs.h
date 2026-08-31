@@ -667,8 +667,14 @@ static inline void Amiga_C2P_Block32(const uint8_t *chunky, uint32_t **planes, i
         t = (x ^ (x >> 14)) & 0x0000CCCC0000CCCCULL; x = x ^ t ^ (t << 14);
         t = (x ^ (x >> 28)) & 0x00000000F0F0F0F0ULL; x = x ^ t ^ (t << 28);
 
-        for (k = 0; k < 8; k++)
-            pw[7 - k] = (pw[7 - k] << 8) | (uint8_t)(x >> (56 - 8 * k));
+        pw[7] = (pw[7] << 8) | (uint8_t)(x >> 56);
+        pw[6] = (pw[6] << 8) | (uint8_t)(x >> 48);
+        pw[5] = (pw[5] << 8) | (uint8_t)(x >> 40);
+        pw[4] = (pw[4] << 8) | (uint8_t)(x >> 32);
+        pw[3] = (pw[3] << 8) | (uint8_t)(x >> 24);
+        pw[2] = (pw[2] << 8) | (uint8_t)(x >> 16);
+        pw[1] = (pw[1] << 8) | (uint8_t)(x >> 8);
+        pw[0] = (pw[0] << 8) | (uint8_t)x;
     }
 
     for (k = 0; k < 8; k++)
