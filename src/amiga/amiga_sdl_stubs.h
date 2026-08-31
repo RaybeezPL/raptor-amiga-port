@@ -658,23 +658,45 @@ static inline void Amiga_C2P_Block32(const uint8_t *chunky, uint32_t **planes, i
 
     for (g = 0; g < 4; g++) {
         const uint8_t *p = chunky + g * 8;
-        uint64_t x = 0, t;
+        uint32_t xh, xl, th, tl;
 
-        for (k = 0; k < 8; k++)
-            x = (x << 8) | (uint64_t)p[k];
+        /* Load 8 chunky pixels MSB-first as one logical 64-bit value held in
+         * two 32-bit words: xh = bits 63..32, xl = bits 31..0. */
+        xh = ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+             ((uint32_t)p[2] <<  8) |  (uint32_t)p[3];
+        xl = ((uint32_t)p[4] << 24) | ((uint32_t)p[5] << 16) |
+             ((uint32_t)p[6] <<  8) |  (uint32_t)p[7];
 
-        t = (x ^ (x >>  7)) & 0x00AA00AA00AA00AAULL; x = x ^ t ^ (t <<  7);
-        t = (x ^ (x >> 14)) & 0x0000CCCC0000CCCCULL; x = x ^ t ^ (t << 14);
-        t = (x ^ (x >> 28)) & 0x00000000F0F0F0F0ULL; x = x ^ t ^ (t << 28);
+        /* Delta swap, shift 7, mask 0x00AA00AA00AA00AA.
+         * x >> 7 crosses the hi/lo boundary: xh gets (xh>>7)|(xl<<25). */
+        th = (xh ^ ((xh >> 7) | (xl << 25))) & 0x00AA00AAu;
+        tl = (xl ^ (xl >> 7)) & 0x00AA00AAu;
+        xh = xh ^ th ^ ((th << 7) | (tl >> 25));
+        xl = xl ^ tl ^ (tl << 7);
 
-        pw[7] = (pw[7] << 8) | (uint8_t)(x >> 56);
-        pw[6] = (pw[6] << 8) | (uint8_t)(x >> 48);
-        pw[5] = (pw[5] << 8) | (uint8_t)(x >> 40);
-        pw[4] = (pw[4] << 8) | (uint8_t)(x >> 32);
-        pw[3] = (pw[3] << 8) | (uint8_t)(x >> 24);
-        pw[2] = (pw[2] << 8) | (uint8_t)(x >> 16);
-        pw[1] = (pw[1] << 8) | (uint8_t)(x >> 8);
-        pw[0] = (pw[0] << 8) | (uint8_t)x;
+        /* Delta swap, shift 14, mask 0x0000CCCC0000CCCC.
+         * x >> 14 crosses the boundary: xh gets (xh>>14)|(xl<<18). */
+        th = (xh ^ ((xh >> 14) | (xl << 18))) & 0x0000CCCCu;
+        tl = (xl ^ (xl >> 14)) & 0x0000CCCCu;
+        xh = xh ^ th ^ ((th << 14) | (tl >> 18));
+        xl = xl ^ tl ^ (tl << 14);
+
+        /* Delta swap, shift 28, mask 0x00000000F0F0F0F0 (hi mask half is 0,
+         * so th == 0). x >> 28 in the lo word is (xl>>28)|(xh<<4); the
+         * t << 28 carry from tl into xh is (tl>>4). */
+        tl = (xl ^ ((xl >> 28) | (xh << 4))) & 0xF0F0F0F0u;
+        xh = xh ^ (tl >> 4);
+        xl = xl ^ tl ^ (tl << 28);
+
+        /* Extract bytes 63..56 down to 7..0: xh holds bytes 7..4, xl 3..0. */
+        pw[7] = (pw[7] << 8) | (uint8_t)(xh >> 24);
+        pw[6] = (pw[6] << 8) | (uint8_t)(xh >> 16);
+        pw[5] = (pw[5] << 8) | (uint8_t)(xh >> 8);
+        pw[4] = (pw[4] << 8) | (uint8_t)xh;
+        pw[3] = (pw[3] << 8) | (uint8_t)(xl >> 24);
+        pw[2] = (pw[2] << 8) | (uint8_t)(xl >> 16);
+        pw[1] = (pw[1] << 8) | (uint8_t)(xl >> 8);
+        pw[0] = (pw[0] << 8) | (uint8_t)xl;
     }
 
     for (k = 0; k < 8; k++)
