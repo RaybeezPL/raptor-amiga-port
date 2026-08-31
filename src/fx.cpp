@@ -109,10 +109,12 @@ void FX_Fill(void *userdata, uint8_t *stream, int len)
 
     DSP_Mix((int16_t*)stream, frames);
 
-    /* --- AMIGA MASTER GAIN ---
-     * Amplifies the mixed software stream (SFX + AdLib) by 2x 
-     * to match the volume of the hardware MP3 decoder (MHI).
-     * Uses a 32-bit variable for clamping to prevent wrap-around clicks. */
+    /* --- AMIGA OUTPUT CLAMP ---
+     * No gain is applied here: the mixed software stream (SFX + AdLib)
+     * is only hard-clamped to the int16 range.  The mixers above can
+     * overshoot when several sources overlap; clamping through a 32-bit
+     * variable prevents wrap-around clicks on overflow. */
+
     int16_t *buf = (int16_t *)stream;
     int total_samples = frames * 2; // 2 channels (Stereo)
     
