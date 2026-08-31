@@ -1,26 +1,14 @@
-# Normalize line endings for all text files
-* text=auto
-
-# Source code: always LF in the repo, LF on checkout everywhere
-*.c text eol=lf
-*.cpp text eol=lf
-*.h text eol=lf
-*.hpp text eol=lf
-
-# Build/config scripts: LF (they run on Unix/WSL)
-*.sh text eol=lf
-Makefile* text eol=lf
-CMakeLists.txt text eol=lf
-*.cmake text eol=lf
-
-# Markdown/docs: LF
-*.md text eol=lf
-*.txt text eol=lf
-
-# Binary files: never touch
-*.o binary
-*.a binary
-*.glb binary
-*.mp3 binary
-*.png binary
-*.ico binary
+* text=auto eol=lf
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.gif -text
+*.bmp -text
+*.iff -text
+*.ilbm -text
+*.wav -text
+*.mp3 -text
+*.mod -text
+*.lha -text
+*.zip -text
+*.exe -text
