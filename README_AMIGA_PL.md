@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Wersja: 0.9.7
+Wersja: 0.9.8 — ostatnia kompilacja przedpremierowa.
 
 =====================================================
 
@@ -139,7 +139,8 @@ miksowaną ze strumieniem audio AHI. Aby odtwarzać muzykę przez
 zewnętrzny synthesizer albo software synth CAMD, uruchom grę
 z parametrem MUSIC=CAMD. Aby odtwarzać soundtrack jako pliki MP3
 przez MHI decoder driver (np. kartę Prisma Megamix), użyj MUSIC=MHI.
-Szczegóły oraz konfigurację MIDI/MHI opisano w sekcji
+Aby odtwarzać soundtrack jako predekodowane pliki WAV z drawera WAVE/,
+użyj MUSIC=WAVE. Szczegóły oraz konfigurację MIDI/MHI opisano w sekcji
 „Dźwięk (AHI + CAMD + MHI)” poniżej.
 
 
@@ -241,9 +242,33 @@ podsystemów Amigi:
                     Parametr MHIDRIVER= (np. -mhidriver=mhimaspro.library)
                     wymusza użycie konkretnego drivera. Jeśli nie uda się
                     otworzyć żadnego MHI drivera, gra automatycznie wróci
-                     do muzyki AdLib/OPL3. Uwaga: dla klasycznych komputerów
-                     68k nie istnieje software-only MHI decoder — MUSIC=MHI
-                     wymaga jednego z opisanych wyżej hardware decoders.
+                      do muzyki AdLib/OPL3. Uwaga: dla klasycznych komputerów
+                      68k nie istnieje software-only MHI decoder — MUSIC=MHI
+                      wymaga jednego z opisanych wyżej hardware decoders.
+
+    Muzyka (WAVE):   Parametr MUSIC=WAVE odtwarza soundtrack jako
+                     predekodowane pliki WAV z drawera o nazwie "WAVE"
+                     wewnątrz katalogu gry, miksowane bezpośrednio do
+                     strumienia audio AHI — nie jest potrzebny żaden MHI
+                     driver, zewnętrzny dekoder ani resampling w czasie
+                     działania. Każdy utwór w grze jest mapowany na plik
+                     według tego samego mapowania tytułów ścieżki
+                     dźwiękowej co backend muzyki MP3: nazwa pliku WAV
+                     jest identyczna z nazwą pliku MP3, z tą różnicą, że
+                     rozszerzenie zmienia się z ".mp3" na ".wav" (spacje
+                     i dokładne nazwy bazowe pozostają zachowane), np.
+                     "Main Menu.wav", "Wave Music 1.wav", "Boss 1.wav".
+                     Wymagany format pliku: kontener RIFF/WAVE,
+                     nieskompresowane PCM, próbki 16-bitowe ze znakiem
+                     little-endian, stereo (2 kanały), 11025 Hz —
+                     natywna częstotliwość ścieżki audio gry. Utwór bez
+                     pasującego pliku WAV po prostu pozostaje cichy
+                     (efekty dźwiękowe nadal działają). Muzyka WAVE ma
+                     własne ustawienie głośności: klucz "music_wave" w
+                     pliku amiga.cfg oraz osobną głośność muzyki w
+                     ustawieniach muzyki w grze. Muzyka WAVE i efekty
+                     dźwiękowe Sound Blaster były testowane razem i
+                     działają poprawnie.
 
 Stan audio i informacje diagnostyczne są wypisywane do konsoli przy
 uruchomieniu (Shell/CLI). Żaden plik logu nie jest tworzony automatycznie
@@ -277,15 +302,18 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                          software synthesizera w klastrze "out.0", w przeciwnym
                          razie muzyka będzie NIESŁYSZALNA (zob. sekcję
                          „Dźwięk (AHI + CAMD + MHI)” powyżej);
-                 MHI   — pliki MP3 z drawera MP3/ przez MHI decoder driver
-                         (np. Prisma Megamix); przy braku MHI drivera nastąpi
-                         powrót do ADLIB (zob. sekcję powyżej);
-                 OFF   — brak muzyki (tak samo jak -nomusic; efekty dźwiękowe
-                         nadal są odtwarzane przez AHI).
-               Działa również forma bez myślnika: "MUSIC=MHI".
-               -nomusic / MUSIC=OFF ma zawsze pierwszeństwo przed
-               MUSIC=ADLIB, MUSIC=CAMD i MUSIC=MHI, niezależnie od kolejności
-               parametrów.
+                  MHI   — pliki MP3 z drawera MP3/ przez MHI decoder driver
+                          (np. Prisma Megamix); przy braku MHI drivera nastąpi
+                          powrót do ADLIB (zob. sekcję powyżej);
+                  WAVE  — predekodowane pliki WAV z drawera WAVE/,
+                          miksowane do strumienia audio AHI (zob.
+                          „Muzyka (WAVE)” powyżej);
+                  OFF   — brak muzyki (tak samo jak -nomusic; efekty dźwiękowe
+                          nadal są odtwarzane przez AHI).
+                Działa również forma bez myślnika: "MUSIC=MHI".
+                -nomusic / MUSIC=OFF ma zawsze pierwszeństwo przed
+                MUSIC=ADLIB, MUSIC=CAMD, MUSIC=MHI i MUSIC=WAVE, niezależnie
+                od kolejności parametrów.
 
     -mhidriver=D Zastępuje automatyczne wykrywanie MHI decoder drivera
                 (istotne wyłącznie razem z MUSIC=MHI). D to nazwa biblioteki
@@ -403,8 +431,9 @@ Parametry są przekazywane za pomocą ToolTypes ikony:
 
 Uwaga: aby uruchomić grę bez dźwięku z Workbench, dodaj do ikony
 ToolType NOSOUND (NOMUSIC — albo MUSIC=OFF — pozostawia włączone efekty
-dźwiękowe). MUSIC=CAMD wybiera muzykę MIDI, a MUSIC=MHI muzykę MP3
-przez MHI driver zamiast domyślnej emulacji AdLib/OPL3.
+dźwiękowe). MUSIC=CAMD wybiera muzykę MIDI, MUSIC=MHI muzykę MP3
+przez MHI driver, a MUSIC=WAVE predekodowaną muzykę WAV z drawera
+WAVE/ zamiast domyślnej emulacji AdLib/OPL3.
 
 Uwaga: MOUSE=OFF / NOMOUSE wyłącza mysz, a JOYSTICK=OFF / NOJOY wyłącza
 joystick (obie opcje domyślnie ON). Jawna forma =wartość ma pierwszeństwo
@@ -569,7 +598,12 @@ Znane ograniczenia
   pozostają celowo ciche.
 - Głośność muzyki i efektów zmieniana w menu opcji jest zapisywana do
   amiga.cfg w katalogu gry (pliku tworzonego przy pierwszym uruchomieniu)
-  i przywracana przy kolejnym starcie. Poziom detali nie jest zapisywany.
+  i przywracana przy kolejnym starcie. Każdy backend muzyki ma własny
+  klucz głośności (music_adlib, music_mhi, music_wave) oraz sfx_volume.
+  Poziom detali nie jest zapisywany.
+- Muzyka WAVE (MUSIC=WAVE) wymaga plików WAV w drawerze WAVE/ w
+  wymaganym formacie (11025 Hz, stereo, 16-bit PCM); utwory, których
+  pliku WAV brakuje, pozostają celowo ciche.
 - Brak pause i wyjścia z menu bezpośrednio z joysticka (użyj klawiatury).
 - Brak obsługi rumble / haptic.
 - Systemowy pointer myszy Amigi jest ukrywany podczas działania gry
@@ -580,21 +614,9 @@ Znane ograniczenia
 Plany / pozostałe prace
 -----------------------
 
-- Muzyka WAVE z predekodowanych plików (planowana, jeszcze niezaimplementowana):
-  gra będzie szukać plików ścieżki dźwiękowej w katalogu o nazwie "WAVE"
-  w katalogu instalacyjnym gry, obok pliku wykonywalnego. Każda nazwa pliku
-  WAVE jest identyczna z nazwą pliku z istniejącego mapowania MP3 (zob.
-  sekcję "Muzyka (MHI)" powyżej), z tą różnicą, że rozszerzenie zmienia się
-  z ".mp3" na ".wav" — spacje i dokładne nazwy bazowe pozostają zachowane,
-  np. "Main Menu.wav", "Wave Music 1.wav", "Boss 1.wav".
-- Wymagany format WAVE: kontener RIFF/WAVE, nieskompresowane PCM, próbki
-  16-bitowe ze znakiem little-endian, stereo (2 kanały), 11025 Hz — ta sama
-  częstotliwość co istniejąca ścieżka audio SFX/AHI, więc ani dekodowanie
-  MP3, ani resampling w czasie działania nie są potrzebne.
-- Brakujące pliki WAVE nie są błędem krytycznym: dotyczące ich utwory
-  pozostają ciche, podczas gdy gra i efekty dźwiękowe działają normalnie.
-- Po ukończeniu i przetestowaniu odtwarzania muzyki WAVE planowanym
-  kolejnym publicznym kamieniem milowym jest wersja 0.99 pre-release.
+- Dostrajanie i szlifowanie wydajności na prawdziwym sprzęcie 68k.
+- Wersja 0.9.8 jest ostatnią kompilacją przedpremierszą przed
+  planowanym wydaniem.
 
 
 Autorzy i kontakt

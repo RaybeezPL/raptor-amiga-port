@@ -35,7 +35,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.7**
+Current version: **0.9.8** — the final pre-release build before the planned release.
 
 Working:
 
@@ -58,10 +58,11 @@ Working:
   reducing unnecessary conversion work when the game frame does not
   change — all replacing the generic `WriteChunkyPixels` OS conversion
   (kept as fallback)
-- **`MUSIC=ADLIB|CAMD|MHI|OFF`** parameter — selects the music backend:
+- **`MUSIC=ADLIB|CAMD|MHI|WAVE|OFF`** parameter — selects the music backend:
   built-in AdLib/OPL3 emulation (default), General MIDI via CAMD, MP3
-  files from the `MP3/` drawer via an MHI hardware decoder, or no music
-  (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
+  files from the `MP3/` drawer via an MHI hardware decoder, pre-decoded
+  WAV files from the `WAVE/` drawer mixed into the AHI stream, or no
+  music (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
 - **`MOUSE=ON|OFF`** / **`NOMOUSE`** and **`JOYSTICK=ON|OFF`** / **`NOJOY`**
   parameters — enable/disable the mouse and joystick input devices (CLI:
   `-mouse=off`, `-nomouse`, `-joystick=off`, `-nojoy`; icon ToolTypes:
@@ -90,30 +91,20 @@ Working:
   with `MUSIC=CAMD` for external synths / CAMD software synths
   (cluster "out.0"; needs a configured MIDI driver or synth), or
   **MP3 music via MHI** (`MUSIC=MHI`) for a Prisma Megamix / MAS /
-  Delfina hardware decoder, with files in the game's `MP3/` drawer
+  Delfina hardware decoder, with files in the game's `MP3/` drawer, or
+  **pre-decoded WAVE music** (`MUSIC=WAVE`) with WAV files in the
+  game's `WAVE/` drawer mixed into the AHI stream
 - **Persistent audio volumes** via `amiga.cfg` in the game directory
   (created on first run): separate startup volumes for AdLib/OPL3
-  music, MHI/MP3 music and sound effects; the in-game Options sliders
-  write their values back to it
+  music, MHI/MP3 music, WAVE music and sound effects; the in-game
+  Options sliders write their values back to it
 
 
 Work still in progress / roadmap:
 
 - Fine-tuning and performance polish on real 68k hardware
-- **Pre-decoded WAVE music** (planned): the game will read soundtrack
-  files from a directory named `WAVE` in the game installation root,
-  alongside the executable. Each filename is identical to the existing
-  MP3 song mapping filename with only the extension changed from
-  `.mp3` to `.wav` (spaces and exact base names preserved, e.g.
-  `WAVE/Main Menu.wav`, `WAVE/Wave Music 1.wav`, `WAVE/Boss 1.wav`).
-  Required format: RIFF/WAVE container, uncompressed PCM, signed
-  16-bit little-endian samples, stereo (2 channels), 11025 Hz —
-  matching the existing 11025 Hz SFX/AHI audio pipeline (no runtime
-  MP3 decoding and no runtime resampling). Missing WAVE files are
-  non-fatal: affected songs stay silent while the game and sound
-  effects continue normally.
-- Once WAVE music playback is completed and tested, version
-  **0.99 pre-release** is planned as the next public milestone
+- Version **0.9.8** is the final pre-release build before the planned
+  release
 
 For detailed requirements, controls, parameters and troubleshooting see
 **README_AMIGA.md** - the main port documentation.

@@ -2,6 +2,40 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [0.9.8]
+
+Version name: **0.9.8** - the final pre-release build before the planned
+release.
+
+### Added
+- Pre-decoded WAVE music backend, selected with `MUSIC=WAVE` (CLI
+  `-music=WAVE`, dashless `MUSIC=WAVE`, and Workbench icon ToolType
+  `MUSIC=WAVE`). The new `src/mpuwave.cpp` backend plays WAV files from
+  the `WAVE/` drawer in the game directory, mixed directly into the AHI
+  audio stream by `WAVE_Mix()` (called from `FX_Fill()`) - no MHI
+  driver, no external decoder, no runtime MP3 decoding and no runtime
+  resampling. Required file format: RIFF/WAVE container, uncompressed
+  PCM, signed 16-bit little-endian samples, stereo (2 channels),
+  11025 Hz - the native rate of the game's audio pipeline (enforced in
+  `WAVE_LoadSong()`). Each in-game song is mapped to a file by the same
+  soundtrack title mapping as the MP3 music backend: the WAV filename
+  is identical to the MP3 filename with only the extension changed
+  from `.mp3` to `.wav` (spaces and exact base names preserved, e.g.
+  `WAVE/Main Menu.wav`, `WAVE/Wave Music 1.wav`, `WAVE/Boss 1.wav`).
+  A song without a matching WAV file stays silent by design; the game
+  and sound effects continue normally.
+- Independent WAVE music volume: the `music_wave` key in `amiga.cfg`
+  (default 127) and a separate music volume in the in-game music
+  settings, persisted like the other backend volumes.
+- WAVE music and Sound Blaster sound effects were tested together and
+  work correctly.
+
+### Changed
+- Version bumped to 0.9.8 across the documentation (README.md,
+  README_AMIGA.md, README_AMIGA_PL.md) and the startup banner
+  (src/rap.cpp). 0.9.8 is the final pre-release build before the
+  planned release.
+
 ## [Unreleased]
 
 ### Added

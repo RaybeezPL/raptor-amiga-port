@@ -1879,7 +1879,7 @@ main(
 #endif
 
     printf("--------------------------------------------------------\n");
-    printf(" Raptor: Call of the Shadows - Amiga Port - version 0.9.6_MHI\n");
+    printf(" Raptor: Call of the Shadows - Amiga Port - version 0.9.8\n");
 
     printf(" Port Author: RaybeezPL | AI Collaboration\n");
     printf(" Contact: cichy@cichy.com.pl\n");
