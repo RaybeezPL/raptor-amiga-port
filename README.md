@@ -100,11 +100,19 @@ Working:
 Work still in progress / roadmap:
 
 - Fine-tuning and performance polish on real 68k hardware
-- **MPGA/MPEGA MP3 playback** for PiStorm and WinUAE with JIT is the
-  remaining planned feature — it is **not implemented yet** (the MP3
-  support currently available via `MUSIC=MHI` requires an MHI hardware
-  decoder)
-- Once MPGA/MPEGA MP3 playback is completed and tested, version
+- **Pre-decoded WAVE music** (planned): the game will read soundtrack
+  files from a directory named `WAVE` in the game installation root,
+  alongside the executable. Each filename is identical to the existing
+  MP3 song mapping filename with only the extension changed from
+  `.mp3` to `.wav` (spaces and exact base names preserved, e.g.
+  `WAVE/Main Menu.wav`, `WAVE/Wave Music 1.wav`, `WAVE/Boss 1.wav`).
+  Required format: RIFF/WAVE container, uncompressed PCM, signed
+  16-bit little-endian samples, stereo (2 channels), 11025 Hz —
+  matching the existing 11025 Hz SFX/AHI audio pipeline (no runtime
+  MP3 decoding and no runtime resampling). Missing WAVE files are
+  non-fatal: affected songs stay silent while the game and sound
+  effects continue normally.
+- Once WAVE music playback is completed and tested, version
   **0.99 pre-release** is planned as the next public milestone
 
 For detailed requirements, controls, parameters and troubleshooting see

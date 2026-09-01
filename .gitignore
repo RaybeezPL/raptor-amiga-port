@@ -17,3 +17,9 @@ raptor_030
 raptor_030_fpu
 
 build.amiga.*/
+
+# Local MP3 music assets (not versioned)
+/mp3/
+
+# Local decoded WAV music assets (not versioned)
+/wave/

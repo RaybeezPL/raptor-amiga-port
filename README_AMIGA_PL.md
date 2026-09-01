@@ -580,13 +580,21 @@ Znane ograniczenia
 Plany / pozostałe prace
 -----------------------
 
-- Odtwarzanie MP3 przez MPGA/MPEGA dla PiStorm i WinUAE z JIT to
-  pozostała planowana funkcja. Nie jest ona jeszcze zaimplementowana —
-  obecnie dostępna obsługa MP3 (MUSIC=MHI) wymaga sprzętowego dekodera
-  MHI.
-- Po ukończeniu i przetestowaniu odtwarzania MP3 przez MPGA/MPEGA
-  planowanym kolejnym publicznym kamieniem milowym jest wersja
-  0.99 pre-release.
+- Muzyka WAVE z predekodowanych plików (planowana, jeszcze niezaimplementowana):
+  gra będzie szukać plików ścieżki dźwiękowej w katalogu o nazwie "WAVE"
+  w katalogu instalacyjnym gry, obok pliku wykonywalnego. Każda nazwa pliku
+  WAVE jest identyczna z nazwą pliku z istniejącego mapowania MP3 (zob.
+  sekcję "Muzyka (MHI)" powyżej), z tą różnicą, że rozszerzenie zmienia się
+  z ".mp3" na ".wav" — spacje i dokładne nazwy bazowe pozostają zachowane,
+  np. "Main Menu.wav", "Wave Music 1.wav", "Boss 1.wav".
+- Wymagany format WAVE: kontener RIFF/WAVE, nieskompresowane PCM, próbki
+  16-bitowe ze znakiem little-endian, stereo (2 kanały), 11025 Hz — ta sama
+  częstotliwość co istniejąca ścieżka audio SFX/AHI, więc ani dekodowanie
+  MP3, ani resampling w czasie działania nie są potrzebne.
+- Brakujące pliki WAVE nie są błędem krytycznym: dotyczące ich utwory
+  pozostają ciche, podczas gdy gra i efekty dźwiękowe działają normalnie.
+- Po ukończeniu i przetestowaniu odtwarzania muzyki WAVE planowanym
+  kolejnym publicznym kamieniem milowym jest wersja 0.99 pre-release.
 
 
 Autorzy i kontakt
