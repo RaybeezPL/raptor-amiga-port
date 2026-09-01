@@ -8,18 +8,20 @@ Amiga port of Raptor: Call of the Shadows, based on the open source
 engine reconstruction (reverse engineering) by skynettx/raptor.
 
 This port is developed exclusively for classic Amiga systems:
-AmigaOS 3.2, a 68030-class or 68060-class CPU, and RTG graphics
-(Picasso96/CyberGraphX) or a native AGA chipset screen (GFX=AGA).
+AmigaOS 3.2 and a 68030-class or 68060-class CPU, with RTG rendering
+on any system with a compatible RTG graphics card (Picasso96 or
+CyberGraphX) or native AGA rendering (GFX=AGA) - a separate, full
+rendering path for AGA-capable hardware (Amiga 1200, Amiga 4000).
 Supported builds are:
 - raptor         full 68060 with FPU
 - raptor_nofpu   68060 without an FPU (68EC060/68LC060 or a broken
                  FPU) - soft-float
 - raptor_030_fpu 68030 with an external 68881/68882 FPU
 - raptor_030     68030 without an FPU - soft-float
-Also works on any Amiga with PiStorm RTG (A500, A600, A1200, A2000,
-etc.) or native RTG/AGA (A1200, A4000, and possibly AA3000 - to be
-confirmed). The game renders in 320x200 resolution with an 8-bit
-palette on a dedicated screen.
+Also works on any Amiga with PiStorm/Emu68 (A500, A600, A1200, A2000,
+etc.), where either RTG or AGA can be selected according to the
+configured environment, and in WinUAE. The game renders in 320x200
+resolution with an 8-bit palette on a dedicated screen.
 
 NOTE: This repository does NOT contain game data files. You need
 your own legal copy of the original game files. Only the full
@@ -64,10 +66,17 @@ Sound:      AHI (ahi.device v4+) for sound effects and for the
 The default graphics mode (GFX=AUTO / GFX=RTG) requires RTG: the game
 tries Picasso96 first, then falls back to CyberGraphX (CGX /
 cybergraphics.library). If neither works, an English requester is
-shown and the game does NOT start (no silent fallback). On a machine
-without an RTG card start the game with GFX=AGA, which forces a
-standard custom chipset 320x200x8 screen. The supported and tested
-configuration is Picasso96 RTG.
+shown and the game does NOT start (no silent fallback). RTG rendering
+is supported on any system with a compatible RTG graphics card (for
+example CyberVision 64/3D, Picasso IV, or similar). The supported and
+tested configuration is Picasso96 RTG.
+
+Native AGA rendering (GFX=AGA) is a separate, full rendering path -
+not a fallback for RTG. It works on AGA-capable hardware (Amiga 1200,
+Amiga 4000) and can also be selected in WinUAE and compatible
+PiStorm/Emu68 setups when AGA is available; on WinUAE and
+PiStorm/Emu68 choose either RTG or AGA according to the system
+configuration.
 
 Frame presentation uses the fastest path available for the active
 driver: p96WritePixelArray on Picasso96, WritePixelArray on
@@ -319,8 +328,12 @@ accepted. Parameters may be combined in any order.
                          this is the default);
                  RTG   - same as AUTO (RTG required, no silent
                          fallback);
-                 AGA   - force a native chipset 320x200x8 screen
-                         (no RTG required, works on every Amiga).
+                  AGA   - force a native chipset 320x200x8 screen
+                          (a separate native rendering path for
+                          AGA-capable hardware: Amiga 1200 and
+                          Amiga 4000; also usable in WinUAE and
+                          compatible PiStorm/Emu68 setups when AGA
+                          is available).
 
                The dashless form "GFX=RTG" also works. When the RTG
                path cannot open a 320x200x8 screen it looks for
@@ -439,7 +452,10 @@ normally in all modes.
 Native AGA display notes (PAL/NTSC)
 -----------------------------------
 
-- Native AGA chipset mode is selected with `GFX=AGA` (no RTG card required).
+- Native AGA chipset mode is selected with `GFX=AGA`. AGA is a separate,
+  full native rendering path - not a fallback for RTG - available on
+  AGA-capable hardware (Amiga 1200, Amiga 4000) and in WinUAE or
+  compatible PiStorm/Emu68 setups when AGA is available.
 - The game always renders a fixed logical 320x200 image drawn from the
   top-left of the native AGA screen.
 - On a PAL-configured Amiga the remaining lower native PAL display area may

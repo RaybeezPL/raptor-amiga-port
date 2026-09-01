@@ -4,10 +4,10 @@ This repository contains an AmigaOS 3.x port of **Raptor: Call of the Shadows**,
 
 The port targets **68060-class Amiga systems** — both full **68060 with FPU** and FPU-less **68EC060 / 68LC060** (dedicated soft-float binary) — as well as **68030 systems**, covered by two separate dedicated binaries: **68030 with an external 68881/68882 FPU** (`raptor_030_fpu`) and **68030 without an FPU** (`raptor_030`, soft-float) — plus faster 68k hardware, with **RTG graphics (Picasso96 / CyberGraphX)** or the **native AGA chipset** (`GFX=AGA`), with primary testing and optimization aimed at:
 
-- **Amiga 2000 / Amiga 3000 / Amiga 4000** with RTG cards such as **CyberVision 64/3D**, Picasso IV, or similar
-- **Amiga A500 / A600 / A1200 / A2000 / A3000 / A4000 with PiStorm / Emu68 + RTG** (or AGA on A1200/A4000)
+- **Any Amiga system with a compatible RTG graphics card** — for example **CyberVision 64/3D**, **Picasso IV**, or similar — using **Picasso96** or **CyberGraphX**
+- **Amiga A500 / A600 / A1200 / A2000 / A3000 / A4000 with PiStorm / Emu68** — RTG or native AGA, according to the configured environment
+- **Amiga A1200 / A4000** — native AGA rendering (`GFX=AGA`); in **WinUAE** and compatible PiStorm/Emu68 setups either RTG or AGA can be selected when AGA is available
 - **AmigaOS 3.2**
-- **Picasso96 RTG** (CyberGraphX supported, AGA as fallback)
 - **AHI audio**
 
 This fork is focused on making the game run natively on classic Amiga hardware without unnecessary abstraction layers. The game renders in a fixed **320x200, 8-bit paletted mode** on a dedicated screen, with Amiga-specific SDL replacement stubs and driver-native frame presentation on every display path.
@@ -119,9 +119,14 @@ Recommended baseline target:
   (`raptor_nofpu` soft-float build), 68030 with an external 68881/68882
   FPU (`raptor_030_fpu`), or 68030 without an FPU (`raptor_030`
   soft-float build); PiStorm/Emu68 equivalent
-- **Graphics:** RTG board with Picasso96 (P96) support; also works
-  with CyberGraphX (CGX / cybergraphics.library) or a native AGA
-  chipset screen (`GFX=AGA`, no RTG card required)
+- **Graphics:** RTG rendering on systems with a compatible RTG
+  graphics card (for example CyberVision 64/3D, Picasso IV, or
+  similar) through Picasso96 (P96) or CyberGraphX (CGX /
+  cybergraphics.library). Native AGA rendering (`GFX=AGA`) is a
+  separate full rendering path for Amiga 1200 and Amiga 4000; it can
+  also be selected in WinUAE and compatible PiStorm/Emu68 setups when
+  AGA is available. On WinUAE and PiStorm/Emu68, choose either RTG or
+  AGA according to the system configuration.
 - **Display mode:** 320x200, 8-bit paletted. In PAL mode, a black band may
   be visible at the bottom of the screen because the game uses a 320x200
   display area. To fill the screen vertically, select NTSC in Amiga Early

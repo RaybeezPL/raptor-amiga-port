@@ -12,12 +12,17 @@ AmigaOS 3.2, procesorze klasy 68060 (pełny 68060 z FPU albo
 68EC060/68LC060 z użyciem binarnego raptor_nofpu w wersji soft-float)
 lub procesorze 68030, dla którego przeznaczone są dwa osobne, dedykowane
 pliki binarne: raptor_030_fpu (68030 z zewnętrznym 68881/68882 FPU)
-oraz raptor_030 (68030 bez FPU, soft-float), oraz grafice RTG
-(Picasso96/CyberGraphX) lub natywnym ekranie chipsetu AGA (GFX=AGA).
-Działa również na dowolnej Amidze z PiStorm-em i RTG
-(A500, A600, A1200, A2000 itp.) lub natywnym RTG/AGA (A1200, A4000
-i być może AA3000 — do sprawdzenia). Gra renderuje obraz w
-rozdzielczości 320x200, z paletą 8-bitową, na dedykowanym ekranie.
+oraz raptor_030 (68030 bez FPU, soft-float). Renderowanie RTG jest
+obsługiwane na każdym systemie z kompatybilną kartą graficzną RTG
+(np. CyberVision 64/3D, Picasso IV lub podobną) przez Picasso96 albo
+CyberGraphX. Natywne renderowanie AGA (GFX=AGA) to osobna, pełna
+ścieżka renderowania — nie fallback RTG — dostępna na sprzęcie
+z AGA (Amiga 1200, Amiga 4000), a także do wyboru w WinUAE oraz
+zgodnych konfiguracjach PiStorm/Emu68, gdy AGA jest dostępne.
+Działa również na dowolnej Amidze z PiStorm/Emu68 (A500, A600, A1200,
+A2000 itp.), gdzie według konfiguracji środowiska można wybrać RTG
+albo AGA. Gra renderuje obraz w rozdzielczości 320x200, z paletą
+8-bitową, na dedykowanym ekranie.
 
 UWAGA: To repozytorium NIE zawiera plików danych gry. Potrzebujesz
 własnej, legalnej kopii oryginalnych plików gry. Obsługiwana jest
@@ -66,9 +71,17 @@ Domyślny tryb grafiki (GFX=AUTO / GFX=RTG) wymaga RTG: gra najpierw
 próbuje użyć Picasso96, a następnie przełącza się na CyberGraphX (CGX /
 cybergraphics.library). Jeśli żadna z tych opcji nie zadziała, zostanie
 wyświetlony angielski requester, a gra NIE zostanie uruchomiona (brak
-cichego fallbacku). Na komputerze bez karty RTG uruchom grę z GFX=AGA,
-co wymusi standardowy ekran chipsetu 320x200x8. Obsługiwaną i testowaną
-konfiguracją jest Picasso96 RTG.
+cichego fallbacku). Renderowanie RTG jest obsługiwane na każdym
+systemie z kompatybilną kartą graficzną RTG (np. CyberVision 64/3D,
+Picasso IV lub podobną). Obsługiwaną i testowaną konfiguracją jest
+Picasso96 RTG.
+
+Natywne renderowanie AGA (GFX=AGA) to osobna, pełna ścieżka
+renderowania — nie fallback dla RTG. Działa na sprzęcie z AGA
+(Amiga 1200, Amiga 4000) i może być również wybrane w WinUAE oraz
+zgodnych konfiguracjach PiStorm/Emu68, gdy AGA jest dostępne;
+w WinUAE i na PiStorm/Emu68 wybierz RTG albo AGA zgodnie z
+konfiguracją systemu.
 
 Prezentacja klatek wykorzystuje najszybszą ścieżkę dostępną dla
 aktywnego drivera: p96WritePixelArray w Picasso96, WritePixelArray
@@ -318,8 +331,12 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                          uruchomiona (brak cichego fallbacku do klasycznego
                          chipsetu — jest to ustawienie domyślne);
                  RTG   — to samo co AUTO (wymagane RTG, brak cichego fallbacku);
-                 AGA   — wymusza natywny ekran chipsetu 320x200x8
-                         (RTG nie jest wymagane, działa na każdej Amidze).
+                  AGA   — wymusza natywny ekran chipsetu 320x200x8
+                          (osobna, natywna ścieżka renderowania dla
+                          sprzętu z AGA: Amiga 1200 i Amiga 4000;
+                          dostępna także w WinUAE i zgodnych
+                          konfiguracjach PiStorm/Emu68, gdy AGA
+                          jest dostępne).
 
                Działa również forma bez myślnika: "GFX=RTG". Jeśli ścieżka
                RTG nie może otworzyć ekranu 320x200x8, szuka trybu 320x240x8,
@@ -428,8 +445,10 @@ działają normalnie we wszystkich trybach.
 Notatki dotyczące natywnego AGA (PAL/NTSC)
 ------------------------------------------
 
-- Natywny tryb chipsetu jest wybierany za pomocą `GFX=AGA` (nie wymaga karty
-  RTG).
+- Natywny tryb chipsetu jest wybierany za pomocą `GFX=AGA`. AGA to osobna,
+  pełna natywna ścieżka renderowania — nie fallback dla RTG — dostępna na
+  sprzęcie z AGA (Amiga 1200, Amiga 4000) oraz w WinUAE i zgodnych
+  konfiguracjach PiStorm/Emu68, gdy AGA jest dostępne.
 - Gra zawsze renderuje stały logiczny obraz 320x200 od lewego górnego rogu
   natywnego ekranu AGA.
 - Na Amidze skonfigurowanej jako PAL niewykorzystany dolny obszar ekranu PAL
