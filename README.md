@@ -1,8 +1,8 @@
-# Raptor: Call of the Shadows - Amiga Port (68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
+# Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
 This repository contains an AmigaOS 3.x port of **Raptor: Call of the Shadows**, based on the open-source reverse-engineered codebase by [skynettx/raptor](https://github.com/skynettx/raptor).
 
-The port targets **68060-class Amiga systems** — both full **68060 with FPU** and FPU-less **68EC060 / 68LC060** (dedicated soft-float binary) — with **RTG graphics (Picasso96 / CyberGraphX)** or the **native AGA chipset** (`GFX=AGA`), with primary testing and optimization aimed at:
+The port targets **68060-class Amiga systems** — both full **68060 with FPU** and FPU-less **68EC060 / 68LC060** (dedicated soft-float binary) — as well as **68030 systems**, covered by two separate dedicated binaries: **68030 with an external 68881/68882 FPU** (`raptor_030_fpu`) and **68030 without an FPU** (`raptor_030`, soft-float) — plus faster 68k hardware, with **RTG graphics (Picasso96 / CyberGraphX)** or the **native AGA chipset** (`GFX=AGA`), with primary testing and optimization aimed at:
 
 - **Amiga 2000 / Amiga 3000 / Amiga 4000** with RTG cards such as **CyberVision 64/3D**, Picasso IV, or similar
 - **Amiga A500 / A600 / A1200 / A2000 / A3000 / A4000 with PiStorm / Emu68 + RTG** (or AGA on A1200/A4000)
@@ -18,6 +18,8 @@ Ready-to-run binaries are on the [Releases page](https://github.com/RaybeezPL/ra
 
 - **`raptor`** — 68060 **with FPU** (recommended)
 - **`raptor_nofpu`** — soft-float build for **68060 without FPU** (68EC060/68LC060 or a broken FPU)
+- **`raptor_030_fpu`** — **68030 with an external 68881/68882 FPU**
+- **`raptor_030`** — soft-float build for **68030 without an FPU**
 
 You also need the original game data files (`FILE0000.GLB` ... `FILE0004.GLB`, full version 1.2) — see **README_AMIGA.md** for installation.
 
@@ -25,7 +27,7 @@ You also need the original game data files (`FILE0000.GLB` ... `FILE0004.GLB`, f
 
 The goals of this port are:
 
-- Bring **Raptor: Call of the Shadows** to classic Amiga systems with a **68060-class CPU** (RTG or AGA graphics)
+- Bring **Raptor: Call of the Shadows** to classic Amiga systems with a **68030/68060-class CPU** (RTG or AGA graphics)
 - Replace SDL-dependent parts of the engine with **native AmigaOS implementations**
 - Keep the rendering path efficient for Amiga RTG hardware, avoiding unnecessary format conversion and slow per-pixel drawing paths
 - Make the codebase practical for testing on both **WinUAE** and **real hardware**
@@ -33,13 +35,14 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.6_MHI**
+Current version: **0.9.7**
 
 Working:
 
-- Two native **m68k AmigaOS cross-builds**: `raptor` (68060 + FPU) and
+- Four native **m68k AmigaOS cross-builds**: `raptor` (68060 + FPU),
   `raptor_nofpu` (soft-float, for FPU-less 68EC060/68LC060 or a broken
-  FPU) — `build_amiga_nofpu.sh` / `make -f Makefile.amiga NOFPU=1`
+  FPU), `raptor_030_fpu` (68030 + external 68881/68882 FPU) and
+  `raptor_030` (soft-float 68030)
 - Full gameplay on real hardware — tested on A2000 with CyberVision 64/3D, A1200 + PiStorm/Emu68 (display output verified via both RTG and AGA), and WinUAE; expected to work on any Amiga model (A500/A600/A1200/A2000/A3000/A4000) with PiStorm/Emu68 + RTG
 - Keyboard, mouse and joystick/CD32 pad input working simultaneously
 - RTG video path for **320x200x8-bit** output on a dedicated screen;
@@ -50,8 +53,11 @@ Working:
 - Accelerated frame presentation on every display path: Picasso96 uses
   the driver's own `p96WritePixelArray`, CyberGraphX uses CGX
   `WritePixelArray`, and the `GFX=AGA` chipset screen uses a custom
-  68060 chunky-to-planar converter — all replacing the generic
-  `WriteChunkyPixels` OS conversion (kept as fallback)
+  68060 chunky-to-planar converter — native AGA rendering has been
+  optimized by caching the converted AGA bitmap used for C2P blits,
+  reducing unnecessary conversion work when the game frame does not
+  change — all replacing the generic `WriteChunkyPixels` OS conversion
+  (kept as fallback)
 - **`MUSIC=ADLIB|CAMD|MHI|OFF`** parameter — selects the music backend:
   built-in AdLib/OPL3 emulation (default), General MIDI via CAMD, MP3
   files from the `MP3/` drawer via an MHI hardware decoder, or no music
@@ -91,9 +97,15 @@ Working:
   write their values back to it
 
 
-Work still in progress:
+Work still in progress / roadmap:
 
-- Fine-tuning and performance polish on real 68060 hardware
+- Fine-tuning and performance polish on real 68k hardware
+- **MPGA/MPEGA MP3 playback** for PiStorm and WinUAE with JIT is the
+  remaining planned feature — it is **not implemented yet** (the MP3
+  support currently available via `MUSIC=MHI` requires an MHI hardware
+  decoder)
+- Once MPGA/MPEGA MP3 playback is completed and tested, version
+  **0.99 pre-release** is planned as the next public milestone
 
 For detailed requirements, controls, parameters and troubleshooting see
 **README_AMIGA.md** - the main port documentation.
@@ -103,8 +115,10 @@ For detailed requirements, controls, parameters and troubleshooting see
 
 Recommended baseline target:
 
-- **CPU:** Motorola 68060 with FPU (`raptor`) or FPU-less 68EC060/68LC060
-  (`raptor_nofpu` soft-float build); PiStorm/Emu68 equivalent
+- **CPU:** Motorola 68060 with FPU (`raptor`), FPU-less 68EC060/68LC060
+  (`raptor_nofpu` soft-float build), 68030 with an external 68881/68882
+  FPU (`raptor_030_fpu`), or 68030 without an FPU (`raptor_030`
+  soft-float build); PiStorm/Emu68 equivalent
 - **Graphics:** RTG board with Picasso96 (P96) support; also works
   with CyberGraphX (CGX / cybergraphics.library) or a native AGA
   chipset screen (`GFX=AGA`, no RTG card required)
@@ -177,7 +191,7 @@ That upstream project reconstructs the original game engine in C/C++ and made th
 
 ## Scope of this fork
 
-This repository is **not** a generic multi-platform fork. Its main purpose is to develop and maintain the **Amiga 68060 port (RTG and AGA)**.
+This repository is **not** a generic multi-platform fork. Its main purpose is to develop and maintain the **Amiga 68030/68060 port (RTG and AGA)**.
 
 Platform-specific notes for Windows, Linux, macOS, and Android from the original upstream project are not the focus of this fork and may differ from the current upstream README.
 

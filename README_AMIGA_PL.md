@@ -1,6 +1,6 @@
-Raptor: Call of the Shadows - Amiga Port (68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
+Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Wersja: 0.9.6_MHI
+Wersja: 0.9.7
 
 =====================================================
 
@@ -10,8 +10,11 @@ silnika (reverse engineering) projektu open source skynettx/raptor.
 Port jest rozwijany wyłącznie z myślą o klasycznych systemach Amiga:
 AmigaOS 3.2, procesorze klasy 68060 (pełny 68060 z FPU albo
 68EC060/68LC060 z użyciem binarnego raptor_nofpu w wersji soft-float)
-oraz grafice RTG (Picasso96/CyberGraphX) lub natywnym ekranie chipsetu
-AGA (GFX=AGA). Działa również na dowolnej Amidze z PiStorm-em i RTG
+lub procesorze 68030, dla którego przeznaczone są dwa osobne, dedykowane
+pliki binarne: raptor_030_fpu (68030 z zewnętrznym 68881/68882 FPU)
+oraz raptor_030 (68030 bez FPU, soft-float), oraz grafice RTG
+(Picasso96/CyberGraphX) lub natywnym ekranie chipsetu AGA (GFX=AGA).
+Działa również na dowolnej Amidze z PiStorm-em i RTG
 (A500, A600, A1200, A2000 itp.) lub natywnym RTG/AGA (A1200, A4000
 i być może AA3000 — do sprawdzenia). Gra renderuje obraz w
 rozdzielczości 320x200, z paletą 8-bitową, na dedykowanym ekranie.
@@ -25,15 +28,22 @@ https://store.steampowered.com/app/358360/Raptor_Call_of_the_Shadows_1994_Classi
 Wymagania
 ---------
 
-Procesor:   Motorola 68060 (lub PiStorm / Emu68)
-FPU:        Wbudowane FPU procesora 68060 / 68881 / 68882 — WYMAGANE
-            dla binarnego pliku raptor (skompilowanego z -m68881).
-            Systemy BEZ FPU (68LC060/68EC060 albo z uszkodzonym FPU)
-            mogą użyć binarnego pliku raptor_nofpu — kompilacji soft-float,
-            w której operacje zmiennoprzecinkowe są wykonywane programowo
-            przez mathieeedoubbas.library (obecną w Kickstart ROM). Zbuduj
-            ją za pomocą build_amiga_nofpu.sh albo polecenia
-            "make -f Makefile.amiga NOFPU=1".
+Procesor:   Motorola 68030 z zewnętrznym 68881/68882 FPU albo 68060
+            (lub PiStorm / Emu68). Cztery cele budowania:
+              raptor         - 68060 + wbudowane FPU (kompilacja z -m68881)
+              raptor_nofpu   - 68060 bez FPU (68EC060/68LC060 lub
+                               uszkodzone FPU), soft-float
+              raptor_030_fpu - 68030 + zewnętrzne 68881/68882 FPU (-m68030)
+              raptor_030     - 68030 bez FPU, soft-float
+FPU:        Kompilacje raptor oraz raptor_030_fpu WYMAGAJĄ FPU.
+            Kompilacje soft-float (raptor_nofpu, raptor_030) wykonują
+            operacje zmiennoprzecinkowe programowo przez
+            mathieeedoubbas.library (obecną w Kickstart ROM). Warianty
+            68030 buduje się za pomocą:
+              build_amiga_030.sh       lub  make -f Makefile.amiga CPU=030 NOFPU=1
+              build_amiga_030_fpu.sh   lub  make -f Makefile.amiga CPU=030 NOFPU=0
+            (kompilację 68060 soft-float buduje się za pomocą
+            build_amiga_nofpu.sh / NOFPU=1).
 System:     AmigaOS 3.2 (intuition.library v39+, graphics.library v39+)
 Pamięć:     Minimum 4 MB Fast RAM (zalecane 8 MB) + 2 MB Chip RAM
             (standardowo). Sama gra wykorzystuje około 3 MB Fast RAM;
@@ -63,8 +73,11 @@ konfiguracją jest Picasso96 RTG.
 Prezentacja klatek wykorzystuje najszybszą ścieżkę dostępną dla
 aktywnego drivera: p96WritePixelArray w Picasso96, WritePixelArray
 w CyberGraphX oraz własny konwerter chunky-to-planar (C2P) dla AGA.
-Aktywna ścieżka jest zapisywana przy uruchomieniu ("[VIDEO] blit path: ...")
-podczas pracy z Shell (raptor > RAPTOR.LOG).
+Natywne renderowanie AGA zostało zoptymalizowane dzięki buforowaniu
+przekonwertowanej bitmapy AGA używanej przy blitach C2P, co ogranicza
+niepotrzebną pracę konwersji, gdy klatka gry nie ulega zmianie.
+Aktywna ścieżka jest zapisywana przy uruchomieniu
+("[VIDEO] blit path: ...") podczas pracy z Shell (raptor > RAPTOR.LOG).
 
 
 Instalacja
@@ -73,11 +86,14 @@ Instalacja
 1. Rozpakuj archiwum do wybranego katalogu, np. Games:.
    Archiwum zawiera gotowy do użycia drawer "Raptor" wraz z własną ikoną:
 
-   Raptor/           drawer gry (z ikoną)
-     raptor          główny binarny plik (kompilacja 68060 + FPU), z ikoną
-     raptor_nofpu    binarny plik soft-float dla systemów 68060 BEZ FPU
-                     (68LC060/68EC060 albo uszkodzone FPU), z ikoną
-     README_AMIGA.md ten plik, z ikoną
+    Raptor/           drawer gry (z ikoną)
+      raptor          główny binarny plik (kompilacja 68060 + FPU), z ikoną
+      raptor_nofpu    binarny plik soft-float dla systemów 68060 BEZ FPU
+                      (68LC060/68EC060 albo uszkodzone FPU), z ikoną
+      raptor_030_fpu  kompilacja 68030 + zewnętrzne 68881/68882 FPU, z ikoną
+      raptor_030      binarny plik soft-float dla systemów 68030 BEZ FPU,
+                      z ikoną
+      README_AMIGA.md ten plik, z ikoną
 
 2. Skopiuj pliki danych oryginalnej gry do drawera Raptor:
 
@@ -212,9 +228,9 @@ podsystemów Amigi:
                     Parametr MHIDRIVER= (np. -mhidriver=mhimaspro.library)
                     wymusza użycie konkretnego drivera. Jeśli nie uda się
                     otworzyć żadnego MHI drivera, gra automatycznie wróci
-                    do muzyki AdLib/OPL3. Uwaga: dla komputerów 68060 nie
-                    istnieje software-only MHI decoder — MUSIC=MHI wymaga
-                    jednego z opisanych wyżej hardware decoders.
+                     do muzyki AdLib/OPL3. Uwaga: dla klasycznych komputerów
+                     68k nie istnieje software-only MHI decoder — MUSIC=MHI
+                     wymaga jednego z opisanych wyżej hardware decoders.
 
 Stan audio i informacje diagnostyczne są wypisywane do konsoli przy
 uruchomieniu (Shell/CLI). Żaden plik logu nie jest tworzony automatycznie
@@ -528,9 +544,10 @@ Znane ograniczenia
   CAMD driver.
 - Muzyka MP3 (MUSIC=MHI) wymaga zainstalowanego MHI decoder drivera
   w LIBS:MHI/ (Prisma Megamix, MAS Player, Prelude MPEGit albo hardware
-  mpeg.device, np. Delfina). Dla komputerów 68060 nie ma software-only
-  MHI decodera; bez drivera gra wróci do muzyki AdLib/OPL3. Utwory,
-  których pliku MP3 brakuje w drawerze MP3/, pozostają celowo ciche.
+  mpeg.device, np. Delfina). Dla klasycznych komputerów 68k nie ma
+  software-only MHI decodera; bez drivera gra wróci do muzyki
+  AdLib/OPL3. Utwory, których pliku MP3 brakuje w drawerze MP3/,
+  pozostają celowo ciche.
 - Głośność muzyki i efektów zmieniana w menu opcji jest zapisywana do
   amiga.cfg w katalogu gry (pliku tworzonego przy pierwszym uruchomieniu)
   i przywracana przy kolejnym starcie. Poziom detali nie jest zapisywany.
@@ -539,6 +556,18 @@ Znane ograniczenia
 - Systemowy pointer myszy Amigi jest ukrywany podczas działania gry
   (i przywracany przy wyjściu do systemu).
 - Stała rozdzielczość 320x200 — gra zawsze otwiera własny ekran.
+
+
+Plany / pozostałe prace
+-----------------------
+
+- Odtwarzanie MP3 przez MPGA/MPEGA dla PiStorm i WinUAE z JIT to
+  pozostała planowana funkcja. Nie jest ona jeszcze zaimplementowana —
+  obecnie dostępna obsługa MP3 (MUSIC=MHI) wymaga sprzętowego dekodera
+  MHI.
+- Po ukończeniu i przetestowaniu odtwarzania MP3 przez MPGA/MPEGA
+  planowanym kolejnym publicznym kamieniem milowym jest wersja
+  0.99 pre-release.
 
 
 Autorzy i kontakt

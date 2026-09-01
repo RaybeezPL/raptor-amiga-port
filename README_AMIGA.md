@@ -1,6 +1,6 @@
-Raptor: Call of the Shadows - Amiga Port (68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
+Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Version: 0.9.6_MHI
+Version: 0.9.7
 
 =====================================================
 
@@ -72,8 +72,11 @@ configuration is Picasso96 RTG.
 Frame presentation uses the fastest path available for the active
 driver: p96WritePixelArray on Picasso96, WritePixelArray on
 CyberGraphX, and a custom 68060 chunky-to-planar (C2P) converter on
-AGA. The active path is logged at startup ("[VIDEO] blit path: ...")
-when running from a Shell (raptor > RAPTOR.LOG).
+AGA. Native AGA rendering has been optimized by caching the converted
+AGA bitmap used for C2P blits, reducing unnecessary conversion work
+when the game frame does not change. The active path is logged at
+startup ("[VIDEO] blit path: ...") when running from a Shell
+(raptor > RAPTOR.LOG).
 
 
 Installation
@@ -224,9 +227,9 @@ Sound effects and music use two separate, native Amiga subsystems:
                    MHIDRIVER= parameter (e.g. -mhidriver=mhimaspro.library)
                    forces a specific driver. If no MHI driver can be
                    opened, the game falls back to AdLib/OPL3 music
-                   automatically. Note: there is no software-only MHI
-                   decoder for 68060 machines - MUSIC=MHI needs one of
-                   the hardware decoders above.
+                    automatically. Note: there is no software-only MHI
+                    decoder for classic 68k machines - MUSIC=MHI needs
+                    one of the hardware decoders above.
 
 Audio status and diagnostics are printed to the console at startup
 (Shell/CLI). No log file is created automatically - to save them to a
@@ -552,9 +555,9 @@ Known Limitations
 - MP3 music (MUSIC=MHI) needs an MHI decoder driver installed in
   LIBS:MHI/ (Prisma Megamix, MAS Player, Prelude MPEGit or
   mpeg.device hardware such as the Delfina). There is no
-  software-only MHI decoder for 68060 machines; without a driver
-  the game falls back to AdLib/OPL3 music. Songs whose MP3 file is
-  missing from the MP3/ drawer stay silent by design.
+  software-only MHI decoder for classic 68k machines; without a
+  driver the game falls back to AdLib/OPL3 music. Songs whose MP3
+  file is missing from the MP3/ drawer stay silent by design.
 - Music and sound-effect volumes changed in the in-game options menu
   are saved to amiga.cfg in the game directory (created on first run)
   and restored on the next start. Detail level is not persisted.
@@ -563,6 +566,17 @@ Known Limitations
 - The Amiga system mouse pointer is hidden while the game is
   running (restored on exit to system).
 - Fixed 320x200 resolution - the game always opens its own screen.
+
+
+Roadmap / Remaining Work
+------------------------
+
+- MPGA/MPEGA MP3 playback for PiStorm and WinUAE with JIT is the
+  remaining planned feature. It is NOT implemented yet - the MP3
+  support currently available (MUSIC=MHI) requires an MHI hardware
+  decoder driver.
+- Once MPGA/MPEGA MP3 playback is completed and tested, version 0.99
+  pre-release is planned as the next public milestone.
 
 
 Credits & Contact
