@@ -8,6 +8,8 @@
  * - music_adlib : ADLIB/OPL3 music, mixed into the AHI stream.
  * - music_mhi   : MP3 music via MHI (Prisma Megamix), separate hardware
  *                 output.
+ * - music_wave  : WAV music from the WAVE/ drawer, mixed into the AHI
+ *                 stream.
  * - sfx_volume  : sound effects through the AHI stream.
  *
  * AmigaCfg_Load() is called at startup (SND_InitSound) - file wins over
@@ -20,6 +22,7 @@
 /* Volumes read from / written to amiga.cfg (0..127, clamped). */
 extern int amiga_cfg_music_adlib;
 extern int amiga_cfg_music_mhi;
+extern int amiga_cfg_music_wave;
 extern int amiga_cfg_sfx;
 
 /* Loads amiga.cfg from the current directory.  Missing file = built-in

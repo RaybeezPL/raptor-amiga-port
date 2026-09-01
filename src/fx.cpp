@@ -102,7 +102,10 @@ void FX_Fill(void *userdata, uint8_t *stream, int len)
     if (frames <= 0) return;
 
     if (music_volume > 0 && !g_nomusic) {
-        MUS_Mix((int16_t*)stream, frames);
+        if (g_music_mode == MUSIC_MODE_WAVE)
+            WAVE_Mix((int16_t*)stream, frames);
+        else
+            MUS_Mix((int16_t*)stream, frames);
     }
 
     GSS_Mix((int16_t*)stream, frames);
@@ -218,7 +221,9 @@ int SND_InitSound(void)
     AmigaCfg_Load();
     music_volume = (g_music_mode == MUSIC_MODE_MHI)
                        ? amiga_cfg_music_mhi
-                       : amiga_cfg_music_adlib;
+                       : (g_music_mode == MUSIC_MODE_WAVE)
+                             ? amiga_cfg_music_wave
+                             : amiga_cfg_music_adlib;
     if (music_volume < 0)   music_volume = 0;
     if (music_volume > 127) music_volume = 127;
     /* Amiga: the music backend is selected with the MUSIC= command-line
@@ -228,6 +233,13 @@ int SND_InitSound(void)
      * to AdLib/OPL3 below when CAMD cannot be opened), or MP3 files via an
      * MHI decoder driver (MUSIC=MHI, mpumhi.cpp). */
     music_card = (g_music_mode == MUSIC_MODE_CAMD) ? M_GMIDI : M_ADLIB;
+
+    /* MUSIC=WAVE: WAV files from the WAVE/ drawer are mixed straight into
+     * the AHI stream by WAVE_Mix() (FX_Fill) - no MUS sequencer, no GLB
+     * music items, no external driver.  SND_PlaySong/_IsSongPlaying/
+     * _FadeOutSong route to the WAVE backend instead. */
+    if (g_music_mode == MUSIC_MODE_WAVE)
+        music_card = M_NONE;
 
     /* MUSIC=MHI: stream MP3 files from the MP3/ drawer through an MHI
      * decoder driver (e.g. LIBS:MHI/prismamhi.library).  On success the
@@ -319,7 +331,9 @@ int SND_InitSound(void)
     /* Printed after backend selection so it names the real (possibly
      * fallen-back) music device. */
 #ifdef __AMIGA__
-    if (!g_nomusic && g_music_mode == MUSIC_MODE_MHI && MHI_IsActive())
+    if (!g_nomusic && g_music_mode == MUSIC_MODE_WAVE)
+        printf("Music Enabled (WAV files from the WAVE/ drawer)\n");
+    else if (!g_nomusic && g_music_mode == MUSIC_MODE_MHI && MHI_IsActive())
         printf("Music Enabled (MP3 via MHI: %s)\n", MHI_DriverName());
     else if (!g_nomusic && music_card == M_GMIDI)
         printf("Music Enabled (General Midi via CAMD)\n");
@@ -1239,8 +1253,32 @@ void SND_PlaySong(int item, int chainflag, int fadeflag)
         }
         return;
     }
+
+    /* MUSIC=WAVE: play the WAV mapped to this song item (WAVE/ drawer)
+     * mixed into the AHI stream by WAVE_Mix().  No GLB item is locked and
+     * fadeflag is ignored: WAVE stops are immediate.  When no WAV matches
+     * the item, the song stays silent. */
+    if (g_music_mode == MUSIC_MODE_WAVE)
+    {
+        if (music_song == item)
+            return;
+
+        if (music_song != -1)
+        {
+            WAVE_StopSong();
+            music_song = -1;
+        }
+
+        if (item != -1)
+        {
+            music_song = item;
+            AmigaLog("AUDIO: SND_PlaySong WAVE item=%d loop=%d", item, chainflag);
+            WAVE_PlaySongItem(item, chainflag);
+        }
+        return;
+    }
 #endif
-    
+
     if (music_song == item)
         return;
     
@@ -1279,6 +1317,8 @@ int SND_IsSongPlaying(void)
 #ifdef __AMIGA__
     if (g_music_mode == MUSIC_MODE_MHI)
         return MHI_SongPlaying();
+    if (g_music_mode == MUSIC_MODE_WAVE)
+        return WAVE_SongPlaying();
 #endif
     return MUS_SongPlaying();
 }
@@ -1296,6 +1336,18 @@ void SND_FadeOutSong(void)
         if (music_song != -1)
         {
             MHI_StopSong();
+            music_song = -1;
+        }
+        return;
+    }
+
+    /* MUSIC=WAVE: no fade-out - stop immediately.  No GLB item was ever
+     * locked in this mode (see SND_PlaySong). */
+    if (g_music_mode == MUSIC_MODE_WAVE)
+    {
+        if (music_song != -1)
+        {
+            WAVE_StopSong();
             music_song = -1;
         }
         return;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #define SND_CLOSE    40
 #define SND_FAR      500
 
@@ -90,11 +92,24 @@ extern int g_nomusic;
  *   MUSIC_MODE_MHI             : MP3 files from the MP3/ drawer through an
  *              MHI decoder driver (e.g. LIBS:MHI/prismamhi.library); needs
  *              an installed MHI driver, otherwise it falls back to ADLIB.
+ *   MUSIC_MODE_WAVE            : 11025 Hz stereo 16-bit PCM WAV files from
+ *              the WAVE/ drawer, mixed directly into the AHI audio stream
+ *              (mpuwave.cpp) - no external driver needed.
  * MUSIC=OFF (or -nomusic) sets g_nomusic instead and always wins. */
 #define MUSIC_MODE_ADLIB 0
 #define MUSIC_MODE_CAMD  1
 #define MUSIC_MODE_MHI   2
+#define MUSIC_MODE_WAVE  3
 extern int g_music_mode;
+
+/* WAVE music backend (src/mpuwave.cpp) - plays 11025 Hz stereo 16-bit PCM
+ * WAV files from the WAVE/ drawer, mixed into the AHI stream by FX_Fill()
+ * when g_music_mode == MUSIC_MODE_WAVE. */
+int  WAVE_LoadSong(const char *path, int loop);
+int  WAVE_PlaySongItem(int item, int loop);
+void WAVE_StopSong(void);
+int  WAVE_SongPlaying(void);
+void WAVE_Mix(int16_t *stream, int frames);
 
 #include "SDL.h"
 

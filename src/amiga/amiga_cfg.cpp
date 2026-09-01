@@ -19,6 +19,7 @@
 
 int amiga_cfg_music_adlib = 127;
 int amiga_cfg_music_mhi   = 127;
+int amiga_cfg_music_wave  = 127;
 int amiga_cfg_sfx         = 127;
 
 /***************************************************************************
@@ -65,6 +66,8 @@ AmigaCfg_Load(void)
                 amiga_cfg_music_adlib = val;
             else if (strcmp(key, "music_mhi") == 0)
                 amiga_cfg_music_mhi = val;
+            else if (strcmp(key, "music_wave") == 0)
+                amiga_cfg_music_wave = val;
             else if (strcmp(key, "sfx_volume") == 0)
                 amiga_cfg_sfx = val;
         }
@@ -88,6 +91,7 @@ AmigaCfg_Save(void)
     fprintf(f, "; Raptor Amiga audio (0..127, 127 = loud)\n");
     fprintf(f, "music_adlib = %d\n", amiga_cfg_music_adlib);
     fprintf(f, "music_mhi   = %d\n", amiga_cfg_music_mhi);
+    fprintf(f, "music_wave  = %d\n", amiga_cfg_music_wave);
     fprintf(f, "sfx_volume  = %d\n", amiga_cfg_sfx);
 
     fclose(f);

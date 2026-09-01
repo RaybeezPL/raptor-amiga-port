@@ -418,6 +418,8 @@ WIN_Opts(
                  * (MHI drives Prisma; everything else goes through AHI). */
                 if (g_music_mode == MUSIC_MODE_MHI)
                     amiga_cfg_music_mhi = music_volume;
+                else if (g_music_mode == MUSIC_MODE_WAVE)
+                    amiga_cfg_music_wave = music_volume;
                 else
                     amiga_cfg_music_adlib = music_volume;
                 amiga_cfg_sfx = fx_volume;

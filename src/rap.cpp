@@ -382,9 +382,15 @@ RAP_ParseMusic(
         g_music_mode = MUSIC_MODE_MHI;
         printf("MUSIC=MHI: MP3 music from the MP3/ drawer via an MHI driver\n");
     }
+    else if (RAP_StrCaseEqual(value, "wave") ||
+             RAP_StrCaseEqual(value, "wav"))
+    {
+        g_music_mode = MUSIC_MODE_WAVE;
+        printf("MUSIC=WAVE: WAV music from the WAVE/ drawer (mixed into the AHI stream)\n");
+    }
     else
     {
-        printf("Unknown MUSIC '%s' - valid values: ADLIB, CAMD, MHI, OFF "
+        printf("Unknown MUSIC '%s' - valid values: ADLIB, CAMD, MHI, WAVE, OFF "
                "(using default ADLIB)\n", value);
     }
 

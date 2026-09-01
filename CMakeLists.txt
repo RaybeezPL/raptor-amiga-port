@@ -119,6 +119,7 @@ if(RAPTOR_AMIGA)
         src/movie_a.cpp
         src/mpucamd.cpp
         src/mpumhi.cpp
+        src/mpuwave.cpp
         src/mputsf.cpp
         src/musapi.cpp
         src/objects.cpp
