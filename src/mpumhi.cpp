@@ -150,6 +150,12 @@ static struct MHIState
     volatile LONG debug_read10;
     volatile LONG debug_start;
     volatile LONG debug_end;
+    volatile LONG debug_cmd_seen;   /* PLAY: feeder entered MHICMD_PLAY       */
+    volatile LONG debug_open_ioerr; /* OPEN: real IoErr() if Open failed      */
+    volatile LONG debug_preload;    /* PLAY: buffers queued before MHIPlay()  */
+    volatile LONG debug_vol_issued; /* PLAY: MHISetParam(volume) was issued   */
+    volatile LONG debug_vol_scaled; /* PLAY: value passed to MHISetParam      */
+    volatile LONG debug_play_called;/* PLAY: MHIPlay() was invoked            */
     char   driver_name[64];         /* MHIQ_DECODER_NAME copy */
     char   opened_path[256];        /* driver library path that opened */
 } g_mhi;
@@ -204,7 +210,7 @@ static const struct
  * test hardware of this port); afterwards the LIBS:MHI/ drawer is
  * scanned for any other installed driver. */
 static const char * const mhi_default_drivers[] = {
-    "LIBS:MHI/prismamhi.library",       /* Prisma Megamix (clockport MP3)   */
+    "LIBS:MHI/mhiprisma.library",       /* Prisma Megamix (clockport MP3)   */
     "LIBS:MHI/mhimaspro.library",       /* MAS Player Pro                   */
     "LIBS:MHI/mhiArmedWarp.library",    /* Warp                             */
     "LIBS:MHI/mhimasstd.library",       /* MAS Player standard              */
@@ -528,6 +534,7 @@ MHI_FeederOpen(
     if (!f)
     {
         g_mhi.open_error = IoErr();
+        g_mhi.debug_open_ioerr = g_mhi.open_error;   /* keep real IoErr() */
         return 0;
     }
     
@@ -567,6 +574,7 @@ MHI_FeederOpen(
             break;
     }
 
+    g_mhi.debug_preload = i;        /* diagnostic: preload result */
     return 1;
 }
 
@@ -651,18 +659,31 @@ MHI_HandleCommand(
     switch (cmd)
     {
         case MHICMD_PLAY:
+            g_mhi.debug_cmd_seen = 1;   /* diagnostic: PLAY received */
+
             MHI_FeederStop();
 
             g_mhi.open_error = 0;
             g_mhi.loop = g_mhi.cmd_loop ? 1 : 0;
+            g_mhi.debug_open_ioerr = 0;
+            g_mhi.debug_preload = 0;
+            g_mhi.debug_vol_issued = 0;
+            g_mhi.debug_vol_scaled = 0;
+            g_mhi.debug_play_called = 0;
 
             if (MHI_FeederOpen((const char *)g_mhi.cmd_path))
             {
                 g_mhi.traffic_ticks = SDL_GetTicks();
                 if (g_mhi.vol_supported)
-                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, MHI_ScaleVolume(g_mhi.volume));
+                {
+                    ULONG scaled_volume = MHI_ScaleVolume(g_mhi.volume);
+                    g_mhi.debug_vol_scaled = (LONG)scaled_volume;
+                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, scaled_volume);
+                    g_mhi.debug_vol_issued = 1;
+                }
 
                 MHIPlay(g_mhi.decoder);
+                g_mhi.debug_play_called = 1;
 
                 g_mhi.state = MHISTATE_PLAYING;
             }
@@ -1020,6 +1041,12 @@ MHI_MusicInit(
     g_mhi.debug_read10 = 0;
     g_mhi.debug_start = 0;
     g_mhi.debug_end = 0;
+    g_mhi.debug_cmd_seen = 0;
+    g_mhi.debug_open_ioerr = 0;
+    g_mhi.debug_preload = 0;
+    g_mhi.debug_vol_issued = 0;
+    g_mhi.debug_vol_scaled = 0;
+    g_mhi.debug_play_called = 0;
     g_mhi.opened_path[0] = 0;
 
     for (i = 0; i < MHI_NUM_BUFS; i++)
@@ -1234,6 +1261,20 @@ MHI_PlaySongItem(
         {
             g_mhi.stop_incomplete = 0;
         }
+
+        /* Diagnostic (main task, after the feeder consumed the command):
+         * the volatile fields below were written by the feeder before it
+         * cleared g_mhi.cmd - the same handshake that released this caller. */
+        MHI_LOG("MHI: PLAY item=0x%04x loop=%d path='%s' cmd_seen=%ld "
+                "state=%ld open=%ld ioerr=%ld size=%ld preload=%ld "
+                "queued=%ld vol_issued=%ld vol_scaled=%ld play_called=%ld",
+                item, loop ? 1 : 0, path,
+                (long)g_mhi.debug_cmd_seen, (long)g_mhi.state,
+                (long)g_mhi.debug_open, (long)g_mhi.debug_open_ioerr,
+                (long)g_mhi.debug_end, (long)g_mhi.debug_preload,
+                (long)g_mhi.queued,
+                (long)g_mhi.debug_vol_issued, (long)g_mhi.debug_vol_scaled,
+                (long)g_mhi.debug_play_called);
     }
 }
 

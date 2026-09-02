@@ -6,16 +6,16 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR"
+BUILD_DIR="$PROJECT_DIR/build.amiga"
 
 export PATH="/opt/amiga/bin:$PATH"
 
 cd "$PROJECT_DIR"
 
-echo "=== Cleaning generated object and dependency files ==="
+echo "=== Cleaning Amiga build directory ==="
 
-find . -type f \( -name '*.o' -o -name '*.d' \) -delete
-rm -rf build.amiga
-rm -f raptor
+rm -rf -- "$BUILD_DIR"
+rm -f -- "$PROJECT_DIR/raptor"
 
 echo "=== Building Raptor for 68060 with FPU ==="
 
