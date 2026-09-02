@@ -9,16 +9,58 @@
  *
  * The mixer only ever ADDS volume-scaled samples into the stream and
  * hard-clamps the 32-bit intermediate sum to the int16 range, so it
- * can neither overwrite nor overflow the SFX mixed by GSS/DSP. */
+ * can neither overwrite nor overflow the SFX mixed by GSS/DSP.
+ *
+ * ------------------------------------------------------------------
+ * Resource management (Amiga fix):
+ *
+ *  - Every access to the shared playback state (wave_data, wave_frames,
+ *    wave_pos, wave_playing, wave_loop) is serialized with SND_Lock()/
+ *    SND_Unlock().  On Amiga these map to SDL_LockAudioDevice() =
+ *    Disable()/Enable(), which suspends the preemptive scheduler while
+ *    the lock is held.  WAVE_Mix() runs in the AHI background task,
+ *    while WAVE_StopSong()/WAVE_LoadSong() run in the main game task;
+ *    without the lock, stop/change-song could free() or overwrite
+ *    wave_data while the audio task was still reading it (use-after-
+ *    free -> heap corruption -> progressive slowdown / menu hang).
+ *
+ *  - Song caching: WAVE_PlaySongItem() remembers the last loaded path
+ *    and loop flag.  Re-requesting the exact same file (menu handshake
+ *    re-triggers SND_PlaySong with the same item) returns immediately
+ *    without reopening/re-malloc'ing a multi-MB buffer - this was
+ *    fragmenting the heap rapidly in menu<->demo transitions.
+ *
+ *  - WAVE_DeInit() frees everything; SND_DeInit() calls it before the
+ *    AHI task is shut down.
+ *
+ * All transitions are logged with "WAVE:" diagnostics so leaks and
+ * repeated loads can be traced in one go.
+ * ------------------------------------------------------------------ */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 
-#include "fx.h"          /* music_volume (0..127) */
+#include "fx.h"          /* music_volume (0..127), SND_Lock/SND_Unlock */
 #include "fileids.h"     /* FILE0xx_*_MUS item ids */
-#include "entypes.h"     /* SDL_SwapLE16 / LE_* endian helpers */
+#include "entypes.h"     /* LE_* endian helpers */
+
+/* Portable byte-swap for 16-bit values.  On Amiga SDL_SwapLE16() comes
+ * from SDL_endian.h via entypes.h (amiga_sdl_stubs.h); on a host build
+ * without SDL we fall back to a local implementation.  This wrapper is
+ * ALWAYS available so the decode loop below never depends on SDL headers. */
+#ifdef SDL_SwapLE16
+static inline uint16_t WAVE_SwapLE16(uint16_t v) { return SDL_SwapLE16(v); }
+#else
+static inline uint16_t WAVE_SwapLE16(uint16_t v)
+{
+    uint16_t probe = 1;
+    if (*(uint8_t *)&probe == 1)   /* little-endian host */
+        return v;
+    return (uint16_t)((v << 8) | (v >> 8));
+}
+#endif
 
 /* ------------------------------------------------------------------ */
 /* Playback state                                                      */
@@ -29,6 +71,18 @@ static long     wave_frames = 0;    /* number of stereo frames in wave_data */
 static long     wave_pos = 0;       /* current playback frame */
 static int      wave_playing = 0;
 static int      wave_loop = 0;
+
+/* Cache of the currently loaded song so we don't reopen/realloc the same
+ * file on every SND_PlaySong(SAME_ITEM) call triggered by menu handshakes. */
+static char     wave_path[256] = "";  /* "" = nothing loaded */
+static int      wave_path_loaded = 0;
+
+/* Diagnostics: monotonic counters so a log can show balancing alloc/free. */
+static unsigned long wave_alloc_count = 0;
+static unsigned long wave_free_count  = 0;
+static unsigned long wave_open_count  = 0;
+static unsigned long wave_close_count = 0;
+static unsigned long wave_play_count  = 0;
 
 /* ------------------------------------------------------------------ */
 /* Little-endian helpers (WAV is always LE)                            */
@@ -45,9 +99,100 @@ static uint32_t rd_u32(const uint8_t *p)
            ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
+/* ------------------------------------------------------------------ */
+/* Amiga diagnostics (no-op elsewhere)                                 */
+/* ------------------------------------------------------------------ */
+
+#ifdef __AMIGA__
+#define WAVE_LOG(...) do { AmigaLog(__VA_ARGS__); } while (0)
+#else
+#define WAVE_LOG(...) do { printf(__VA_ARGS__); printf("\n"); fflush(stdout); } while (0)
+#endif
+
+/***************************************************************************
+WAVE_StopSong() - Stops playback and frees the loaded song.
+Safely serialized against WAVE_Mix() running in the audio task.
+ ***************************************************************************/
+void WAVE_StopSong(void)
+{
+    SND_Lock();          /* serialize against WAVE_Mix (audio task) */
+    {
+        int was_playing = wave_playing;
+        int had_data    = (wave_data != NULL);
+
+        wave_playing = 0;
+        wave_pos = 0;
+
+        if (wave_data)
+        {
+            free(wave_data);
+            wave_data = NULL;
+            wave_frames = 0;
+            wave_free_count++;
+            WAVE_LOG("WAVE: free data (alloc=%lu free=%lu, playing=%d)",
+                     wave_alloc_count, wave_free_count, was_playing);
+        }
+
+        if (wave_loop != 0 || had_data || was_playing)
+            WAVE_LOG("WAVE: stop (playing=%d had_data=%d)",
+                     was_playing, had_data ? 1 : 0);
+
+        wave_loop  = 0;
+        wave_path_loaded = 0;
+        wave_path[0] = '\0';
+    }
+    SND_Unlock();
+}
+
+/* Internal: same as WAVE_StopSong() but caller must already hold SND_Lock.
+ * Keeps the load path atomic: stop-old -> (read file outside lock) -> set-new. */
+static void WAVE_StopSongLocked(void)
+{
+    int was_playing = wave_playing;
+    int had_data    = (wave_data != NULL);
+
+    wave_playing = 0;
+    wave_pos = 0;
+
+    if (wave_data)
+    {
+        free(wave_data);
+        wave_data = NULL;
+        wave_frames = 0;
+        wave_free_count++;
+        WAVE_LOG("WAVE: free data (alloc=%lu free=%lu, playing=%d)",
+                 wave_alloc_count, wave_free_count, was_playing);
+    }
+
+    if (wave_loop != 0 || had_data || was_playing)
+        WAVE_LOG("WAVE: stop (playing=%d had_data=%d)",
+                 was_playing, had_data ? 1 : 0);
+
+    wave_loop  = 0;
+    wave_path_loaded = 0;
+    wave_path[0] = '\0';
+}
+
+/***************************************************************************
+WAVE_DeInit() - Frees everything. Called from SND_DeInit() BEFORE the AHI
+audio task is shut down (so no audio task is reading the buffer anymore).
+ ***************************************************************************/
+void WAVE_DeInit(void)
+{
+    if (!wave_data && !wave_path_loaded)
+        return;
+
+    WAVE_LOG("WAVE: deinit (alloc=%lu free=%lu open=%lu close=%lu play=%lu)",
+             wave_alloc_count, wave_free_count,
+             wave_open_count, wave_close_count, wave_play_count);
+
+    WAVE_StopSong();
+}
+
 /***************************************************************************
 WAVE_LoadSong() - Loads a 11025 Hz stereo 16-bit PCM WAV file into memory.
 Returns 1 on success, 0 on failure.
+Safe against WAVE_Mix() in the audio task.
  ***************************************************************************/
 int WAVE_LoadSong(const char *path, int loop)
 {
@@ -59,16 +204,58 @@ int WAVE_LoadSong(const char *path, int loop)
     uint16_t channels = 0, bits = 0;
     uint32_t rate = 0;
 
-    WAVE_StopSong();
+    if (!path || !*path)
+        return 0;
+
+    /* Fast path: the exact same file+loop is already loaded (menu/demo
+     * handshake re-triggers SND_PlaySong for the same item).  Avoids a
+     * multi-MB malloc/free cycle and the accompanying heap fragmentation. */
+    {
+        int same = 0;
+        SND_Lock();
+        if (wave_path_loaded && wave_data &&
+            wave_loop == loop && strcmp(wave_path, path) == 0)
+        {
+            wave_pos = 0;
+            wave_playing = 1;
+            same = 1;
+        }
+        SND_Unlock();
+
+        if (same)
+        {
+            WAVE_LOG("WAVE: reusing cached song '%s' (loop=%d) - no reload",
+                     path, loop);
+            return 1;
+        }
+    }
+
+    /* Free the previous song while holding the lock (atomic stop). */
+    SND_Lock();
+    {
+        WAVE_StopSongLocked();
+    }
+    SND_Unlock();
+
+    /* ---- I/O is done outside SND_Lock (do not hold Disable() across
+     * file reads / large mallocs - it would stall the whole system) ---- */
 
     f = fopen(path, "rb");
     if (!f)
+    {
+        WAVE_LOG("WAVE: open FAILED '%s' (does the WAVE/ drawer have it?)", path);
         return 0;
+    }
+    wave_open_count++;
+    WAVE_LOG("WAVE: open '%s' (loop=%d)", path, loop);
 
     if (fread(hdr, 1, 12, f) != 12 ||
         memcmp(hdr, "RIFF", 4) != 0 || memcmp(hdr + 8, "WAVE", 4) != 0)
     {
+        WAVE_LOG("WAVE: not a RIFF/WAVE file '%s'", path);
         fclose(f);
+        wave_close_count++;
+        WAVE_LOG("WAVE: close '%s'", path);
         return 0;
     }
 
@@ -99,11 +286,23 @@ int WAVE_LoadSong(const char *path, int loop)
         }
         else if (memcmp(chdr, "data", 4) == 0)
         {
-            pcm = (uint8_t *)malloc(csize);
-            if (!pcm)
+            if (csize > 64u * 1024u * 1024u) /* sanity: 64 MB max */
+            {
+                WAVE_LOG("WAVE: '%s' data chunk too large (%lu bytes) - rejected",
+                         path, (unsigned long)csize);
                 break;
+            }
+
+            pcm = (uint8_t *)malloc(csize ? (size_t)csize : 1);
+            if (!pcm)
+            {
+                WAVE_LOG("WAVE: malloc(%lu) FAILED for '%s'",
+                         (unsigned long)csize, path);
+                break;
+            }
             if (fread(pcm, 1, csize, f) != csize)
             {
+                WAVE_LOG("WAVE: short read on data chunk of '%s'", path);
                 free(pcm);
                 pcm = NULL;
                 break;
@@ -124,10 +323,20 @@ int WAVE_LoadSong(const char *path, int loop)
     }
 
     fclose(f);
+    wave_close_count++;
+    WAVE_LOG("WAVE: close '%s' (open=%lu close=%lu)",
+             path, wave_open_count, wave_close_count);
 
     if (!got_fmt || !got_data || channels != 2 || bits != 16 || rate != 11025)
     {
-        free(pcm);
+        if (pcm)
+        {
+            free(pcm);
+            wave_free_count++;
+        }
+        WAVE_LOG("WAVE: '%s' rejected (fmt=%d data=%d ch=%u bits=%u rate=%lu; "
+                 "need stereo 16-bit 11025 Hz)",
+                 path, got_fmt, got_data, channels, bits, (unsigned long)rate);
         return 0;
     }
 
@@ -145,28 +354,35 @@ int WAVE_LoadSong(const char *path, int loop)
         long k;
 
         for (k = 0; k < nsamp; k++)
-            swp[k] = SDL_SwapLE16(swp[k]);
+            swp[k] = WAVE_SwapLE16(swp[k]);
     }
 
-    wave_data    = (int16_t *)pcm;
-    wave_frames  = pcm_size / 4; /* 2 channels * 2 bytes */
-    wave_pos     = 0;
-    wave_loop    = loop;
-    wave_playing = 1;
+    wave_alloc_count++;
+    WAVE_LOG("WAVE: alloc %ld frames (%lu bytes) from '%s'",
+             pcm_size / 4, (unsigned long)pcm_size, path);
+
+    /* ---- Publish the new buffer atomically (under the lock) ---- */
+    SND_Lock();
+    {
+        /* No need to free the old buffer again - we already stopped it
+         * above.  Just install the freshly decoded data. */
+        wave_data    = (int16_t *)pcm;
+        wave_frames  = pcm_size / 4; /* 2 channels * 2 bytes */
+        wave_pos     = 0;
+        wave_loop    = loop;
+        wave_playing = 1;
+
+        snprintf(wave_path, sizeof(wave_path), "%s", path);
+        wave_path_loaded = 1;
+
+        wave_play_count++;
+    }
+    SND_Unlock();
+
+    WAVE_LOG("WAVE: play start '%s' (loop=%d) [play=%lu alloc=%lu free=%lu]",
+             path, loop, wave_play_count, wave_alloc_count, wave_free_count);
 
     return 1;
-}
-
-/***************************************************************************
-WAVE_StopSong() - Stops playback and frees the loaded song.
- ***************************************************************************/
-void WAVE_StopSong(void)
-{
-    wave_playing = 0;
-    wave_pos = 0;
-    free(wave_data);
-    wave_data = NULL;
-    wave_frames = 0;
 }
 
 /***************************************************************************
@@ -174,7 +390,13 @@ WAVE_SongPlaying() - 1 while a song is playing (or looping), 0 otherwise.
  ***************************************************************************/
 int WAVE_SongPlaying(void)
 {
-    return wave_playing;
+    int r = 0;
+
+    SND_Lock();
+    r = wave_playing;
+    SND_Unlock();
+
+    return r;
 }
 
 /***************************************************************************
@@ -232,10 +454,13 @@ int WAVE_PlaySongItem(int item, int loop)
             if (WAVE_LoadSong(path, loop))
                 return 1;
 
+            WAVE_LOG("WAVE: no playable file for item=%d (tried '%s')",
+                     item, path);
             return 0;
         }
     }
 
+    WAVE_LOG("WAVE: no song mapping for item=%d", item);
     return 0;
 }
 
@@ -250,26 +475,51 @@ Each WAV sample is scaled by music_volume (0..127) as
     sample * music_volume >> 7
 then ADDED to the existing stream sample; the 32-bit sum is clamped to
 [-32768, 32767] so overlapping music + SFX can never wrap around.
+
+Runs in the AHI audio task; the SND_Lock()/Unlock() pair serializes
+wave_data access against WAVE_StopSong()/WAVE_LoadSong() in the main task.
  ***************************************************************************/
 void WAVE_Mix(int16_t *stream, int frames)
 {
+    int16_t *data;
+    long pos, total;
+    int loop;
     int i;
 
-    if (!wave_playing || !wave_data || !stream || frames <= 0)
+    if (!stream || frames <= 0)
         return;
 
-    if (music_volume <= 0)
+    /* Snapshot the state under the lock once per mix call (the audio task
+     * holds the lock for the whole mix, so no other task can free the
+     * buffer while we are iterating). */
+    SND_Lock();
+
+    if (!wave_playing || !wave_data)
+    {
+        SND_Unlock();
         return;
+    }
+
+    if (music_volume <= 0)
+    {
+        SND_Unlock();
+        return;
+    }
+
+    data  = wave_data;
+    pos   = wave_pos;
+    total = wave_frames;
+    loop  = wave_loop;
 
     for (i = 0; i < frames; i++)
     {
         int32_t l, r;
 
-        if (wave_pos >= wave_frames)
+        if (pos >= total)
         {
-            if (wave_loop)
+            if (loop)
             {
-                wave_pos = 0;
+                pos = 0;
             }
             else
             {
@@ -278,9 +528,9 @@ void WAVE_Mix(int16_t *stream, int frames)
             }
         }
 
-        l = (wave_data[wave_pos * 2]     * music_volume) >> 7;
-        r = (wave_data[wave_pos * 2 + 1] * music_volume) >> 7;
-        wave_pos++;
+        l = (data[pos * 2]     * music_volume) >> 7;
+        r = (data[pos * 2 + 1] * music_volume) >> 7;
+        pos++;
 
         l += stream[i * 2];
         r += stream[i * 2 + 1];
@@ -293,4 +543,8 @@ void WAVE_Mix(int16_t *stream, int frames)
         stream[i * 2]     = (int16_t)l;
         stream[i * 2 + 1] = (int16_t)r;
     }
+
+    wave_pos = pos;
+
+    SND_Unlock();
 }

@@ -108,6 +108,7 @@ extern int g_music_mode;
 int  WAVE_LoadSong(const char *path, int loop);
 int  WAVE_PlaySongItem(int item, int loop);
 void WAVE_StopSong(void);
+void WAVE_DeInit(void);
 int  WAVE_SongPlaying(void);
 void WAVE_Mix(int16_t *stream, int frames);
 

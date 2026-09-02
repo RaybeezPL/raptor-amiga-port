@@ -446,6 +446,13 @@ void SND_DeInit(void)
 #endif
     MUS_DeInit();
 
+    /* MUSIC=WAVE: free the decoded buffer while the audio task is still
+     * running (it may read wave_data on its last/buffered mix), then the
+     * task stop below guarantees no stale reads afterwards.  WAVE_DeInit()
+     * serializes with WAVE_Mix() via SND_Lock/SND_Unlock. */
+    if (g_music_mode == MUSIC_MODE_WAVE)
+        WAVE_DeInit();
+
     /* Stops the audio task and closes ahi.device (Amiga SDL stub). */
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
     fx_init = 0;
