@@ -53,7 +53,6 @@ enum {
     egk_drum = 0x02
 };
 
-
 //
 // logsin table
 //

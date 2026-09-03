@@ -116,7 +116,6 @@ void WAVE_Mix(int16_t *stream, int frames);
 
 extern SDL_AudioDeviceID fx_dev;
 
-
 int SND_InitSound(void);
 void SND_DeInit(void);
 void SND_Setup(void);

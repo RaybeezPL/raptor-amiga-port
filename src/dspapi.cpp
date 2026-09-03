@@ -82,7 +82,6 @@ uint8_t pantable[256] = {
     0xFF, 0xFF, 0xFF, 0xFF
 };
 
-
 struct channel_t {
     dsp_t *dsp;
 

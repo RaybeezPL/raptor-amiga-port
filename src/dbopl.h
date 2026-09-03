@@ -267,7 +267,6 @@ struct Chip {
 /* (Raptor Amiga port: the DOSBox mixer glue class DBOPL::Handler was
  * removed here - the game drives DBOPL::Chip directly via opl3dbopl.cpp.) */
 
-
 }		//Namespace
 
 #endif /* DBOPL_H */

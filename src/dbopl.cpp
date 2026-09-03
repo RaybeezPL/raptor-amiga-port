@@ -32,8 +32,6 @@
 	//DUNNO Keyon in 4op, switch to 2op without keyoff.
 */
 
-
-
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +42,6 @@
 #ifndef LOG_MSG
 #define LOG_MSG(...) ((void)0)
 #endif
-
 
 #ifndef PI
 #define PI 3.14159265358979323846
@@ -80,7 +77,6 @@ namespace DBOPL {
 //LFO is controlled by our tremolo 256 sample limit
 #define LFO_MAX ( 256 << ( LFO_SH ) )
 
-
 //Maximum amount of attenuation bits
 //Envelope goes to 511, 9 bits
 #if (DBOPL_WAVE == WAVE_TABLEMUL )
@@ -107,7 +103,6 @@ namespace DBOPL {
 #if ENV_EXTRA > 3
 #error Too many envelope bits
 #endif
-
 
 //How much to subtract from the base value for the final attenuation
 static const uint8_t KslCreateTable[16] = {
@@ -451,7 +446,6 @@ static const VolumeHandler VolumeHandlerTable[5] = {
 /*INLINE*/ Bitu Operator::ForwardVolume() {
 	return (Bitu)(currentLevel + (this->*volHandler)());
 }
-
 
 /*INLINE*/ Bitu Operator::ForwardWave() {
 	waveIndex += waveCurrent;	
@@ -823,7 +817,6 @@ template< bool opl3Mode>
 	}
 	int32_t sample = (int32_t)Op(1)->GetSample( mod );
 
-
 	//Precalculate stuff used by other outputs
 	uint32_t noiseBit = chip->ForwardNoise() & 0x1;
 	uint32_t c2 = (uint32_t)Op(2)->ForwardWave();
@@ -1040,7 +1033,6 @@ Chip::Chip( bool _opl3Mode ) : opl3Mode( _opl3Mode ) {
 	return count;
 }
 
-
 void Chip::WriteBD( uint8_t val ) {
 	uint8_t change = regBD ^ val;
 	if ( !change )
@@ -1103,7 +1095,6 @@ void Chip::WriteBD( uint8_t val ) {
 		chan[8].op[1].KeyOff( 0x2 );
 	}
 }
-
 
 #define REGOP( _FUNC_ )															\
 	index = ( ( reg >> 3) & 0x20 ) | ( reg & 0x1f );								\
@@ -1190,7 +1181,6 @@ void Chip::WriteReg( uint32_t reg, uint8_t val ) {
 		break;
 	}
 }
-
 
 uint32_t Chip::WriteAddr( uint32_t port, uint8_t val ) {
 	switch ( port & 3 ) {

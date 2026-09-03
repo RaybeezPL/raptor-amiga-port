@@ -6,7 +6,6 @@
 #include <proto/dos.h>   /* Exit() - terminate process at OS level */
 #endif
 
-
 /* Global shutdown callback - set by EXIT_Install, called before exit */
 typedef void (*exit_shutdown_func_t)(int);
 #ifdef __cplusplus
@@ -53,8 +52,6 @@ static inline void EXIT_Clean(void)
     exit(0);
 #endif
 }
-
-
 
 static inline void EXIT_Install(void (*func)(int))
 {

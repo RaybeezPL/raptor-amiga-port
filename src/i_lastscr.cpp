@@ -15,7 +15,6 @@
 //    Exit text-mode ENDOOM screen.
 //
 
-
 #include <stdio.h>
 #include <string.h>
 
@@ -42,7 +41,6 @@ void I_LASTSCR(char* mem)
 
 #define LASTSCR_W 80
 #define LASTSCR_H 25
-
 
 // 
 // Displays the text mode ending screen after the game quits

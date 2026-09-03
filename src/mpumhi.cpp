@@ -56,7 +56,6 @@
 #include <libraries/mhi.h>
 #include <proto/mhi.h>
 
-
 /* Volume scaling helper function */
 static ULONG MHI_ScaleVolume(int volume)
 {
@@ -64,7 +63,6 @@ static ULONG MHI_ScaleVolume(int volume)
     if (volume > 127) volume = 127;
     return (ULONG)((volume * 100 + 63) / 127);
 }
-
 
 /* MHI driver library base - the inline calls in inline/mhi.h use it.
  * Written by the feeder task, which is also the only caller of MHI

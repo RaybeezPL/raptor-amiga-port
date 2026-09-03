@@ -145,6 +145,16 @@ Current development and testing is mainly aimed at systems such as:
 - **Picasso IV**
 - **Any Amiga with PiStorm/Emu68 + RTG** (A500, A600, A1200, A2000, A3000, A4000 — all tested or expected to work)
 
+### Tested configurations
+
+- Raspberry Pi 400 running PiMIGA, tested in both AGA and RTG modes.
+- Amiga 1200 with PiStorm running VaffeineOS, tested in AGA PAL, AGA NTSC and RTG modes.
+- Amiga 1200 with Mediator, Blizzard 1260, Voodoo3 and Prelude audio on the clock port, including MHI playback.
+- Amiga 2000 with a TekMagic 68060 at 50 MHz, CyberVision 64/3D and Prisma MegaMix.
+- Amiga 4000 with a 68060 at 50 MHz, Picasso IV and AGA graphics; WAVE music, MIDI/CAMD and MHI were tested.
+- WinUAE with 68030 and 68060 configurations, both with and without FPU, tested in AGA and RTG modes.
+- Tested on AmigaOS 3.1.4, 3.2 and 3.2.3.
+
 ### Native AGA display notes (PAL/NTSC)
 
 - Native AGA mode is selected with `GFX=AGA`.

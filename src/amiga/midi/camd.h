@@ -113,7 +113,6 @@ enum
 #define SXFM_1Byte    0x00
 #define SXFM_3Byte    0x04
 
-
 struct MidiNode
 {
 	struct Node     mi_Node;
@@ -206,7 +205,6 @@ struct MidiNode
 #define CMF_Ctrl          (CMF_CtrlMSB | CMF_CtrlLSB | CMF_CtrlSwitch | CMF_CtrlByte | CMF_CtrlParam | CMF_CtrlUndef)
 #define CMF_Channel       (CMF_Note | CMF_Prog | CMF_PitchBend | CMF_Ctrl | CMF_Mode | CMF_ChanPress | CMF_PolyPress)
 #define CMF_All           (CMF_Channel | CMF_RealTime | CMF_SysCom | CMF_SysEx)
-
 
 #define CMEB_MsgErr       0
 #define CMEB_BufferFull   1

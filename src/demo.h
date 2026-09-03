@@ -20,7 +20,6 @@ typedef struct
 }RECORD;
 #pragma pack(pop)
 
-
 void DEMO_MakePlayer(int game);
 void DEMO_GLBFile(int item);
 int DEMO_Play(void);

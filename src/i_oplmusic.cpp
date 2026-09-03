@@ -16,7 +16,6 @@
 //   System interface for music.
 //
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -119,7 +118,6 @@ typedef struct
     int bend;
 
 } opl_channel_data_t;
-
 
 typedef struct opl_voice_s opl_voice_t;
 
@@ -337,7 +335,6 @@ static int num_opl_voices;
 // Data for each channel.
 
 static opl_channel_data_t channels[MIDI_CHANNELS_PER_TRACK];
-
 
 // Configuration file variable, containing the port number for the
 // adlib chip.
@@ -617,7 +614,6 @@ static void VoiceKeyOff(opl_voice_t *voice)
                       voice->freq >> 8);
 }
 
-
 // Get the frequency that we should be using for a voice.
 
 static void KeyOffEvent(unsigned int chan, unsigned int key)
@@ -728,7 +724,6 @@ static void ReplaceExistingVoiceDoom2(opl_channel_data_t *channel)
 
     ReleaseVoice(result);
 }
-
 
 static unsigned int FrequencyForVoice(opl_voice_t *voice)
 {
@@ -1199,7 +1194,6 @@ void I_OPL_ResumeSong(void)
 void I_OPL_StopSong(void)
 {
 }
-
 
 // Shutdown music
 

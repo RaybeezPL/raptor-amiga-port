@@ -71,7 +71,6 @@ struct AHISampleInfo
 	ULONG	ahisi_Length;			/* Number of samples in array */
 };
 
-
  /* AHIAudioModeRequester */
 struct AHIAudioModeRequester
 {
@@ -345,15 +344,12 @@ struct AHIEffChannelInfo
 #define AHIE_UNKNOWN		(5UL)			/* Error, but unknown */
 #define AHIE_HALFDUPLEX		(6UL)			/* CMD_WRITE/CMD_READ failure */
 
-
-
 /* DEVICE INTERFACE DEFINITIONS FOLLOWS ************************************/
 
  /* Device units */
 
 #define AHI_DEFAULT_UNIT	(0U)
 #define AHI_NO_UNIT		(255U)
-
 
  /* The preference file */
 

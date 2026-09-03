@@ -59,6 +59,12 @@ release.
 - These options are a performance/troubleshooting aid: disabling an
   input device removes its per-frame processing. Mouse input is a
   candidate, not a confirmed cause, of the demo slowdown.
+- Documented tested hardware configurations and AmigaOS versions in
+  README.md, README_AMIGA.md and README_AMIGA_PL.md, including
+  Raspberry Pi 400/PiMIGA, A1200 PiStorm/VaffeineOS, A1200
+  Mediator/Voodoo3/Prelude MHI, A2000 TekMagic 68060/CyberVision
+  64/3D/Prisma MegaMix, A4000 Picasso IV/AGA, and WinUAE 68030/68060
+  with and without FPU in AGA and RTG modes.
 
 ### Changed
 - Amiga rendering cleanup: skip `CreateUpscaledTexture(true)` and no-op

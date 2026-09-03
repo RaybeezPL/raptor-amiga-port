@@ -18,7 +18,6 @@ struct musdevice_t {
 extern musdevice_t mus_device_opl, mus_device_winmm, mus_device_tsf, mus_device_alsa, mus_device_corea, mus_device_corem, mus_device_camd;
 extern musdevice_t *music_device;
 
-
 int MUS_Init(int card, int option);
 void MUS_DeInit(void);
 void MUS_PlaySong(void *ptr, int loop, int fadein);

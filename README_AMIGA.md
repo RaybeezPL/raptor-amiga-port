@@ -618,6 +618,22 @@ Known Limitations
 - Fixed 320x200 resolution - the game always opens its own screen.
 
 
+Tested configurations
+---------------------
+- Raspberry Pi 400 running PiMIGA, tested in AGA and RTG modes.
+- Amiga 1200 with PiStorm and VaffeineOS, tested in AGA PAL,
+  AGA NTSC and RTG modes.
+- Amiga 1200 with Mediator, Blizzard 1260, Voodoo3 and Prelude
+  audio on the clock port; MHI playback tested.
+- Amiga 2000 with a TekMagic 68060 at 50 MHz, CyberVision 64/3D
+  and Prisma MegaMix.
+- Amiga 4000 with 68060 at 50 MHz, Picasso IV and AGA; WAVE
+  music, MIDI/CAMD and MHI tested.
+- WinUAE with 68030 and 68060 configurations, with and without
+  FPU, tested in AGA and RTG modes.
+- Tested on AmigaOS 3.1.4, 3.2 and 3.2.3.
+
+
 Roadmap / Remaining Work
 ------------------------
 

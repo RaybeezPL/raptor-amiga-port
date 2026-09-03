@@ -611,6 +611,22 @@ Znane ograniczenia
 - Stała rozdzielczość 320x200 — gra zawsze otwiera własny ekran.
 
 
+Testowane konfiguracje
+----------------------
+- Raspberry Pi 400 z PiMIGA — przetestowano w trybach AGA i RTG.
+- Amiga 1200 z PiStorm i VaffeineOS — przetestowano AGA PAL,
+  AGA NTSC oraz RTG.
+- Amiga 1200 z Mediatorem, Blizzardem 1260, Voodoo3 oraz Prelude
+  na clock porcie — przetestowano także odtwarzanie MHI.
+- Amiga 2000 z TekMagic 68060 50 MHz, CyberVision 64/3D oraz
+  Prisma MegaMix.
+- Amiga 4000 z 68060 50 MHz, Picasso IV i AGA — przetestowano
+  WAVE, MIDI/CAMD oraz MHI.
+- WinUAE z konfiguracjami 68030 i 68060, z FPU i bez FPU,
+  przetestowano w trybach AGA oraz RTG.
+- Przetestowano na AmigaOS 3.1.4, 3.2 i 3.2.3.
+
+
 Plany / pozostałe prace
 -----------------------
 

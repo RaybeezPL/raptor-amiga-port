@@ -292,7 +292,6 @@ void I_ShutdownGraphics(void)
     }
 }
 
-
 // Adjust window_width / window_height variables to be an an aspect
 // ratio consistent with the aspect_ratio_correct variable.
 static void AdjustWindowSize(void)
@@ -558,7 +557,6 @@ void I_GetEvent(void)
 //         I_UpdateJoystick();
 //     }
 // }
-
 
 static void UpdateGrab(void)
 {
@@ -869,7 +867,6 @@ void I_FinishUpdate (void)
 #endif
 }
 
-
 //
 // I_ReadScreen
 //
@@ -877,7 +874,6 @@ void I_ReadScreen (pixel_t* scr)
 {
     memcpy(scr, I_VideoBuffer, SCREENWIDTH*SCREENHEIGHT*sizeof(*scr));
 }
-
 
 //
 // I_SetPalette
@@ -1237,7 +1233,6 @@ static void SetVideoMode(void)
     int window_flags = 0, renderer_flags = 0;
     SDL_DisplayMode mode;
 
-
     w = window_width;
     h = window_height;
 
@@ -1339,8 +1334,6 @@ static void SetVideoMode(void)
 
     renderer = SDL_CreateRenderer(screen, -1, renderer_flags);
 
-
-
     // If we could not find a matching render driver,
     // try again without hardware acceleration.
 
@@ -1363,7 +1356,6 @@ static void SetVideoMode(void)
         EXIT_Error("Error creating renderer for screen window: %s",
                 SDL_GetError());
     }
-
 
     // Important: Set the "logical size" of the rendering context. At the same
     // time this also defines the aspect ratio that is preserved while scaling
@@ -1479,7 +1471,6 @@ void I_InitGraphics(uint8_t *pal)
 
         putenv(winenv);
     }
-
 
     SetSDLVideoDriver();
 

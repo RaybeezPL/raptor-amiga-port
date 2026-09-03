@@ -2,7 +2,6 @@
 #include <string.h>
 #include <time.h>
 
-
 #include "SDL.h"
 #include "common.h"
 #include "glbapi.h"
@@ -51,7 +50,6 @@
 #include "mpumhi.h"
 #endif // __AMIGA__
 
-
 #define wmemcpy(dst,src,size) memmove(dst,src,size)
 
 struct bday_t {
@@ -70,7 +68,6 @@ exit_shutdown_func_t g_exit_shutdown_func = NULL;
  * program output. Shell/CLI launches leave the user's shell alone. */
 static int g_wb_started = 0;
 #endif
-
 
 int wRandSeed = 1;
 
@@ -251,7 +248,6 @@ RAP_StrCaseStartsWith(
 
     return 1;
 }
-
 
 #ifdef __AMIGA__
 /*
@@ -715,13 +711,9 @@ RAP_ParseWorkbenchToolTypes(
 
 #endif /* __AMIGA__ */
 
-
 /***************************************************************************
 RAP_Bday() - Get system date
  ***************************************************************************/
-
-
-
 
 void 
 RAP_Bday(
@@ -813,11 +805,6 @@ ShutDown(
     free(g_highmem);
     g_highmem = NULL;
 }
-
-
-
-
-
 
 /***************************************************************************
 RAP_ClearSides () - Clears the Sides
@@ -1897,7 +1884,6 @@ main(
 
     godmode = 0;
 
-
     if (var1 != NULL && !strcmp(var1, gdmodestr))
         godmode = 1;
     else
@@ -1914,7 +1900,6 @@ main(
         RAP_ParseWorkbenchToolTypes((struct WBStartup *)argv);
     }
 #endif
-
 
     /* ================================================
      * -nosound / -nomusic command-line switches
@@ -2016,7 +2001,6 @@ main(
 
     }
 
-
     if (argv[1])
 
     {
@@ -2036,7 +2020,6 @@ main(
             }
         }
     }
-
 
     if (godmode)
         printf("GOD mode enabled\n");
@@ -2257,7 +2240,6 @@ main(
     BONUS_Init();
     ANIMS_Init();
     SND_Setup();
-
 
     GFX_SetPalRange(0, ROTPAL_START - 1);
     GFX_InitVideo(palette);

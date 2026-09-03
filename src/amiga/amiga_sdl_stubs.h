@@ -1,4 +1,9 @@
-/* Minimal SDL2 type/macro stubs for AmigaOS 3.x port. Active with USE_SDL_STUBS. Targets RTG (Picasso96) 320x200x8 custom screen. Uses WriteChunkyPixels for blitting and LoadRGB32 for palette. Shared globals are defined in amiga_stubs_impl.cpp. */
+/*
+ * Minimal SDL2 type/macro stubs for AmigaOS 3.x port.
+ * Active with USE_SDL_STUBS. Targets RTG (Picasso96) 320x200x8 custom screen.
+ * Uses WriteChunkyPixels for blitting and LoadRGB32 for palette.
+ * Shared globals are defined in amiga_stubs_impl.cpp.
+ */
 
 #ifndef AMIGA_SDL_STUBS_H
 #define AMIGA_SDL_STUBS_H
@@ -43,8 +48,10 @@ static inline void AmigaLog(const char *fmt, ...)
 #include <libraries/lowlevel.h>
 #include <proto/Picasso96.h>   /* Official P96 SDK prototypes+inline stubs (installed via /opt/amiga toolchain p96.sdk). */
 
-
-/* Global storage pattern: AMIGA_STUBS_OWNER defines actual instance, others use extern to guarantee a single instance. */
+/*
+ * Global storage pattern: AMIGA_STUBS_OWNER defines actual instance,
+ * others use extern to guarantee a single instance.
+ */
 #ifdef AMIGA_STUBS_OWNER
 #  define AMIGA_STUBS_DECL          /* Plain definition. */
 #  define AMIGA_STUBS_INIT(v) = v   /* With initializer. */
@@ -161,7 +168,10 @@ AMIGA_STUBS_DECL const uint8_t *AmigaPendingChunky AMIGA_STUBS_INIT(NULL);
 AMIGA_STUBS_DECL int AmigaPendingW AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int AmigaPendingH AMIGA_STUBS_INIT(0);
 
-/* Opens Picasso96API.library to detect RTG presence. Returns 1 if available, 0 for AGA/ECS fallback. */
+/*
+ * Opens Picasso96API.library to detect RTG presence.
+ * Returns 1 if available, 0 for AGA/ECS fallback.
+ */
 static inline int Amiga_OpenP96(void)
 {
     if (P96Base != NULL) {
@@ -1439,7 +1449,6 @@ static inline int    SDL_GetCurrentDisplayMode(int idx, SDL_DisplayMode *mode) {
 /* Creates a borderless window on a custom 320x200x8 screen. */
 /* Open intuition.library v39. */
 
-
 static inline SDL_Window* SDL_CreateWindow(const char *title, int x, int y, int w, int h, uint32_t flags)
 {
     (void)title;
@@ -1595,7 +1604,6 @@ static inline SDL_Renderer* SDL_CreateRenderer(SDL_Window *w, int idx, uint32_t 
 static inline void SDL_DestroyRenderer(SDL_Renderer *r) {
     free(r);
 }
-
 
 static inline int SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info) {
     (void)r;
@@ -1781,8 +1789,6 @@ static inline int SDL_LowerBlit(SDL_Surface *src, SDL_Rect *sr, SDL_Surface *dst
     AmigaPendingH = h;
 #endif
 
-
-
     return 0;
 }
 
@@ -1799,7 +1805,10 @@ static inline int SDL_PixelFormatEnumToMasks(uint32_t format, int *bpp,
 
 /* Audio handling */
 
-/* Implements an audio API subset using ahi.device with double-buffered CMD_WRITE. Avoids STDIO in the background task. */
+/*
+ * Implements an audio API subset using ahi.device with double-buffered CMD_WRITE.
+ * Avoids STDIO in the background task.
+ */
 #ifdef __AMIGA__
 
 #include <exec/types.h>
@@ -2472,7 +2481,6 @@ static inline void Amiga_InjectKeyboardEvent(int scancode, int pressed) {
     ev.key.keysym.mod = 0;
     Amiga_PushEvent(&ev);
 }
-
 
 static inline void Amiga_PumpWindowEvents(void)
 {

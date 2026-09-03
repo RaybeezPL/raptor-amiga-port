@@ -102,7 +102,6 @@
 #define MTCT_30FPS_Drop    0x40
 #define MTCT_30FPS_NonDrop 0x60
 
-
 #define MID_Sequential     0x01
 #define MID_IDP            0x02
 #define MID_OctavePlateau  0x03
