@@ -121,6 +121,16 @@ Work still in progress / roadmap:
 For detailed requirements, controls, parameters and troubleshooting see
 **README_AMIGA.md** - the main port documentation.
 
+## Demo / Gameplay
+
+Gameplay footage recorded on Amiga hardware:
+
+<iframe width="560" height="315"
+  src="https://www.youtube.com/embed/C9Q2ygClWMI"
+  frameborder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+  allowfullscreen>
+</iframe>
 
 ## Target configuration
 
