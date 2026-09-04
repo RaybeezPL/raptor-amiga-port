@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Version: 0.9.8 - the final pre-release build before the planned release.
+Version: 0.9.9-rc.1 - the final pre-release build before the planned release.
 
 =====================================================
 
@@ -711,7 +711,7 @@ Roadmap / Remaining Work
 ------------------------
 
 - Fine-tuning and performance polish on real 68k hardware.
-- Version 0.9.8 is the final pre-release build before the planned
+- Version 0.9.9-rc.1 is the final pre-release build before the planned
   release.
 
 
@@ -721,7 +721,7 @@ Credits & Contact
    Amiga Port Author:  Marcin "Raybeez" Bednarczyk (aka Cichy)
    AI Collaboration:   Built with assistance from AI tools.
    Contact / Feedback: cichy@cichy.com.pl
-   GitHub Repository:  https://github.com/RaybeezPL
+   GitHub Repository:  https://github.com/RaybeezPL/raptor-amiga-port
 
    Special thanks to all Amiga users keeping the scene alive.
 
@@ -778,12 +778,13 @@ Third-party components used by this port:
 GNU License Compliance / Source Code Notice:
 --------------------------------------------
 
-This project is currently in the beta testing phase. In compliance
-with the GNU license, the full source code will be made publicly
-available upon the final release.
+Complete corresponding source code for each binary release is
+available from this repository and its matching release tag. For
+0.9.9-rc.1, see:
+https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.1
 
-Once finished, the source code will be included directly within the
-Aminet archive alongside the compiled port. Additionally, the GitHub
-repository will be changed from private to fully public at that time.
+Source code is available now in this repository. The final Aminet
+archive will also include the applicable source and license
+information.
 
 

@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Wersja: 0.9.8 — ostatnia kompilacja przedpremierowa.
+Wersja: 0.9.9-rc.1 — ostatnia kompilacja przedpremierowa.
 
 =====================================================
 
@@ -709,7 +709,7 @@ Plany / pozostałe prace
 -----------------------
 
 - Dostrajanie i szlifowanie wydajności na prawdziwym sprzęcie 68k.
-- Wersja 0.9.8 jest ostatnią kompilacją przedpremierszą przed
+- Wersja 0.9.9-rc.1 jest ostatnią kompilacją przedpremierszą przed
   planowanym wydaniem.
 
 
@@ -719,7 +719,7 @@ Autorzy i kontakt
    Autor portu Amiga:  Marcin "Raybeez" Bednarczyk (aka Cichy)
    Współpraca z AI:    Projekt powstał przy wsparciu narzędzi AI.
    Kontakt / feedback: cichy@cichy.com.pl
-   GitHub repository:  https://github.com/RaybeezPL
+   GitHub repository:  https://github.com/RaybeezPL/raptor-amiga-port
 
    Szczególne podziękowania dla wszystkich użytkowników Amigi,
    którzy podtrzymują scenę przy życiu.
@@ -776,10 +776,11 @@ Komponenty third-party wykorzystane w tym porcie:
 Zgodność z GNU License / informacja o kodzie źródłowym:
 -------------------------------------------------------
 
-Projekt znajduje się obecnie w fazie beta testing. Zgodnie z wymaganiami
-licencji GNU pełny kod źródłowy zostanie udostępniony publicznie po
-wydaniu finalnej wersji.
+Pełny odpowiadający kod źródłowy dla każdego binarnego wydania jest
+dostępny w tym repozytorium oraz pod odpowiadającym mu tagiem.
+Dla wersji 0.9.9-rc.1 zobacz:
+https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.1
 
-Po zakończeniu prac kod źródłowy zostanie dołączony bezpośrednio do
-archiwum Aminet razem ze skompilowanym portem. Repozytorium GitHub
-zostanie wówczas zmienione z prywatnego na w pełni publiczne.
+Kod źródłowy jest dostępny już teraz w tym repozytorium. Finalne
+archiwum Aminet będzie również zawierało właściwe informacje o
+źródłach i licencji.

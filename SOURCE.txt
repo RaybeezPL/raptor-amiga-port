@@ -1,0 +1,32 @@
+Raptor Amiga Port
+
+License
+=======
+
+This program is distributed under the GNU General Public License,
+Version 2, June 1991. A complete copy of the license is included in
+the file LICENSE.
+
+Source code
+===========
+
+Complete corresponding source code for each binary release is available
+from the matching release tag in this repository:
+
+https://github.com/RaybeezPL/raptor-amiga-port
+
+For release 0.9.9-rc.1:
+
+https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.1
+
+Exact source revision for 0.9.9-rc.1:
+
+The exact source revision is the commit referenced by the matching
+release tag.
+
+Game data and music
+===================
+
+This distribution contains no original Raptor game data and no
+soundtrack files. You must provide your own legal copy of the original
+PC v1.2 game data files: FILE0000.GLB through FILE0004.GLB.

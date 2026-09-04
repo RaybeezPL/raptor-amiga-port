@@ -4,6 +4,8 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
 
 ## [Unreleased]
 
+## [0.9.9-rc.1] - 2026-09-04
+
 ### Added
 - `MOUSE=ON|OFF` and `NOMOUSE` input options (CLI `-mouse=on|off`,
   `-nomouse`, dashless `MOUSE=ON|OFF` / `NOMOUSE`; Workbench icon

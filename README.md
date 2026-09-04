@@ -41,7 +41,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.8** — the final pre-release build before the planned release.
+Current version: **0.9.9-rc.1** — the final pre-release build before the planned release.
 
 Working:
 
@@ -115,8 +115,8 @@ Working:
 Work still in progress / roadmap:
 
 - Fine-tuning and performance polish on real 68k hardware
-- Version **0.9.8** is the final pre-release build before the planned
-  release
+- Version **0.9.9-rc.1** is the final pre-release build before the
+  planned release
 
 For detailed requirements, controls, parameters and troubleshooting see
 **README_AMIGA.md** - the main port documentation.
@@ -210,6 +210,17 @@ The current porting workflow focuses on practical iteration speed, reproducible 
 This repository does **not** include the original game data files.
 
 To use this port, you must provide your own legal copy of the original **Raptor: Call of the Shadows** data files (shareware or full version, compatible data set required).
+
+## License
+
+Raptor Amiga Port is distributed under the GNU General Public License,
+Version 2, June 1991. The full license text is available in
+[LICENSE](LICENSE).
+
+This port is based on the open-source reverse-engineered codebase from
+[skynettx/raptor](https://github.com/skynettx/raptor). Applicable
+copyright and license notices from upstream and bundled components are
+preserved.
 
 ## Upstream base
 
