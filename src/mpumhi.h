@@ -11,7 +11,8 @@
 #ifdef __AMIGA__
 
 /* Opens an MHI driver and starts the feeder task.  Returns 1 on success,
- * 0 on failure (caller falls back to AdLib/OPL3 then). */
+ * 0 on failure (the caller then switches the selected backend to
+ * MUSIC=OFF - there is no automatic fallback to AdLib/OPL3). */
 int MHI_MusicInit(void);
 
 /* Stops playback and shuts the feeder task down.  Idempotent. */

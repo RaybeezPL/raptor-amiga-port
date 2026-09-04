@@ -333,11 +333,13 @@ RAP_ParseVideo(
 /*
  * RAP_ParseMusic() - handles the MUSIC=<mode> keyword from the CLI
  * ("-music=CAMD") and Workbench icon ToolTypes ("MUSIC=CAMD").
- * Values: ADLIB (default - built-in OPL3 emulation), CAMD (General MIDI
- * via camd.library), MHI (MP3 files from the MP3/ drawer via an MHI
- * decoder driver, e.g. LIBS:MHI/prismamhi.library), OFF (no music, same
- * as -nomusic). Values are recognized case-insensitively. Returns 1 when
- * the argument was recognized.
+ * Values: ADLIB (built-in OPL3 emulation), CAMD (General MIDI via
+ * camd.library), MHI (MP3 files from the MP3/ drawer via an MHI decoder
+ * driver, e.g. LIBS:MHI/prismamhi.library), WAVE (WAV files from the
+ * WAVE/ drawer), OFF (no music, same as -nomusic). On Amiga the default
+ * state is MUSIC=OFF: no music backend is initialized unless the user
+ * explicitly selects one. Values are recognized case-insensitively.
+ * Returns 1 when the argument was recognized.
  */
 static int
 RAP_ParseMusic(
@@ -357,6 +359,7 @@ RAP_ParseMusic(
         RAP_StrCaseEqual(value, "nomusic"))
     {
         g_nomusic = 1;
+        g_music_mode = MUSIC_MODE_OFF;
         printf("MUSIC=OFF: music disabled (sound FX still enabled)\n");
     }
     else if (RAP_StrCaseEqual(value, "adlib") ||
@@ -387,7 +390,7 @@ RAP_ParseMusic(
     else
     {
         printf("Unknown MUSIC '%s' - valid values: ADLIB, CAMD, MHI, WAVE, OFF "
-               "(using default ADLIB)\n", value);
+               "(using default OFF)\n", value);
     }
 
     AmigaLog("[AUDIO] MUSIC parsed '%s' -> nomusic=%d music_mode=%d",
@@ -1984,10 +1987,12 @@ main(
         else if (RAP_ParseVideo(argv[loop]))
         {
         }
-        /* -music=ADLIB|CAMD|MHI|OFF selects the music backend: built-in
-         * AdLib/OPL3 (default), General MIDI via camd.library, MP3 files
-         * via an MHI decoder driver, or no music. See RAP_ParseMusic()
-         * above. */
+        /* -music=ADLIB|CAMD|MHI|WAVE|OFF selects the music backend:
+         * built-in AdLib/OPL3, General MIDI via camd.library, MP3 files
+         * via an MHI decoder driver, WAV files from the WAVE/ drawer, or
+         * no music. On Amiga the default state is MUSIC=OFF - no backend
+         * is initialized unless one is explicitly selected. See
+         * RAP_ParseMusic() above. */
         else if (RAP_ParseMusic(argv[loop]))
         {
         }

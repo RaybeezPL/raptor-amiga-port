@@ -11,14 +11,14 @@
  * other system-MIDI backends.  Sound effects are unaffected - they keep
  * playing through the AHI audio backend.
  *
- * This backend is opt-in: the game plays music through the built-in
- * AdLib/OPL3 emulation by default; MUSIC=CAMD (CLI parameter or icon
- * ToolType) selects this General MIDI path instead.  MIDI data is sent
- * to the fixed CAMD output cluster "out.0".  A MIDI driver (e.g. the
- * serial driver from the camd40 package) or a software synthesizer with
- * a CAMD interface must provide the cluster - otherwise the events are
- * routed nowhere (standard MIDI behaviour, same as an unplugged MIDI
- * cable behind a DOS MPU-401) and the music is silent.
+ * This backend is opt-in: on Amiga no music backend is enabled by
+ * default (MUSIC=OFF); MUSIC=CAMD (CLI parameter or icon ToolType)
+ * selects this General MIDI path instead.  MIDI data is sent to the
+ * fixed CAMD output cluster "out.0".  A MIDI driver (e.g. the serial
+ * driver from the camd40 package) or a software synthesizer with a CAMD
+ * interface must provide the cluster - otherwise the events are routed
+ * nowhere (standard MIDI behaviour, same as an unplugged MIDI cable
+ * behind a DOS MPU-401) and the music is silent.
  ***************************************************************************/
 #ifdef __AMIGA__
 
@@ -51,6 +51,9 @@ struct Library *CamdBase = NULL;
 static struct MidiNode *camd_node;
 static struct MidiLink *camd_link;
 static char camd_cluster[64];
+
+/* Forward declaration (CAMD_Init may call CAMD_DeInit on failure). */
+static void CAMD_DeInit(void);
 
 /***************************************************************************
  CAMD_Put() - Send one packed channel MIDI message.
@@ -201,7 +204,8 @@ AllNotesOffEvent(
 /***************************************************************************
  CAMD_Init() - Open camd.library, create the MIDI node and link it to the
  * configured output cluster.  Returns 1 on success, 0 on failure (the
- * caller then falls back to the OPL3 music backend).
+ * caller then switches the selected backend to MUSIC=OFF - there is no
+ * automatic fallback to AdLib/OPL3).
  ***************************************************************************/
 static int
 CAMD_Init(
@@ -266,14 +270,14 @@ CAMD_Init(
 
     /* The CaffeineOS trap: camd.library can be installed but unconfigured,
      * so the link above succeeds while nothing is listening on the
-     * cluster - the music would be silently routed nowhere.  Say so
-     * loudly on the console. */
+     * cluster - the music would be silently routed nowhere.  Treat this as
+     * an initialization failure: the caller (SND_InitSound / MUS_Init) then
+     * switches the selected backend to MUSIC=OFF. */
     if (!MidiLinkConnected(camd_link))
     {
-        CAMD_LOG("CAMD: WARNING - no MIDI driver/synth attached to cluster '%s':", camd_cluster);
-        CAMD_LOG("CAMD: MIDI music will be SILENT (sound FX still play).");
-        CAMD_LOG("CAMD: Configure a CAMD driver, or run without MUSIC=CAMD");
-        CAMD_LOG("CAMD: to use the default AdLib/OPL3 music instead.");
+        CAMD_LOG("CAMD: no MIDI driver/synth attached to cluster '%s' - MIDI music unavailable.", camd_cluster);
+        CAMD_DeInit();
+        return 0;
     }
 
     return 1;

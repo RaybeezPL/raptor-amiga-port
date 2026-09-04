@@ -84,18 +84,23 @@ extern int g_nomusic;
 /* MUSIC=<mode> music backend selection (-music= switch / MUSIC= icon
  * ToolType), parsed in main() (src/rap.cpp) and consumed by SND_InitSound()
  * (src/fx.cpp):
- *   MUSIC_MODE_ADLIB (default) : built-in AdLib/OPL3 emulation (dbopl core),
+ *   MUSIC_MODE_OFF (default on Amiga) : no music backend is initialized;
+ *              SND_PlaySong() is a no-op and SND_IsSongPlaying() returns 0.
+ *              AHI sound effects keep working unless NOSOUND is selected.
+ *   MUSIC_MODE_ADLIB : explicit built-in AdLib/OPL3 emulation (dbopl core),
  *              mixed into the AHI audio stream - always audible.
- *   MUSIC_MODE_CAMD            : General MIDI event stream via camd.library;
+ *   MUSIC_MODE_CAMD  : General MIDI event stream via camd.library;
  *              needs a configured MIDI driver/synth on cluster "out.0",
  *              otherwise the music is silent.
- *   MUSIC_MODE_MHI             : MP3 files from the MP3/ drawer through an
- *              MHI decoder driver (e.g. LIBS:MHI/prismamhi.library); needs
- *              an installed MHI driver, otherwise it falls back to ADLIB.
- *   MUSIC_MODE_WAVE            : 11025 Hz stereo 16-bit PCM WAV files from
+ *   MUSIC_MODE_MHI   : MP3 files from the MP3/ drawer through an
+ *              MHI decoder driver (e.g. LIBS:MHI/prismamhi.library);
+ *              requires an explicit MUSIC=MHI selection.
+ *   MUSIC_MODE_WAVE  : 11025 Hz stereo 16-bit PCM WAV files from
  *              the WAVE/ drawer, mixed directly into the AHI audio stream
  *              (mpuwave.cpp) - no external driver needed.
- * MUSIC=OFF (or -nomusic) sets g_nomusic instead and always wins. */
+ * A failed MHI or CAMD initialization switches the selected backend to
+ * MUSIC_MODE_OFF - there is no automatic fallback to AdLib/OPL3. */
+#define MUSIC_MODE_OFF   4
 #define MUSIC_MODE_ADLIB 0
 #define MUSIC_MODE_CAMD  1
 #define MUSIC_MODE_MHI   2

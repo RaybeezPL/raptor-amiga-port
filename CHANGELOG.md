@@ -2,6 +2,56 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [Unreleased]
+
+### Added
+- `MOUSE=ON|OFF` and `NOMOUSE` input options (CLI `-mouse=on|off`,
+  `-nomouse`, dashless `MOUSE=ON|OFF` / `NOMOUSE`; Workbench icon
+  ToolTypes `MOUSE=ON|OFF` / `NOMOUSE`). With the mouse disabled the
+  IDCMP window mask omits `IDCMP_MOUSEMOVE`/`IDCMP_MOUSEBUTTONS`, so no
+  mouse events are registered or processed at all; the cursor is not
+  updated and in-game mouse steering is off. Default is ON.
+- `JOYSTICK=ON|OFF` input option (CLI `-joystick=on|off`, dashless
+  `JOYSTICK=ON|OFF`; Workbench icon ToolType `JOYSTICK=ON|OFF`). With
+  the joystick disabled the game port is never polled and the joystick
+  is reported as absent. The legacy `NOJOY` flag is kept. Default is ON.
+- Precedence rule (same for both devices, consistent with the existing
+  `MUSIC=OFF`-wins convention): an explicit `KEYWORD=value` wins over
+  the legacy bare flag regardless of argument order (`MOUSE=ON` beats
+  `NOMOUSE`; `JOYSTICK=ON` beats `NOJOY`). Two conflicting `=value`
+  entries in the same source: CLI - last one wins; Workbench -
+  `FindToolType()` returns only the first occurrence, so the first one
+  wins (keep it unambiguous).
+- These options are a performance/troubleshooting aid: disabling an
+  input device removes its per-frame processing. Mouse input is a
+  candidate, not a confirmed cause, of the demo slowdown.
+- Documented tested hardware configurations and AmigaOS versions in
+  README.md, README_AMIGA.md and README_AMIGA_PL.md, including
+  Raspberry Pi 400/PiMIGA, A1200 PiStorm/VaffeineOS, A1200
+  Mediator/Voodoo3/Prelude MHI, A2000 TekMagic 68060/CyberVision
+  64/3D/Prisma MegaMix, A4000 Picasso IV/AGA, and WinUAE 68030/68060
+  with and without FPU in AGA and RTG modes.
+
+### Changed
+- Music is now disabled by default on Amiga: without a MUSIC= option
+  (CLI or ToolType) Raptor uses MUSIC=OFF and does not initialize
+  AdLib/OPL3, CAMD, MHI or WAVE music; AHI sound effects remain
+  enabled unless NOSOUND is selected. Removed the automatic MHI/CAMD
+  fallback to AdLib/OPL3: a failed MHI or CAMD initialization now
+  switches music to MUSIC=OFF with a clear one-time CLI log. Missing
+  MP3/WAV files still leave only that song silent. Documentation
+  updated (README_AMIGA.md, README_AMIGA_PL.md), including the full
+  recommended WAV file name list.
+- Amiga rendering cleanup: skip `CreateUpscaledTexture(true)` and no-op
+  per-frame SDL renderer calls in `I_FinishUpdate()` under `__AMIGA__`,
+  while preserving the required `SDL_LowerBlit()` and
+  `SDL_RenderPresent()` presentation path.
+- Added defensive NULL guards for renderer and texture arguments in the
+  Amiga SDL render stubs.
+- Unified Amiga build scripts with consistent headers and output, and
+  clean generated `*.o` and `*.d` files before each build.
+- Documented native AGA PAL/NTSC behavior in README_AMIGA.md and README_AMIGA_PL.md: the 320x200 AGA image is top-aligned; PAL may leave unused lower display area black; NTSC requires the Amiga system to be booted in NTSC mode. Clarified that VIDEO=AUTO preserves the system mode and VIDEO=NTSC does not switch a PAL-configured Amiga.
+
 ## [0.9.8]
 
 Version name: **0.9.8** - the final pre-release build before the planned
@@ -35,47 +85,6 @@ release.
   README_AMIGA.md, README_AMIGA_PL.md) and the startup banner
   (src/rap.cpp). 0.9.8 is the final pre-release build before the
   planned release.
-
-## [Unreleased]
-
-### Added
-- `MOUSE=ON|OFF` and `NOMOUSE` input options (CLI `-mouse=on|off`,
-  `-nomouse`, dashless `MOUSE=ON|OFF` / `NOMOUSE`; Workbench icon
-  ToolTypes `MOUSE=ON|OFF` / `NOMOUSE`). With the mouse disabled the
-  IDCMP window mask omits `IDCMP_MOUSEMOVE`/`IDCMP_MOUSEBUTTONS`, so no
-  mouse events are registered or processed at all; the cursor is not
-  updated and in-game mouse steering is off. Default is ON.
-- `JOYSTICK=ON|OFF` input option (CLI `-joystick=on|off`, dashless
-  `JOYSTICK=ON|OFF`; Workbench icon ToolType `JOYSTICK=ON|OFF`). With
-  the joystick disabled the game port is never polled and the joystick
-  is reported as absent. The legacy `NOJOY` flag is kept. Default is ON.
-- Precedence rule (same for both devices, consistent with the existing
-  `MUSIC=OFF`-wins convention): an explicit `KEYWORD=value` wins over
-  the legacy bare flag regardless of argument order (`MOUSE=ON` beats
-  `NOMOUSE`; `JOYSTICK=ON` beats `NOJOY`). Two conflicting `=value`
-  entries in the same source: CLI - last one wins; Workbench -
-  `FindToolType()` returns only the first occurrence, so the first one
-  wins (keep it unambiguous).
-- These options are a performance/troubleshooting aid: disabling an
-  input device removes its per-frame processing. Mouse input is a
-  candidate, not a confirmed cause, of the demo slowdown.
-- Documented tested hardware configurations and AmigaOS versions in
-  README.md, README_AMIGA.md and README_AMIGA_PL.md, including
-  Raspberry Pi 400/PiMIGA, A1200 PiStorm/VaffeineOS, A1200
-  Mediator/Voodoo3/Prelude MHI, A2000 TekMagic 68060/CyberVision
-  64/3D/Prisma MegaMix, A4000 Picasso IV/AGA, and WinUAE 68030/68060
-  with and without FPU in AGA and RTG modes.
-
-### Changed
-- Amiga rendering cleanup: skip `CreateUpscaledTexture(true)` and no-op
-  per-frame SDL renderer calls in `I_FinishUpdate()` under `__AMIGA__`,
-  while preserving the required `SDL_LowerBlit()` and
-  `SDL_RenderPresent()` presentation path.
-- Added defensive NULL guards for renderer and texture arguments in the
-  Amiga SDL render stubs.
-- Unified Amiga build scripts with consistent headers and output, and
-  clean generated `*.o` and `*.d` files before each build.
-- Documented native AGA PAL/NTSC behavior in README_AMIGA.md and README_AMIGA_PL.md: the 320x200 AGA image is top-aligned; PAL may leave unused lower display area black; NTSC requires the Amiga system to be booted in NTSC mode. Clarified that VIDEO=AUTO preserves the system mode and VIDEO=NTSC does not switch a PAL-configured Amiga.
 
 ## [0.9.6_MHI] - 2026-08-17
 
@@ -406,7 +415,6 @@ Version name: **BETA 0.8.1 NOSOUND**
   stderr are redirected to NIL:), so nothing is left behind when the
   game exits.
 
-
 ### Changed
 - All temporary diagnostic output removed for the beta: `[AMIGA]`,
   `[AMIGA][DIAG]`, `[AMIGA][AUDIO]`, `[VIDEO]`, `[INIT]`, `[GFX]` and
@@ -431,14 +439,13 @@ Version name: **BETA 0.8.1 NOSOUND**
 - Workbench icon ToolTypes now actually reach the game (previously they
   were looked for in argv[], which is empty on Workbench launches).
 
-
 ### Removed
 - Experimental `RTGMODE=32` truecolor mode (did not work correctly on
   PiStorm/Emu68).
 - The `RTGMODE`/`-rtgmode` parameter and the `8X2L` 640x240x8 pixel-
   doubling display mode, together with the RTG screen-mode requester.
 
-## [Unreleased]
+## [Pre-0.8.1 development]
 
 ### Added
 - **CGX (CyberGraphX) fallback:** when the P96 (Picasso96) RTG path does
@@ -447,9 +454,6 @@ Version name: **BETA 0.8.1 NOSOUND**
   chipset rejection logic is applied to the CGX mode list. GFX=AUTO/RTG
   will use the first working RTG driver (P96 preferred, CGX as fallback);
   the English "RTG required" requester appears only if both fail.
-
-
-### Added
 - `GFX=AUTO|RTG|AGA` parameter (CLI and Workbench icon ToolType):
   controls the graphics driver path — AUTO/RTG require RTG (strict,
   English requester on failure, no silent fallback); AGA forces a
@@ -461,14 +465,14 @@ Version name: **BETA 0.8.1 NOSOUND**
 - Detailed `[VIDEO]` diagnostic log written to `RAPTOR.LOG` on every start,
   covering P96 detection, BestModeID selection, GFX mode choice, and
   the final physical screen parameters.
-- Initial Amiga 68k port setup: dedicated `Makefile.amiga`, SDL stub layer, and porting analysis document.  
-- Detailed video init logging and critical SDL stub fixes for Amiga 68k, including real timer implementation (`SDL_GetTicks`), `SDL_Delay` using AmigaOS, and functional `SDL_LowerBlit` for visible output.  
-- Real Amiga Intuition window support in SDL stubs: SDL window/renderer/texture structs now hold actual Intuition window pointers, and `SDL_CreateWindow`/`SDL_DestroyWindow` manage Amiga windows and libraries correctly.  
-- RTG (Picasso96) custom screen support in SDL stubs and matching rebuild of Amiga binaries.  
-- English translations for `AMIGA_PORTING_ANALYSIS.md` and `README.md`.  
-- `.clineignore` configuration and Cline project rules tailored to the Amiga port.  
-- Command‑line flags `-nosound` and `-nomusic` to control the Amiga audio subsystem and diagnose hangs on real 68k hardware.  
-- Temporary FX/DSP/SFX audio debug probes and early AHI probes to understand callback behaviour.  
+- Initial Amiga 68k port setup: dedicated `Makefile.amiga`, SDL stub layer, and porting analysis document.
+- Detailed video init logging and critical SDL stub fixes for Amiga 68k, including real timer implementation (`SDL_GetTicks`), `SDL_Delay` using AmigaOS, and functional `SDL_LowerBlit` for visible output.
+- Real Amiga Intuition window support in SDL stubs: SDL window/renderer/texture structs now hold actual Intuition window pointers, and `SDL_CreateWindow`/`SDL_DestroyWindow` manage Amiga windows and libraries correctly.
+- RTG (Picasso96) custom screen support in SDL stubs and matching rebuild of Amiga binaries.
+- English translations for `AMIGA_PORTING_ANALYSIS.md` and `README.md`.
+- `.clineignore` configuration and Cline project rules tailored to the Amiga port.
+- Command‑line flags `-nosound` and `-nomusic` to control the Amiga audio subsystem and diagnose hangs on real 68k hardware.
+- Temporary FX/DSP/SFX audio debug probes and early AHI probes to understand callback behaviour.
 
 ### Changed
 - RTG display mode is now chosen directly from the live Picasso96 mode
@@ -479,36 +483,35 @@ Version name: **BETA 0.8.1 NOSOUND**
   native 320x200x8 screen; a missing P96 mode never triggers a silent
   AUTO→AGA fallback.
 - Documented actual memory requirements from code analysis: the game uses ~3 MB of Fast RAM (2 MB game heap, binary, blit/surface buffers); requirements updated to **4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM** in README files.
-- README updated and then rewritten to describe the Amiga 68060 RTG build environment and port details in English.  
-
-- Amiga SDL stubs repeatedly refined:  
-  - Fixed Raptor SDL rendering stubs and input handling for RTG build.  
-  - Implemented a real IDCMP event pump for keyboard/mouse, added full SDL scancode table, proper raw‑key mapping, and real `SDL_PumpEvents`/`SDL_PollEvent` integration.  
-  - Fixed mouse cursor alignment, hid the Amiga system pointer during gameplay, and unified cursor handling while preserving the working `-nosound` path.  
-  - Standardized and shortened English comments throughout `src/amiga/amiga_sdl_stubs.h` for clarity and consistency.  
-- Video and controls stabilized on Amiga (pre‑AHI), with a known good baseline version of the port.  
-- Project structure documentation updated with a current snapshot, replacing an obsolete structure overview.  
-- Amiga porting analysis moved into `docs/` to avoid clutter in the repository root, and an obsolete project file was removed.  
-- Repository root cleaned up to keep a single Amiga build script (`build_amiga.sh`) that encapsulates your preferred build workflow (cleaning objects, deleting `raptor`, and rebuilding).  
-- SDL2 CMake config (`sdl2-config.cmake`) updated to use a modern `cmake_minimum_required` version syntax compatible with current CMake policy requirements.  
-- `.gitignore` patterns cleaned up to consistently ignore CMake build artefacts (`CMakeFiles/`, `CMakeCache.txt`, generated `Makefile`, `build/`), editor config (`.vscode/`), macOS `.DS_Store` files, the `raptor` binary, and the local Amiga build directory.  
+- README updated and then rewritten to describe the Amiga 68060 RTG build environment and port details in English.
+- Amiga SDL stubs repeatedly refined:
+  - Fixed Raptor SDL rendering stubs and input handling for RTG build.
+  - Implemented a real IDCMP event pump for keyboard/mouse, added full SDL scancode table, proper raw‑key mapping, and real `SDL_PumpEvents`/`SDL_PollEvent` integration.
+  - Fixed mouse cursor alignment, hid the Amiga system pointer during gameplay, and unified cursor handling while preserving the working `-nosound` path.
+  - Standardized and shortened English comments throughout `src/amiga/amiga_sdl_stubs.h` for clarity and consistency.
+- Video and controls stabilized on Amiga (pre‑AHI), with a known good baseline version of the port.
+- Project structure documentation updated with a current snapshot, replacing an obsolete structure overview.
+- Amiga porting analysis moved into `docs/` to avoid clutter in the repository root, and an obsolete project file was removed.
+- Repository root cleaned up to keep a single Amiga build script (`build_amiga.sh`) that encapsulates your preferred build workflow (cleaning objects, deleting `raptor`, and rebuilding).
+- SDL2 CMake config (`sdl2-config.cmake`) updated to use a modern `cmake_minimum_required` version syntax compatible with current CMake policy requirements.
+- `.gitignore` patterns cleaned up to consistently ignore CMake build artefacts (`CMakeFiles/`, `CMakeCache.txt`, generated `Makefile`, `build/`), editor config (`.vscode/`), macOS `.DS_Store` files, the `raptor` binary, and the local Amiga build directory.
 
 ### Removed
-- Obsolete project structure text file from the repository root after replacing it with the current structure snapshot.  
-- Android Gradle project (`android/`) and MSVC Visual Studio solution/projects (`msvc/`) from the Amiga‑focused fork to reduce noise and make the repo clearly Amiga‑centric.  
-- Temporary helper/log files and stray artefacts from the root directory (Docker logs, helper binaries, misnamed curl output files, and unused build scripts).  
-- Local `build.amiga/` directory from the repository and added it to `.gitignore` so future Amiga builds remain local artefacts and never pollute version control.  
+- Obsolete project structure text file from the repository root after replacing it with the current structure snapshot.
+- Android Gradle project (`android/`) and MSVC Visual Studio solution/projects (`msvc/`) from the Amiga‑focused fork to reduce noise and make the repo clearly Amiga‑centric.
+- Temporary helper/log files and stray artefacts from the root directory (Docker logs, helper binaries, misnamed curl output files, and unused build scripts).
+- Local `build.amiga/` directory from the repository and added it to `.gitignore` so future Amiga builds remain local artefacts and never pollute version control.
 
 ### Fixed
-- Critical timing and rendering bugs on Amiga 68k:  
-  - Broken fake timer and missing delays that caused unpredictable fade and update loops.  
-  - No‑op SDL blit stubs which prevented `I_FinishUpdate` from producing visible graphics.  
-- Input handling issues:  
-  - SDL stubs previously ignored IDCMP messages, so keyboard/mouse/joystick input never reached the game loop; this has been replaced with a full IDCMP event pump and SDL event queue.  
-  - Mouse position reporting and relative motion now use live IDCMP coordinates and respect SDL’s logical size and viewport semantics, fixing vertical cursor drift in aspect‑correct modes.  
-- Cursor handling and system pointer behaviour:  
-  - Native Amiga hardware pointer is hidden for the entire in‑game session and restored only on full application exit, avoiding double‑cursor and missing‑cursor states.  
-- Build reliability and error reporting:  
-  - Amiga heap size reduced and allocation failures guarded with clear error messages.  
-  - Additional `EXIT_Error` logging and NULL checks around video initialization and screenbuffer allocation.  
-  - Amiga build artefacts and the `raptor` binary now consistently ignored so `git status` reflects only real source changes.  
+- Critical timing and rendering bugs on Amiga 68k:
+  - Broken fake timer and missing delays that caused unpredictable fade and update loops.
+  - No‑op SDL blit stubs which prevented `I_FinishUpdate` from producing visible graphics.
+- Input handling issues:
+  - SDL stubs previously ignored IDCMP messages, so keyboard/mouse/joystick input never reached the game loop; this has been replaced with a full IDCMP event pump and SDL event queue.
+  - Mouse position reporting and relative motion now use live IDCMP coordinates and respect SDL’s logical size and viewport semantics, fixing vertical cursor drift in aspect‑correct modes.
+- Cursor handling and system pointer behaviour:
+  - Native Amiga hardware pointer is hidden for the entire in‑game session and restored only on full application exit, avoiding double‑cursor and missing‑cursor states.
+- Build reliability and error reporting:
+  - Amiga heap size reduced and allocation failures guarded with clear error messages.
+  - Additional `EXIT_Error` logging and NULL checks around video initialization and screenbuffer allocation.
+  - Amiga build artefacts and the `raptor` binary now consistently ignored so `git status` reflects only real source changes.

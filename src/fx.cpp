@@ -43,11 +43,17 @@ int sys_midi, winmm_mpu_device, core_dls_synth, core_midi_port, alsaclient, alsa
  * parsed in main() (src/rap.cpp). See fx.h for the full description of each
  * flag's semantics. Defaulting to 0 (audio fully enabled) preserves the
  * exact previous behaviour when neither switch is passed on the command
- * line. g_music_mode defaults to the always-audible built-in AdLib/OPL3
- * music; CAMD MIDI is opt-in via MUSIC=CAMD. */
+ * line. On Amiga g_music_mode defaults to MUSIC_MODE_OFF: no music backend
+ * is initialized unless the user explicitly selects one with MUSIC=ADLIB,
+ * MUSIC=CAMD, MUSIC=MHI or MUSIC=WAVE. A failed MHI/CAMD initialization
+ * switches the selected backend to MUSIC_MODE_OFF - never to AdLib. */
 int g_nosound = 0;
 int g_nomusic = 0;
-int g_music_mode = MUSIC_MODE_ADLIB;
+#ifdef __AMIGA__
+int g_music_mode = MUSIC_MODE_OFF;   /* Amiga: brak backendu domyślnie */
+#else
+int g_music_mode = MUSIC_MODE_ADLIB; /* upstream: AdLib/OPL3 */
+#endif
 
 typedef struct
 {
@@ -211,6 +217,18 @@ int SND_InitSound(void)
     dig_flag = 0;
     fx_device = SND_NONE;
 
+#ifdef __AMIGA__
+    /* No MUSIC= option given (default state): report MUSIC=OFF once.  The
+     * user can still select a backend explicitly with MUSIC=ADLIB, CAMD,
+     * MHI or WAVE; with no backend selected no music engine is started
+     * below (music_card = M_NONE), while AHI sound effects keep working. */
+    if (g_music_mode == MUSIC_MODE_OFF && !g_nomusic)
+    {
+        AmigaLog("MUSIC: no backend selected; MUSIC=OFF (music disabled).");
+        AmigaLog("MUSIC: sound effects remain enabled.");
+    }
+#endif
+
     /* No SETUP.INI is used anywhere in this Amiga port - all settings are
      * fixed built-in defaults, overridable by amiga.cfg (music_adlib /
      * music_mhi / sfx_volume).  Music volume picks the key of the active
@@ -227,12 +245,15 @@ int SND_InitSound(void)
     if (music_volume < 0)   music_volume = 0;
     if (music_volume > 127) music_volume = 127;
     /* Amiga: the music backend is selected with the MUSIC= command-line
-     * parameter / icon ToolType (parsed in main(), src/rap.cpp):
-     * AdLib/OPL3 emulation (default, always audible in the AHI stream),
-     * General MIDI via camd.library (MUSIC=CAMD, with automatic fallback
-     * to AdLib/OPL3 below when CAMD cannot be opened), or MP3 files via an
-     * MHI decoder driver (MUSIC=MHI, mpumhi.cpp). */
-    music_card = (g_music_mode == MUSIC_MODE_CAMD) ? M_GMIDI : M_ADLIB;
+     * parameter / icon ToolType (parsed in main(), src/rap.cpp).  The
+     * default state is MUSIC_MODE_OFF: no music backend is initialized
+     * unless the user explicitly selects MUSIC=ADLIB, MUSIC=CAMD,
+     * MUSIC=MHI or MUSIC=WAVE.  A failed MHI/CAMD initialization switches
+     * the selected backend to MUSIC_MODE_OFF - never to AdLib. */
+    if (g_music_mode == MUSIC_MODE_OFF)
+        music_volume = 0;
+    music_card = (g_music_mode == MUSIC_MODE_CAMD) ? M_GMIDI :
+                 (g_music_mode == MUSIC_MODE_OFF)  ? M_NONE : M_ADLIB;
 
     /* MUSIC=WAVE: WAV files from the WAVE/ drawer are mixed straight into
      * the AHI stream by WAVE_Mix() (FX_Fill) - no MUS sequencer, no GLB
@@ -246,8 +267,9 @@ int SND_InitSound(void)
      * MUS/OPL3 sequencer is bypassed entirely (music_card = M_NONE and
      * MUS_Init() is never called below); the SND_PlaySong/_StopSong/
      * _IsSongPlaying entry points route to the MHI backend instead.
-     * On failure (no driver installed) fall back to AdLib/OPL3, same as
-     * the CAMD fallback.  -nomusic wins: MHI is never started then. */
+     * On failure (no driver/decoder/task) the selected backend switches
+     * to MUSIC_MODE_OFF - there is no automatic fallback to AdLib/OPL3.
+     * -nomusic wins: MHI is never started then. */
     if (g_music_mode == MUSIC_MODE_MHI && !g_nomusic)
     {
         if (MHI_MusicInit())
@@ -258,9 +280,12 @@ int SND_InitSound(void)
         }
         else
         {
-            AmigaLog("[AUDIO] MHI unavailable - falling back to AdLib/OPL3 music.");
-            printf("[AUDIO] MHI init failed (no MHI driver?) - falling back to AdLib/OPL3\n");
-            g_music_mode = MUSIC_MODE_ADLIB;
+            AmigaLog("MHI: initialization failed; MUSIC=MHI changed to MUSIC=OFF.");
+            AmigaLog("MHI: sound effects remain enabled. Select MUSIC=ADLIB, MUSIC=CAMD,");
+            AmigaLog("MUSIC=WAVE or MUSIC=OFF to choose music explicitly.");
+            g_music_mode = MUSIC_MODE_OFF;
+            music_volume = 0;
+            music_card = M_NONE;
         }
     }
 #else
@@ -306,18 +331,15 @@ int SND_InitSound(void)
 #ifdef __AMIGA__
         if (!mus_ok && music_card == M_GMIDI)
         {
-            /* CAMD (camd.library / node / cluster link) unavailable: fall
-             * back to the OPL3 (AdLib) emulator, so music still plays
-             * through the AHI audio stream. */
-            AmigaLog("[AUDIO] CAMD MIDI unavailable - falling back to AdLib/OPL3 music.");
-            genmidi = GLB_GetItem(FILE00e_GENMIDI_OP2);
-            if (genmidi)
-            {
-                LoadInstrumentTable(genmidi);
-                GLB_FreeItem(14);
-            }
-            music_card = M_ADLIB;
-            mus_ok = MUS_Init(music_card, 0);
+            /* CAMD (camd.library / node / cluster link) unavailable: the
+             * selected backend switches to MUSIC_MODE_OFF - there is no
+             * automatic fallback to AdLib/OPL3. */
+            AmigaLog("CAMD: initialization failed; MUSIC=CAMD changed to MUSIC=OFF.");
+            AmigaLog("CAMD: sound effects remain enabled. Select MUSIC=ADLIB, MUSIC=MHI,");
+            AmigaLog("MUSIC=WAVE or MUSIC=OFF to choose music explicitly.");
+            g_music_mode = MUSIC_MODE_OFF;
+            music_volume = 0;
+            music_card = M_NONE;
         }
 #endif
 #ifdef __AMIGA__
@@ -328,13 +350,14 @@ int SND_InitSound(void)
             MUS_SetVolume(music_volume);
     }
 
-    /* Printed after backend selection so it names the real (possibly
-     * fallen-back) music device. */
+    /* Printed after backend selection so it names the real music device. */
 #ifdef __AMIGA__
     if (!g_nomusic && g_music_mode == MUSIC_MODE_WAVE)
         printf("Music Enabled (WAV files from the WAVE/ drawer)\n");
     else if (!g_nomusic && g_music_mode == MUSIC_MODE_MHI && MHI_IsActive())
         printf("Music Enabled (MP3 via MHI: %s)\n", MHI_DriverName());
+    else if (!g_nomusic && g_music_mode == MUSIC_MODE_OFF)
+        printf("Music Disabled (MUSIC=OFF)\n");
     else if (!g_nomusic && music_card == M_GMIDI)
         printf("Music Enabled (General Midi via CAMD)\n");
     else if (!g_nomusic && music_card == M_ADLIB)
@@ -1235,6 +1258,11 @@ void SND_PlaySong(int item, int chainflag, int fadeflag)
     
     if (music_volume <= 1)
         return;
+
+    /* MUSIC=OFF: music is disabled - never touch the MHI/WAVE/MUS
+     * backends, no song is ever started. */
+    if (g_music_mode == MUSIC_MODE_OFF)
+        return;
     
 #ifdef __AMIGA__
     /* MUSIC=MHI: play the MP3 mapped to this song item through the MHI
@@ -1321,6 +1349,10 @@ SND_IsSongPlaying () - Is current song playing
  ***************************************************************************/
 int SND_IsSongPlaying(void) 
 {
+    /* MUSIC=OFF: no song can be playing. */
+    if (g_music_mode == MUSIC_MODE_OFF)
+        return 0;
+
 #ifdef __AMIGA__
     if (g_music_mode == MUSIC_MODE_MHI)
         return MHI_SongPlaying();
@@ -1335,6 +1367,10 @@ SND_FadeOutSong () - Fades current song out and stops playing music
  ***************************************************************************/
 void SND_FadeOutSong(void)
 {
+    /* MUSIC=OFF: nothing to fade or stop. */
+    if (g_music_mode == MUSIC_MODE_OFF)
+        return;
+
 #ifdef __AMIGA__
     /* MUSIC=MHI: no fade-out on the MHI driver - stop immediately.  No
      * GLB item was ever locked in this mode (see SND_PlaySong). */

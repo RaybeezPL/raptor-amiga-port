@@ -474,8 +474,8 @@ MUS_Init(
     {
 #ifdef __AMIGA__
         /* Amiga: propagate init failure (e.g. camd.library missing) so
-         * SND_InitSound() can retry MUS_Init() with the OPL3 fallback
-         * backend. */
+         * SND_InitSound() can switch the selected backend to MUSIC=OFF -
+         * there is no automatic fallback to AdLib/OPL3. */
         if (!music_device->Init(option))
         {
             AmigaLog("MUS: backend init FAILED (card=%d)", card);

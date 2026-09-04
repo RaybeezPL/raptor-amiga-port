@@ -58,10 +58,12 @@ Graphics:   RTG with Picasso96 or CyberGraphX (CGX)
 Disk space: approx. 25 MB free (game files + saved games)
 Joystick:   Optional - port 1 (DB9); requires lowlevel.library v40+
             (included in AmigaOS 3.2); CD32 pads are also supported
-Sound:      AHI (ahi.device v4+) for sound effects and for the
-            built-in AdLib/OPL3 music emulation (default music);
-            optionally music via MIDI out through camd.library
-            (CAMD) when started with MUSIC=CAMD
+Sound:      AHI (ahi.device v4+) for sound effects; no music backend
+            is enabled by default (MUSIC=OFF). Music can be selected
+            explicitly with MUSIC=ADLIB (built-in OPL3 emulation),
+            MUSIC=CAMD (MIDI via camd.library), MUSIC=MHI (MP3 via an
+            MHI decoder driver) or MUSIC=WAVE (WAV files from the
+            WAVE/ drawer).
 
 The default graphics mode (GFX=AUTO / GFX=RTG) requires RTG: the game
 tries Picasso96 first, then falls back to CyberGraphX (CGX /
@@ -129,9 +131,16 @@ From Shell/CLI simply start the game:
 
    raptor
 
-Sound effects play through AHI (ahi.device) and music plays through
-the built-in AdLib/OPL3 emulation - the authentic Raptor sound -
-mixed into the AHI audio stream. To hear the music on an external
+No music backend is enabled by default. If no MUSIC= option is
+specified, Raptor uses MUSIC=OFF and does not initialize AdLib/OPL3,
+CAMD, MHI or WAVE music. Sound effects remain enabled unless NOSOUND
+is selected. Select MUSIC=ADLIB, MUSIC=CAMD, MUSIC=MHI or MUSIC=WAVE
+explicitly to enable music.
+
+Sound effects play through AHI (ahi.device); music plays through the
+backend selected with the MUSIC= parameter. MUSIC=ADLIB uses the
+built-in AdLib/OPL3 emulation (the authentic Raptor sound) mixed
+into the AHI audio stream. To hear the music on an external
 synthesizer or a CAMD software synth instead, start the game with
 the MUSIC=CAMD parameter. To play the soundtrack as MP3 files
 through an MHI decoder driver (e.g. a Prisma Megamix card), use
@@ -153,12 +162,18 @@ Sound effects and music use two separate, native Amiga subsystems:
                    AHI-capable sound card works, as does the built-in
                    Paula through an AHI audio mode.
 
-   Music:          By default the game's MUS tracks play through the
+   Music:          No music backend is enabled by default. If no
+                   MUSIC= option is specified, Raptor uses MUSIC=OFF
+                   and does not initialize AdLib/OPL3, CAMD, MHI or
+                   WAVE music. Sound effects remain enabled unless
+                   NOSOUND is selected. Select MUSIC=ADLIB, MUSIC=CAMD,
+                   MUSIC=MHI or MUSIC=WAVE explicitly to enable music.
+
+                   MUSIC=ADLIB plays the MUS tracks through the
                    built-in AdLib/OPL3 emulation (the authentic
-                   Raptor sound), mixed into the AHI audio stream -
-                   this always works, out of the box. The emulator
-                   uses the lightweight DOSBox dbopl core, which
-                   costs only a few percent of a 68060.
+                   Raptor sound), mixed into the AHI audio stream.
+                   The emulator uses the lightweight DOSBox dbopl
+                   core, which costs only a few percent of a 68060.
 
                    Alternatively, the MUSIC=CAMD parameter plays the
                    MUS tracks as a General MIDI event stream through
@@ -179,11 +194,13 @@ Sound effects and music use two separate, native Amiga subsystems:
                    MIDI driver or synthesizer is attached to the
                    cluster, CAMD music is SILENT (sound effects still
                    play). This includes CaffeineOS, where camd.library
-                   is installed but NOT configured by default. If you
-                   get no music with MUSIC=CAMD, simply go back to the
-                   default AdLib/OPL3 mode. (If camd.library cannot be
-                   opened at all, the game falls back to AdLib/OPL3
-                   automatically, so music still plays.)
+                   is installed but NOT configured by default. If CAMD
+                   cannot be initialized or no usable MIDI output is
+                   configured, CAMD music remains silent; sound effects
+                   continue normally. Raptor does not automatically
+                   switch to another music backend. Select MUSIC=ADLIB,
+                   MUSIC=MHI, MUSIC=WAVE or MUSIC=OFF explicitly if
+                   required.
 
    Music (MHI):   The MUSIC=MHI parameter plays the soundtrack as MP3
                    files through an MHI decoder driver - the Amiga
@@ -225,6 +242,17 @@ Sound effects and music use two separate, native Amiga subsystems:
                    maps the Apogee logo to "Apogee Fanfare.mp3"
                    instead, so that file is not required.)
 
+                   Music filenames may use normal spaces, for example
+                   `Main Menu.mp3` or `Wave Music 1.wav`. As a
+                   compatibility fallback for archives that replace
+                   spaces automatically, Raptor also accepts equivalent
+                   filenames with every space replaced by an underscore,
+                   for example `Main_Menu.mp3` or `Wave_Music_1.wav`.
+
+                   When both variants exist, the standard filename with
+                   spaces is preferred. This applies to MP3 files used
+                   by `MUSIC=MHI` and WAV files used by `MUSIC=WAVE`.
+
                    A song without a matching file simply stays silent
                    (sound effects still play). The mapping (title
                    fragment -> in-game song) is documented in
@@ -235,11 +263,16 @@ Sound effects and music use two separate, native Amiga subsystems:
                    mhimpegit.library, mhimdev.library, then scans
                    LIBS:MHI/ for any other installed driver. The
                    MHIDRIVER= parameter (e.g. -mhidriver=mhimaspro.library)
-                   forces a specific driver. If no MHI driver can be
-                   opened, the game falls back to AdLib/OPL3 music
-                     automatically. Note: there is no software-only MHI
-                     decoder for classic 68k machines - MUSIC=MHI needs
-                     one of the hardware decoders above.
+                   forces a specific driver. If the MHI driver cannot be
+                   opened, the MP3 drawer is missing, or a matching MP3
+                   file cannot be found, MHI music remains silent; sound
+                   effects continue normally. Raptor does not
+                   automatically switch to another music backend.
+                   Select MUSIC=ADLIB, MUSIC=CAMD, MUSIC=WAVE or
+                   MUSIC=OFF explicitly if required.
+                   Note: there is no software-only MHI decoder for
+                   classic 68k machines - MUSIC=MHI needs one of the
+                   hardware decoders above.
 
     Music (WAVE):  The MUSIC=WAVE parameter plays the soundtrack as
                     pre-decoded WAV files from a drawer named "WAVE"
@@ -252,12 +285,47 @@ Sound effects and music use two separate, native Amiga subsystems:
                     with only the extension changed from ".mp3" to
                     ".wav" (spaces and exact base names preserved),
                     e.g. "Main Menu.wav", "Wave Music 1.wav",
-                    "Boss 1.wav". Required file format: RIFF/WAVE
+                    "Boss 1.wav".
+
+                    Music filenames may use normal spaces, for example
+                    `Main Menu.mp3` or `Wave Music 1.wav`. As a
+                    compatibility fallback for archives that replace
+                    spaces automatically, Raptor also accepts equivalent
+                    filenames with every space replaced by an underscore,
+                    for example `Main_Menu.mp3` or `Wave_Music_1.wav`.
+
+                    When both variants exist, the standard filename with
+                    spaces is preferred. This applies to MP3 files used
+                    by `MUSIC=MHI` and WAV files used by `MUSIC=WAVE`.
+
+                    The recommended WAV file names are:
+
+                        Main Menu.wav
+                        Game Over.wav
+                        Boss 1.wav
+                        Boss 2.wav
+                        Boss 3.wav
+                        Credits.wav
+                        Wave Music 1.wav
+                        Wave Music 2.wav
+                        Wave Music 3.wav
+                        Wave Music 4.wav
+                        Wave Music 5.wav
+                        Wave Music 6.wav
+                        Night Waves.wav
+                        Hangar.wav
+                        Raptor Intro.wav
+                        Apogee Fanfare.wav
+
+                    Required file format: RIFF/WAVE
                     container, uncompressed PCM, signed 16-bit
                     little-endian samples, stereo (2 channels),
                     11025 Hz - the native rate of the game's audio
-                    pipeline. A song without a matching WAV file simply
-                    stays silent (sound effects still play). WAVE music
+                    pipeline. If the WAVE drawer is missing, a WAV file
+                    is not found, or its format is unsupported, that
+                    song remains silent; sound effects continue
+                    normally. Raptor does not automatically switch to
+                    another music backend. WAVE music
                     has its own volume setting: the "music_wave" key in
                     amiga.cfg and a separate music volume in the
                     in-game music settings. WAVE music and Sound
@@ -287,8 +355,8 @@ accepted. Parameters may be combined in any order.
 
    -music=M    Selects the music backend. M may be:
                  ADLIB - built-in AdLib/OPL3 emulation mixed into
-                         the AHI audio stream (default; the
-                         authentic Raptor sound, always audible);
+                         the AHI audio stream (the authentic
+                         Raptor sound, always audible);
                  CAMD  - General MIDI event stream through
                          camd.library; needs a configured MIDI
                          driver or a CAMD software synthesizer on
@@ -297,15 +365,17 @@ accepted. Parameters may be combined in any order.
                          above);
                   MHI   - MP3 files from the MP3/ drawer through an
                           MHI decoder driver (e.g. the Prisma Megamix);
-                          falls back to ADLIB when no MHI driver is
-                          installed (see "Sound (AHI + CAMD + MHI)"
-                          above);
+                          if the MHI driver cannot be opened, music
+                          switches to MUSIC=OFF (see "Sound (AHI +
+                          CAMD + MHI)" above);
                   WAVE  - pre-decoded WAV files from the WAVE/ drawer,
                           mixed into the AHI audio stream (see
                           "Music (WAVE)" above);
                   OFF   - no music (same as -nomusic; sound effects
                           keep playing through AHI).
-                The dashless form "MUSIC=MHI" also works.
+                The dashless form "MUSIC=MHI" also works. With no
+                MUSIC= option the default state is MUSIC=OFF: no music
+                backend is initialized and sound effects keep playing.
                 -nomusic / MUSIC=OFF always wins over MUSIC=ADLIB,
                 MUSIC=CAMD, MUSIC=MHI or MUSIC=WAVE, regardless of
                 parameter order.
@@ -435,10 +505,10 @@ Workbench. Parameters are passed via icon ToolTypes:
 
 Note: to run without audio from the Workbench, add the NOSOUND
 ToolType to the icon (NOMUSIC - or MUSIC=OFF - keeps sound effects
-enabled). MUSIC=CAMD selects MIDI music, MUSIC=MHI selects MP3
-music via an MHI driver, and MUSIC=WAVE selects pre-decoded WAV
-music from the WAVE/ drawer, instead of the default AdLib/OPL3
-emulation.
+enabled). Music is disabled by default (MUSIC=OFF). MUSIC=ADLIB
+selects the built-in AdLib/OPL3 emulation, MUSIC=CAMD selects MIDI
+music, MUSIC=MHI selects MP3 music via an MHI driver, and
+MUSIC=WAVE selects pre-decoded WAV music from the WAVE/ drawer.
 
 Note: MOUSE=OFF / NOMOUSE disables the mouse and JOYSTICK=OFF / NOJOY
 disables the joystick (both default to ON). An explicit =value wins
@@ -595,14 +665,17 @@ Known Limitations
   synthesizer attached to the "out.0" cluster - otherwise the music
   is silent while sound effects still play. Note for CaffeineOS
   users: camd.library is installed there but NOT configured by
-  default, so MUSIC=CAMD plays to nowhere - keep the default
-  AdLib/OPL3 music (or configure a CAMD driver first).
+  default. If CAMD cannot be initialized or no usable MIDI output
+  is configured, music switches to MUSIC=OFF (sound effects stay
+  enabled); select MUSIC=ADLIB, MUSIC=MHI, MUSIC=WAVE or MUSIC=OFF
+  explicitly if required.
 - MP3 music (MUSIC=MHI) needs an MHI decoder driver installed in
   LIBS:MHI/ (Prisma Megamix, MAS Player, Prelude MPEGit or
   mpeg.device hardware such as the Delfina). There is no
-  software-only MHI decoder for classic 68k machines; without a
-  driver the game falls back to AdLib/OPL3 music. Songs whose MP3
-  file is missing from the MP3/ drawer stay silent by design.
+  software-only MHI decoder for classic 68k machines; if the MHI
+  driver cannot be opened, music switches to MUSIC=OFF (sound
+  effects stay enabled). Songs whose MP3 file is missing from the
+  MP3/ drawer stay silent by design.
 - Music and sound-effect volumes changed in the in-game options menu
   are saved to amiga.cfg in the game directory (created on first run)
   and restored on the next start. Each music backend has its own
