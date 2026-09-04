@@ -432,6 +432,30 @@ static const struct
     { 0, NULL }
 };
 
+/* Builds the underscore variant of a title fragment: every space is
+ * replaced by '_' ("Main Menu" -> "Main_Menu").  The original fragment
+ * is never modified.  Used as a compatibility fallback for archives
+ * that replace spaces automatically. */
+static void
+WAVE_UnderscoreVariant(
+    const char *src,
+    char *out,
+    int outlen
+)
+{
+    int i = 0;
+
+    if (!src || !out || outlen <= 0)
+        return;
+
+    while (*src && i < outlen - 1)
+    {
+        out[i++] = (*src == ' ') ? '_' : *src;
+        src++;
+    }
+    out[i] = 0;
+}
+
 /***************************************************************************
 WAVE_PlaySongItem() - map a GLB music item to a WAV file in the WAVE/
 drawer and play it.  Returns 1 on success, 0 when no file matched (the
@@ -440,6 +464,8 @@ song then stays silent, same convention as the MHI backend).
 int WAVE_PlaySongItem(int item, int loop)
 {
     char path[256];
+    char uscore[256];
+    char plain_path[256];
     int i;
 
     for (i = 0; wave_song_map[i].item; i++)
@@ -447,15 +473,42 @@ int WAVE_PlaySongItem(int item, int loop)
         if (wave_song_map[i].item == item)
         {
             const char *frag = wave_song_map[i].fragment;
+            int has_space = 0;
 
             /* The drawer uses the plain soundtrack titles; try the exact
              * "<fragment>.wav" name first (fast path, no dir scan). */
-            snprintf(path, sizeof(path), "WAVE/%s.wav", frag);
-            if (WAVE_LoadSong(path, loop))
+            snprintf(plain_path, sizeof(plain_path), "WAVE/%s.wav", frag);
+            if (WAVE_LoadSong(plain_path, loop))
                 return 1;
 
-            WAVE_LOG("WAVE: no playable file for item=%d (tried '%s')",
-                     item, path);
+            /* Compatibility fallback for archives that replace spaces
+             * automatically: try "<fragment with underscores>.wav".
+             * Only when the fragment actually contains a space - otherwise
+             * the underscore variant is identical and would be a duplicate
+             * open attempt. */
+            {
+                const char *p;
+                for (p = frag; *p; p++)
+                {
+                    if (*p == ' ')
+                    {
+                        has_space = 1;
+                        break;
+                    }
+                }
+            }
+
+            if (has_space)
+            {
+                WAVE_UnderscoreVariant(frag, uscore, sizeof(uscore));
+                snprintf(path, sizeof(path), "WAVE/%s.wav", uscore);
+                if (WAVE_LoadSong(path, loop))
+                    return 1;
+            }
+
+            WAVE_LOG("WAVE: no playable file for item=%d (tried '%s'%s)",
+                     item, plain_path,
+                     has_space ? " and underscore variant" : "");
             return 0;
         }
     }

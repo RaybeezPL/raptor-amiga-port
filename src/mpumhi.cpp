@@ -278,6 +278,30 @@ MHI_EqualCI(
     return (*a == 0 && *b == 0);
 }
 
+/* Builds the underscore variant of a title fragment: every space is
+ * replaced by '_' ("Main Menu" -> "Main_Menu").  The original fragment
+ * is never modified.  Used as a compatibility fallback for archives
+ * that replace spaces automatically. */
+static void
+MHI_UnderscoreVariant(
+    const char *src,
+    char *out,
+    int outlen
+)
+{
+    int i = 0;
+
+    if (!src || !out || outlen <= 0)
+        return;
+
+    while (*src && i < outlen - 1)
+    {
+        out[i++] = (*src == ' ') ? '_' : *src;
+        src++;
+    }
+    out[i] = 0;
+}
+
 /***************************************************************************
  * MP3 drawer lookup (main task side).
  *
@@ -294,15 +318,22 @@ void
 }
 
 /***************************************************************************
- * MHI_ScanDrawer() - scan the MP3 drawer for the song's file: the first
- * ".mp3" file whose name contains the title fragment (case-insensitive).
- * Keep exactly one matching file per song in the drawer - first match
- * wins.  Returns 1 with the full path in out, 0 when not found.
+ * MHI_ScanDrawer() - scan the MP3 drawer for the song's file.
+ *
+ * When exact is non-NULL, only a file whose name equals "exact"
+ * (case-insensitive) is accepted - used for the preferred exact
+ * "<fragment>.mp3" and "<fragment with underscores>.mp3" lookups.
+ * When exact is NULL, the original behaviour is kept: the first ".mp3"
+ * file whose name contains the title fragment (case-insensitive
+ * substring match) wins.  Keep exactly one matching file per song in
+ * the drawer - first match wins.  Returns 1 with the full path in out,
+ * 0 when not found.
  ***************************************************************************/
 static int
 MHI_ScanDrawer(
     const char *base,
     const char *fragment,
+    const char *exact,
     char *out,
     int outlen
 )
@@ -332,7 +363,8 @@ MHI_ScanDrawer(
     {
         const char *name = ap->ap_Info.fib_FileName;
 
-        if (MHI_ContainsCI(name, ".mp3") && MHI_ContainsCI(name, fragment))
+        if (MHI_ContainsCI(name, ".mp3") &&
+            (exact ? MHI_EqualCI(name, exact) : MHI_ContainsCI(name, fragment)))
         {
             sprintf(out, "%s%s", base, name);
             found = 1;
@@ -348,8 +380,13 @@ MHI_ScanDrawer(
 
 /***************************************************************************
  * MHI_FindFileForItem() - resolve a GLB music item to an MP3 path.
- * Pure title-fragment lookup - no track numbers.  Returns 1 and the
- * path, or 0 when nothing matched (-> silence).
+ *
+ * Lookup order:
+ *   1. exact "<fragment>.mp3" (spaces preserved) - preferred;
+ *   2. exact "<fragment with underscores>.mp3" - compatibility fallback
+ *      for archives that replace spaces automatically;
+ *   3. original case-insensitive substring scan of the MP3/ drawer.
+ * Returns 1 and the path, or 0 when nothing matched (-> silence).
  ***************************************************************************/
 static int
 MHI_FindFileForItem(
@@ -365,7 +402,25 @@ MHI_FindFileForItem(
     for (i = 0; mhi_song_map[i].item; i++)
     {
         if (mhi_song_map[i].item == item)
-            return MHI_ScanDrawer(MHI_MP3Base(), mhi_song_map[i].fragment, out, outlen);
+        {
+            const char *frag = mhi_song_map[i].fragment;
+            char exact[300];
+            char uscore[300];
+
+            /* 1. Exact filename with spaces: "Main Menu.mp3". */
+            snprintf(exact, sizeof(exact), "%s.mp3", frag);
+            if (MHI_ScanDrawer(MHI_MP3Base(), frag, exact, out, outlen))
+                return 1;
+
+            /* 2. Exact filename with underscores: "Main_Menu.mp3". */
+            MHI_UnderscoreVariant(frag, uscore, sizeof(uscore));
+            snprintf(exact, sizeof(exact), "%s.mp3", uscore);
+            if (MHI_ScanDrawer(MHI_MP3Base(), frag, exact, out, outlen))
+                return 1;
+
+            /* 3. Original case-insensitive substring fallback. */
+            return MHI_ScanDrawer(MHI_MP3Base(), frag, NULL, out, outlen);
+        }
     }
 
     return 0;
