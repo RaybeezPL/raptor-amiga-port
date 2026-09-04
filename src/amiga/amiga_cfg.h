@@ -6,7 +6,7 @@
  * Simple "key = value" lines, range 0..127, ';' starts a comment.
  *
  * - music_adlib : ADLIB/OPL3 music, mixed into the AHI stream.
- * - music_mhi   : MP3 music via MHI (Prisma Megamix), separate hardware
+ * - music_mhi   : MP3 music via MHI (any compatible MHI decoder driver), separate hardware
  *                 output.
  * - music_wave  : WAV music from the WAVE/ drawer, mixed into the AHI
  *                 stream.

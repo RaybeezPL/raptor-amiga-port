@@ -599,8 +599,9 @@ MHI_FeederOpen(
     g_mhi.debug_seek_end = end;
     g_mhi.debug_seek_back = IoErr();
 
-    /* Test mode: pass the complete MP3 file to the MHI driver.
-     * Do not strip ID3v2 or ID3v1 tags. */
+    /* Pass the complete MP3 file to the MHI decoder intentionally.
+     * ID3v2 headers and trailing ID3v1 tags are not stripped; compatible
+     * MHI drivers are expected to handle the full MP3 stream. */
     start = 0;
 
     if (end <= start)
