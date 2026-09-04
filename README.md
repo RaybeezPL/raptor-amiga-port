@@ -125,12 +125,7 @@ For detailed requirements, controls, parameters and troubleshooting see
 
 Gameplay footage recorded on Amiga hardware:
 
-<iframe width="560" height="315"
-  src="https://www.youtube.com/embed/C9Q2ygClWMI"
-  frameborder="0"
-  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-  allowfullscreen>
-</iframe>
+[![Raptor Amiga Port - gameplay](https://img.youtube.com/vi/C9Q2ygClWMI/hqdefault.jpg)](https://youtu.be/C9Q2ygClWMI)
 
 ## Target configuration
 
