@@ -1,4 +1,4 @@
-# Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
+# Raptor: Call of the Shadows — Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD/WAVE)
 
 This repository contains an AmigaOS 3.x port of **Raptor: Call of the Shadows**, based on the open-source reverse-engineered codebase by [skynettx/raptor](https://github.com/skynettx/raptor).
 
@@ -8,7 +8,13 @@ The port targets **68060-class Amiga systems** — both full **68060 with FPU** 
 - **Amiga A500 / A600 / A1200 / A2000 / A3000 / A4000 with PiStorm / Emu68** — RTG or native AGA, according to the configured environment
 - **Amiga A1200 / A4000** — native AGA rendering (`GFX=AGA`); in **WinUAE** and compatible PiStorm/Emu68 setups either RTG or AGA can be selected when AGA is available
 - **AmigaOS 3.2**
-- **AHI audio**
+- **AHI audio for sound effects**
+- **MHI audio for MP3 music**
+- **CAMD MIDI music**
+- **WAVE audio for WAV music**
+
+AmigaOS 3.1.4, 3.2, 3.2.2, 3.2.3 and 3.9 are tested and known to work.
+Other AmigaOS versions may also work, but have not been fully verified.
 
 This fork is focused on making the game run natively on classic Amiga hardware without unnecessary abstraction layers. The game renders in a fixed **320x200, 8-bit paletted mode** on a dedicated screen, with Amiga-specific SDL replacement stubs and driver-native frame presentation on every display path.
 
@@ -59,10 +65,14 @@ Working:
   change — all replacing the generic `WriteChunkyPixels` OS conversion
   (kept as fallback)
 - **`MUSIC=ADLIB|CAMD|MHI|WAVE|OFF`** parameter — selects the music backend:
-  built-in AdLib/OPL3 emulation (default), General MIDI via CAMD, MP3
-  files from the `MP3/` drawer via an MHI hardware decoder, pre-decoded
-  WAV files from the `WAVE/` drawer mixed into the AHI stream, or no
-  music (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
+  built-in AdLib/OPL3 emulation, General MIDI via CAMD, MP3 files from
+  the `MP3/` drawer via an MHI hardware decoder, pre-decoded WAV files
+  from the `WAVE/` drawer mixed into the AHI stream, or no music. No
+  music backend is enabled by default on Amiga: without a `MUSIC=`
+  option Raptor uses `MUSIC=OFF` and initializes no AdLib/OPL3, CAMD,
+  MHI or WAVE music backend — enable music explicitly with
+  `MUSIC=ADLIB`, `MUSIC=MHI`, `MUSIC=CAMD` or `MUSIC=WAVE` (CLI:
+  `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
 - **`MOUSE=ON|OFF`** / **`NOMOUSE`** and **`JOYSTICK=ON|OFF`** / **`NOJOY`**
   parameters — enable/disable the mouse and joystick input devices (CLI:
   `-mouse=off`, `-nomouse`, `-joystick=off`, `-nojoy`; icon ToolTypes:
@@ -85,15 +95,17 @@ Working:
 - **Sound effects through AHI** (ahi.device): 11025 Hz 16-bit stereo -
   the native rate of the game's samples - streamed by a dedicated audio
   task using the canonical double-buffered CMD_WRITE scheme
-- **Music: AdLib/OPL3 emulation by default** (lightweight DOSBox dbopl
-  core, only a few percent of a 68060) mixed into the AHI stream -
-  always audible; optional **General MIDI via CAMD** (camd.library)
-  with `MUSIC=CAMD` for external synths / CAMD software synths
-  (cluster "out.0"; needs a configured MIDI driver or synth), or
-  **MP3 music via MHI** (`MUSIC=MHI`) for a Prisma Megamix / MAS /
-  Delfina hardware decoder, with files in the game's `MP3/` drawer, or
-  **pre-decoded WAVE music** (`MUSIC=WAVE`) with WAV files in the
-  game's `WAVE/` drawer mixed into the AHI stream
+- **Music: no backend enabled by default** — without a `MUSIC=` option
+  Raptor uses `MUSIC=OFF` and initializes no music backend; enable
+  music explicitly with `MUSIC=ADLIB` (lightweight DOSBox dbopl OPL3
+  emulation core, only a few percent of a 68060, mixed into the AHI
+  stream), **General MIDI via CAMD** (camd.library) with `MUSIC=CAMD`
+  for external synths / CAMD software synths (cluster "out.0"; needs a
+  configured MIDI driver or synth), **MP3 music via MHI**
+  (`MUSIC=MHI`) for a Prisma Megamix / MAS / Delfina hardware decoder,
+  with files in the game's `MP3/` drawer, or **pre-decoded WAVE music**
+  (`MUSIC=WAVE`) with WAV files in the game's `WAVE/` drawer mixed
+  into the AHI stream
 - **Persistent audio volumes** via `amiga.cfg` in the game directory
   (created on first run): separate startup volumes for AdLib/OPL3
   music, MHI/MP3 music, WAVE music and sound effects; the in-game
@@ -134,10 +146,14 @@ Recommended baseline target:
   (the game itself uses ~3 MB of Fast RAM; on RTG the screen bitmap
   lives in graphics card memory, so Chip RAM is only needed by the OS)
 
-- **OS:** AmigaOS 3.2
-- **Audio:** AHI (ahi.device) for sound effects and the default
-  AdLib/OPL3 music; camd.library (CAMD) optional for MIDI music
-  output (MUSIC=CAMD)
+- **OS:** AmigaOS 3.2 (AmigaOS 3.1.4, 3.2, 3.2.2, 3.2.3 and 3.9 are
+  tested and known to work; other versions may also work but have not
+  been fully verified)
+- **Audio:** AHI (ahi.device) for sound effects; music requires an
+  explicit backend selection with `MUSIC=ADLIB`, `MUSIC=MHI`,
+  `MUSIC=CAMD` or `MUSIC=WAVE` (without a `MUSIC=` option Raptor uses
+  `MUSIC=OFF`); camd.library (CAMD) optional for MIDI music output
+  (MUSIC=CAMD)
 
 Current development and testing is mainly aimed at systems such as:
 
@@ -153,7 +169,7 @@ Current development and testing is mainly aimed at systems such as:
 - Amiga 2000 with a TekMagic 68060 at 50 MHz, CyberVision 64/3D and Prisma MegaMix.
 - Amiga 4000 with a 68060 at 50 MHz, Picasso IV and AGA graphics; WAVE music, MIDI/CAMD and MHI were tested.
 - WinUAE with 68030 and 68060 configurations, both with and without FPU, tested in AGA and RTG modes.
-- Tested on AmigaOS 3.1.4, 3.2 and 3.2.3.
+- Tested on AmigaOS 3.1.4, 3.2, 3.2.2, 3.2.3 and 3.9.
 
 ### Native AGA display notes (PAL/NTSC)
 
