@@ -170,7 +170,7 @@ Current development and testing is mainly aimed at systems such as:
 
 - Raspberry Pi 400 running PiMIGA, tested in both AGA and RTG modes.
 - Amiga 1200 with PiStorm running CaffeineOS, tested in AGA PAL, AGA NTSC and RTG modes.
-- Amiga 1200 with TerribleFire 1260, tested in AGA NTSC mode.
+- Amiga 1200 with TerribleFire 1260 (68060LC 50MHz no FPU, AGA PAL/NTSC, 128MB Fast RAM, Kickstart 3.2.3), tested with MUSIC=WAVE.
 - Amiga 1200 with Mediator, Blizzard 1260, Voodoo3 and Prelude audio on the clock port, including MHI playback.
 - Amiga 2000 with a TekMagic 68060 at 50 MHz, CyberVision 64/3D and Prisma MegaMix.
 - Amiga 4000 with a 68060 at 50 MHz, Picasso IV and AGA graphics; WAVE music, MIDI/CAMD and MHI were tested.
@@ -257,3 +257,4 @@ Special thanks to:
 - **nukeykt** and contributors involved in the reverse-engineered Raptor codebase
 - **skynettx** for the open-source C/C++ recreation used as the base for this port
 - The Amiga community, emulator authors, and RTG/AHI toolchain developers
+- The entire Amiga community and the testers from PPA.PL for their invaluable feedback and support during development.
