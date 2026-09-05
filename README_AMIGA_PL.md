@@ -564,7 +564,15 @@ Notatki dotyczące natywnego AGA (PAL/NTSC)
 - W AmigaOS 3.x: zrestartuj/uruchom ponownie, przytrzymaj oba przyciski myszy,
   aby otworzyć Early Startup Control, przejdź do Display Options, wybierz NTSC,
   uruchom AmigaOS, a następnie uruchom Raptora z `GFX=AGA`.
-- `VIDEO=AUTO` zachowuje natywny tryb AGA wybrany przez system.
+- `VIDEO=AUTO` (domyślnie) używa domyślnego natywnego trybu wyświetlania
+  wybranego przez system.
+- `VIDEO=PAL` żąda PAL jako domyślnego trybu wyświetlania; dla `GFX=AGA`
+  gra loguje, że wymuszenie PAL nie jest aktywne i przechodzi na tryb
+  AUTO/domyślny.
+- `VIDEO=NTSC` żąda NTSC jako domyślnego trybu wyświetlania; dla `GFX=AGA`
+  ekran jest otwierany z `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY`
+  (natywny NTSC low-res), co daje ekran 320x200x8 w standardzie NTSC.
+  Dla `GFX=RTG` opcja jest ignorowana i używany jest AUTO.
 - `VIDEO=NTSC` samo nie przełącza Amigi PAL do NTSC; sama Amiga musi zostać
   uruchomiona w NTSC, jak opisano powyżej.
 - Gra nie instaluje, nie kopiuje, nie usuwa ani nie modyfikuje plików w
@@ -692,7 +700,7 @@ Znane ograniczenia
 Testowane konfiguracje
 ----------------------
 - Raspberry Pi 400 z PiMIGA — przetestowano w trybach AGA i RTG.
-- Amiga 1200 z PiStorm i VaffeineOS — przetestowano AGA PAL,
+- Amiga 1200 z PiStorm i CaffeineOS — przetestowano AGA PAL,
   AGA NTSC oraz RTG.
 - Amiga 1200 z Mediatorem, Blizzardem 1260, Voodoo3 oraz Prelude
   na clock porcie — przetestowano także odtwarzanie MHI.
