@@ -179,26 +179,27 @@ Current development and testing is mainly aimed at systems such as:
 
 ### Native AGA display notes (PAL/NTSC)
 
-- Native AGA mode is selected with `GFX=AGA`.
-- The game always renders a fixed logical 320x200 image from the top-left.
-- On a PAL-configured Amiga, the remaining lower native PAL display area may
-  be black. This is normal and intentional.
-- To use native NTSC timing so the 320x200 image fills the native NTSC screen
-  vertically, the Amiga itself must be configured/booted in NTSC before
-  starting the game.
-- On AmigaOS 3.x: reset/reboot, hold both mouse buttons to open Early Startup
-  Control, select NTSC in Display Options, boot AmigaOS, then start Raptor
-  with `GFX=AGA`.
-- `VIDEO=AUTO` preserves the system-selected native AGA mode.
-- `VIDEO=NTSC` alone does **not** change a PAL-configured Amiga to NTSC; the
-  Amiga itself must be booted in NTSC as described above.
-- The game does not install, copy, delete, or modify anything under
-  `DEVS:Monitors`.
-- As Workbench ToolTypes, set them on separate lines:
-  ```
-  GFX=AGA
-  VIDEO=AUTO
-  ```
+Native AGA mode is selected with `GFX=AGA`.
+
+The game always renders a fixed logical **320×200** image from the top‑left corner of the screen. On a PAL‑configured Amiga, the remaining lower part of the native PAL display area may appear black. This is normal and intentional.
+
+`VIDEO=AUTO` (default) uses the system‑selected native AGA display mode.  
+`VIDEO=NTSC` requests NTSC as the default display mode. With `GFX=AGA` the screen is opened with `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (native NTSC low‑res), resulting in a **320×200×8** screen in the NTSC standard. With `GFX=RTG` this option is ignored and `AUTO` is used.
+
+`VIDEO=NTSC` alone does **not** change a PAL‑configured Amiga to NTSC and does not modify anything under `DEVS:Monitors`. If you want the 320×200 image to fill the entire screen vertically in NTSC timing, the Amiga itself must be configured/booted in NTSC before starting the game.
+
+Optional: booting an AmigaOS 3.x system in NTSC  
+1. Reset or power‑on the Amiga.  
+2. Hold both mouse buttons to open the Early Startup Control.  
+3. In Display Options, select **NTSC**.  
+4. Boot AmigaOS, then start Raptor with `GFX=AGA` (and optionally `VIDEO=NTSC`).
+
+As Workbench ToolTypes, set them on separate lines:
+
+```text
+GFX=AGA
+VIDEO=AUTO
+```
 
 ## Build environment
 

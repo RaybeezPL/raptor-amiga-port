@@ -547,40 +547,30 @@ zawsze dostępna za pomocą klawisza SPACE. Lewy i prawy przycisk myszy
 działają normalnie we wszystkich trybach.
 
 
-Notatki dotyczące natywnego AGA (PAL/NTSC)
-------------------------------------------
+Uwagi dotyczące natywnego trybu AGA (PAL/NTSC)
+----------------------------------------------
 
-- Natywny tryb chipsetu jest wybierany za pomocą `GFX=AGA`. AGA to osobna,
-  pełna natywna ścieżka renderowania — nie fallback dla RTG — dostępna na
-  sprzęcie z AGA (Amiga 1200, Amiga 4000) oraz w WinUAE i zgodnych
-  konfiguracjach PiStorm/Emu68, gdy AGA jest dostępne.
-- Gra zawsze renderuje stały logiczny obraz 320x200 od lewego górnego rogu
-  natywnego ekranu AGA.
-- Na Amidze skonfigurowanej jako PAL niewykorzystany dolny obszar ekranu PAL
-  może być czarny. Jest to normalne i zamierzone.
-- Aby użyć natywnego NTSC, tak aby obraz 320x200 wypełniał pionowo natywny
-  ekran NTSC, sama Amiga musi zostać skonfigurowana i uruchomiona w NTSC
-  przed uruchomieniem Raptora.
-- W AmigaOS 3.x: zrestartuj/uruchom ponownie, przytrzymaj oba przyciski myszy,
-  aby otworzyć Early Startup Control, przejdź do Display Options, wybierz NTSC,
-  uruchom AmigaOS, a następnie uruchom Raptora z `GFX=AGA`.
-- `VIDEO=AUTO` (domyślnie) używa domyślnego natywnego trybu wyświetlania
-  wybranego przez system.
-- `VIDEO=PAL` żąda PAL jako domyślnego trybu wyświetlania; dla `GFX=AGA`
-  gra loguje, że wymuszenie PAL nie jest aktywne i przechodzi na tryb
-  AUTO/domyślny.
-- `VIDEO=NTSC` żąda NTSC jako domyślnego trybu wyświetlania; dla `GFX=AGA`
-  ekran jest otwierany z `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY`
-  (natywny NTSC low-res), co daje ekran 320x200x8 w standardzie NTSC.
-  Dla `GFX=RTG` opcja jest ignorowana i używany jest AUTO.
-- `VIDEO=NTSC` samo nie przełącza Amigi PAL do NTSC; sama Amiga musi zostać
-  uruchomiona w NTSC, jak opisano powyżej.
-- Gra nie instaluje, nie kopiuje, nie usuwa ani nie modyfikuje plików w
-  `DEVS:Monitors`.
-- Jako Workbench ToolTypes ustaw je w osobnych wierszach:
+Natywny tryb AGA wybierany jest za pomocą `GFX=AGA`.
 
-      GFX=AGA
-      VIDEO=AUTO
+Gra zawsze renderuje stały obraz logiczny **320×200** od lewego górnego rogu ekranu. Na Amadze skonfigurowanej na PAL dolna część natywnego ekranu PAL może być czarna. Jest to zachowanie normalne i zamierzone.
+
+`VIDEO=AUTO` (wartość domyślna) używa trybu wyświetlania AGA wybranego w systemie.  
+`VIDEO=NTSC` żąda trybu NTSC jako domyślnego. Przy `GFX=AGA` ekran otwierany jest z `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (natywny NTSC low‑res), co daje ekran **320×200×8** w standardzie NTSC. Przy `GFX=RTG` opcja ta jest ignorowana i używane jest `AUTO`.
+
+Sam parametr `VIDEO=NTSC` **nie zmienia** Amigi skonfigurowanej na PAL w NTSC i nie modyfikuje niczego w `DEVS:Monitors`. Jeśli chcesz, aby obraz 320×200 wypełniał cały ekran pionowo w timingach NTSC, Amiga musi być skonfigurowana/uruchomiona w trybie NTSC przed uruchomieniem gry.
+
+Opcjonalnie: uruchamianie systemu AmigaOS 3.x w NTSC  
+1. Zresetuj lub włącz Amigę.  
+2. Przytrzymaj oba przyciski myszy, aby otworzyć Early Startup Control.  
+3. W Display Options wybierz **NTSC**.  
+4. Uruchom AmigaOS, a następnie Raptora z `GFX=AGA` (i opcjonalnie `VIDEO=NTSC`).
+
+Jako ToolTypes w Workbenchu ustaw w osobnych liniach:
+
+```text
+GFX=AGA
+VIDEO=AUTO
+```
 
 
 Sterowanie
