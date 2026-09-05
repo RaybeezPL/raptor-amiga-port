@@ -129,6 +129,18 @@ AMIGA_STUBS_DECL int AmigaRTGLetterbox AMIGA_STUBS_INIT(0);
 #define AMIGA_BLIT_AGA_C2P  3
 AMIGA_STUBS_DECL int AmigaBlitMode AMIGA_STUBS_INIT(AMIGA_BLIT_WCP);
 
+/* Diagnostic-only helper: ASCII name of the active blit path constant. */
+static inline const char *Amiga_BlitModeName(int mode)
+{
+    switch (mode) {
+        case AMIGA_BLIT_P96:     return "P96";
+        case AMIGA_BLIT_CGX:     return "CGX";
+        case AMIGA_BLIT_WCP:     return "WCP";
+        case AMIGA_BLIT_AGA_C2P: return "AGA_C2P";
+        default:                 return "UNKNOWN";
+    }
+}
+
 /* Physical screen parameters actually opened (filled in by
 * Amiga_OpenGameScreen). The game always draws to a logical 320x200
 * chunky buffer; only the final blit knows the physical mode. */
@@ -410,7 +422,9 @@ static inline void Amiga_ShowRtgRequester(const char *detail)
 
 /* Forward decls: helpers used inside Amiga_OpenGameScreen. */
 static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantLetterbox,
-                                                         const char *label);
+                                                         const char *label,
+                                                         const char *stackName,
+                                                         int diagnosticBlitMode);
 static inline void Amiga_CloseGameScreen(void);
 
 /* Opens the game screen (logical 320x200, 8-bit).
@@ -527,7 +541,7 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         modeid = Amiga_FindP96GameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
         if (modeid != INVALID_ID) {
             AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x200x8", modeid);
-            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[P96]")) {
+            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[P96]", "P96", AMIGA_BLIT_P96)) {
                 AmigaBlitMode = AMIGA_BLIT_P96;
                 AmigaLog("[VIDEO] blit path: p96WritePixelArray (RGBFB_CLUT)");
                 return AmigaGameScreen;
@@ -538,7 +552,7 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
             modeid = Amiga_FindP96GameMode(320, 240, 8);
             if (modeid != INVALID_ID) {
                 AmigaLog("[VIDEO] RTG: selected P96 mode 0x%08lx for 320x240x8", modeid);
-                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[P96]")) {
+                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[P96]", "P96", AMIGA_BLIT_P96)) {
                     AmigaBlitMode = AMIGA_BLIT_P96;
                     AmigaLog("[VIDEO] blit path: p96WritePixelArray (RGBFB_CLUT)");
                     return AmigaGameScreen;
@@ -560,7 +574,7 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         modeid = Amiga_FindCGXGameMode(AMIGA_GAME_WIDTH, AMIGA_GAME_HEIGHT, AMIGA_GAME_DEPTH);
         if (modeid != INVALID_ID) {
             AmigaLog("[VIDEO] CGX: selected mode 0x%08lx for 320x200x8", modeid);
-            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[CGX]")) {
+            if (Amiga_OpenRTGScreenByModeid(modeid, 0, "RTG[CGX]", "CGX", AMIGA_BLIT_CGX)) {
                 AmigaBlitMode = AMIGA_BLIT_CGX;
                 AmigaLog("[VIDEO] blit path: CGX WritePixelArray (RECTFMT_LUT8)");
                 return AmigaGameScreen;
@@ -571,7 +585,7 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
             modeid = Amiga_FindCGXGameMode(320, 240, 8);
             if (modeid != INVALID_ID) {
                 AmigaLog("[VIDEO] CGX: selected mode 0x%08lx for 320x240x8", modeid);
-                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[CGX]")) {
+                if (Amiga_OpenRTGScreenByModeid(modeid, 1, "RTG[CGX]", "CGX", AMIGA_BLIT_CGX)) {
                     AmigaBlitMode = AMIGA_BLIT_CGX;
                     AmigaLog("[VIDEO] blit path: CGX WritePixelArray (RECTFMT_LUT8)");
                     return AmigaGameScreen;
@@ -593,9 +607,14 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
 /* Shared helper: opens the RTG screen via OpenScreenTags with the given
  * ModeID and applies the standard dimension guard. Returns the screen on
  * success, NULL on failure (with internal requester for bad dimensions).
- * 'label' is a short driver name used for log messages only. */
+ * 'label' is a short driver name used for log messages only; 'stackName'
+ * carries the ASCII backend name ("P96"/"CGX") used in the diagnostic
+ * line; 'diagnosticBlitMode' is the blit path constant used only for
+ * logging (the global AmigaBlitMode is set later by the caller). */
 static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantLetterbox,
-                                                         const char *label)
+                                                         const char *label,
+                                                         const char *stackName,
+                                                         int diagnosticBlitMode)
 {
     AmigaGameScreen = OpenScreenTags(NULL,
         SA_Depth, (ULONG)AMIGA_GAME_DEPTH,
@@ -613,6 +632,33 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
         return NULL;
     }
 
+    /* Defensively validate the actual depth of the opened RTG screen.
+     * The RTG blit paths (p96WritePixelArray / CGX WritePixelArray) require
+     * an 8-bit CLUT surface, so close the screen and fail if the opened
+     * BitMap depth is anything else. */
+    {
+        const int openedDepth = (AmigaGameScreen->RastPort.BitMap)
+                                    ? (int)AmigaGameScreen->RastPort.BitMap->Depth
+                                    : -1;
+
+        if (openedDepth != AMIGA_GAME_DEPTH)
+        {
+            AmigaLog("[VIDEO] %s: unexpected screen depth %d (expected %d) - closing",
+                     label, openedDepth, AMIGA_GAME_DEPTH);
+            CloseScreen(AmigaGameScreen);
+            AmigaGameScreen = NULL;
+            return NULL;
+        }
+    }
+
+    /* Defensive read-only diagnostic: actual destination BytesPerRow of the
+     * opened RTG bitmap. The depth guard above already guarantees a non-NULL
+     * 8-bit BitMap, but keep the NULL check so stride logs -1 if it ever
+     * changes. No behavior impact. */
+    const int openedStride = (AmigaGameScreen->RastPort.BitMap)
+                                 ? (int)AmigaGameScreen->RastPort.BitMap->BytesPerRow
+                                 : -1;
+
     AmigaPhysW = AmigaGameScreen->Width;
     AmigaPhysH = AmigaGameScreen->Height;
     AmigaPhysDepth = AMIGA_GAME_DEPTH;
@@ -624,6 +670,14 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
 
     AmigaLog("[VIDEO] screen opened OK: actual %dx%dx%d, mode=%s, letterbox=%d",
              AmigaPhysW, AmigaPhysH, AmigaPhysDepth, label, AmigaRTGLetterbox);
+
+    /* Diagnostic-only line: the RTG stack that actually opened the screen and
+     * the blit path that will drive it. No behavior impact. */
+    AmigaLog("[VIDEO] RTG opened: stack=%s modeid=0x%08lx screen=%dx%dx%d stride=%d blit=%s",
+             stackName ? stackName : "UNKNOWN", modeid,
+             AmigaPhysW, AmigaPhysH, AmigaPhysDepth,
+             openedStride,
+             Amiga_BlitModeName(diagnosticBlitMode));
 
     /* Guard: only accept 320x200 or 320x240. Anything else is an unexpected
      * mode reported by the driver – close it and fail. */
