@@ -613,6 +613,25 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
         return NULL;
     }
 
+    /* Defensively validate the actual depth of the opened RTG screen.
+     * The RTG blit paths (p96WritePixelArray / CGX WritePixelArray) require
+     * an 8-bit CLUT surface, so close the screen and fail if the opened
+     * BitMap depth is anything else. */
+    {
+        const int openedDepth = (AmigaGameScreen->RastPort.BitMap)
+                                    ? (int)AmigaGameScreen->RastPort.BitMap->Depth
+                                    : -1;
+
+        if (openedDepth != AMIGA_GAME_DEPTH)
+        {
+            AmigaLog("[VIDEO] %s: unexpected screen depth %d (expected %d) - closing",
+                     label, openedDepth, AMIGA_GAME_DEPTH);
+            CloseScreen(AmigaGameScreen);
+            AmigaGameScreen = NULL;
+            return NULL;
+        }
+    }
+
     AmigaPhysW = AmigaGameScreen->Width;
     AmigaPhysH = AmigaGameScreen->Height;
     AmigaPhysDepth = AMIGA_GAME_DEPTH;
