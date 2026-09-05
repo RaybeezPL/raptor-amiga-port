@@ -469,21 +469,41 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
             AmigaLog("[VIDEO] AGA: VIDEO=PAL requested; forced PAL selection is "
                      "not enabled because it would change the verified 320x200 "
                      "presentation. Using AUTO/default native AGA mode.");
-        else if (AmigaVideoMode == AMIGA_VIDEO_NTSC)
-            AmigaLog("[VIDEO] AGA: VIDEO=NTSC requested; forced NTSC selection is "
-                     "not enabled because it would change the verified 320x200 "
-                     "presentation. Using AUTO/default native AGA mode.");
 
-        AmigaGameScreen = OpenScreenTags(NULL,
-            SA_Width, (ULONG)AMIGA_GAME_WIDTH,
-            SA_Height, (ULONG)AMIGA_GAME_HEIGHT,
-            SA_Depth, (ULONG)AMIGA_GAME_DEPTH,
-            SA_Quiet, TRUE,
-            SA_ShowTitle, FALSE,
-            SA_Draggable, FALSE,
-            SA_Exclusive, TRUE,
-            SA_Type, CUSTOMSCREEN,
-            TAG_DONE);
+        if (AmigaVideoMode == AMIGA_VIDEO_NTSC)
+        {
+            /* GFX=AGA + VIDEO=NTSC: request the system native NTSC low-res
+             * DisplayID. LORES_KEY is 0, so the numeric value is exactly
+             * NTSC_MONITOR_ID; the OR documents the native NTSC low-res
+             * intent for the 320x200 screen. */
+            AmigaLog("[VIDEO] AGA: VIDEO=NTSC requested; opening with "
+                     "SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY (0x%08lx)",
+                     (ULONG)(NTSC_MONITOR_ID | LORES_KEY));
+            AmigaGameScreen = OpenScreenTags(NULL,
+                SA_Width, (ULONG)AMIGA_GAME_WIDTH,
+                SA_Height, (ULONG)AMIGA_GAME_HEIGHT,
+                SA_Depth, (ULONG)AMIGA_GAME_DEPTH,
+                SA_DisplayID, (ULONG)(NTSC_MONITOR_ID | LORES_KEY),
+                SA_Quiet, TRUE,
+                SA_ShowTitle, FALSE,
+                SA_Draggable, FALSE,
+                SA_Exclusive, TRUE,
+                SA_Type, CUSTOMSCREEN,
+                TAG_DONE);
+        }
+        else
+        {
+            AmigaGameScreen = OpenScreenTags(NULL,
+                SA_Width, (ULONG)AMIGA_GAME_WIDTH,
+                SA_Height, (ULONG)AMIGA_GAME_HEIGHT,
+                SA_Depth, (ULONG)AMIGA_GAME_DEPTH,
+                SA_Quiet, TRUE,
+                SA_ShowTitle, FALSE,
+                SA_Draggable, FALSE,
+                SA_Exclusive, TRUE,
+                SA_Type, CUSTOMSCREEN,
+                TAG_DONE);
+        }
 
         AmigaLog("[VIDEO] AGA: OpenScreenTags 320x200x8 -> %s",
                  AmigaGameScreen ? "OK" : "FAIL");
