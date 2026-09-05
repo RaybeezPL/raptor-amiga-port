@@ -169,7 +169,8 @@ Current development and testing is mainly aimed at systems such as:
 ### Tested configurations
 
 - Raspberry Pi 400 running PiMIGA, tested in both AGA and RTG modes.
-- Amiga 1200 with PiStorm running VaffeineOS, tested in AGA PAL, AGA NTSC and RTG modes.
+- Amiga 1200 with PiStorm running CaffeineOS, tested in AGA PAL, AGA NTSC and RTG modes.
+- Amiga 1200 with TerribleFire 1260, tested in AGA NTSC mode.
 - Amiga 1200 with Mediator, Blizzard 1260, Voodoo3 and Prelude audio on the clock port, including MHI playback.
 - Amiga 2000 with a TekMagic 68060 at 50 MHz, CyberVision 64/3D and Prisma MegaMix.
 - Amiga 4000 with a 68060 at 50 MHz, Picasso IV and AGA graphics; WAVE music, MIDI/CAMD and MHI were tested.
