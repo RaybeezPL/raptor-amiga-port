@@ -651,6 +651,14 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
         }
     }
 
+    /* Defensive read-only diagnostic: actual destination BytesPerRow of the
+     * opened RTG bitmap. The depth guard above already guarantees a non-NULL
+     * 8-bit BitMap, but keep the NULL check so stride logs -1 if it ever
+     * changes. No behavior impact. */
+    const int openedStride = (AmigaGameScreen->RastPort.BitMap)
+                                 ? (int)AmigaGameScreen->RastPort.BitMap->BytesPerRow
+                                 : -1;
+
     AmigaPhysW = AmigaGameScreen->Width;
     AmigaPhysH = AmigaGameScreen->Height;
     AmigaPhysDepth = AMIGA_GAME_DEPTH;
@@ -665,9 +673,10 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
 
     /* Diagnostic-only line: the RTG stack that actually opened the screen and
      * the blit path that will drive it. No behavior impact. */
-    AmigaLog("[VIDEO] RTG opened: stack=%s modeid=0x%08lx screen=%dx%dx%d blit=%s",
+    AmigaLog("[VIDEO] RTG opened: stack=%s modeid=0x%08lx screen=%dx%dx%d stride=%d blit=%s",
              stackName ? stackName : "UNKNOWN", modeid,
              AmigaPhysW, AmigaPhysH, AmigaPhysDepth,
+             openedStride,
              Amiga_BlitModeName(diagnosticBlitMode));
 
     /* Guard: only accept 320x200 or 320x240. Anything else is an unexpected
