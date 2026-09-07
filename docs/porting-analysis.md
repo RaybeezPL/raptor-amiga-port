@@ -2,7 +2,7 @@
 
 > **Status notice.** This document originated in July 2026 as a pre-porting
 > analysis for an AmigaOS 3.x / m68k port of Raptor. The Amiga build path is
-> now **implemented** (port version 0.9.6_MHI at the time of writing). The
+> now **implemented** (port version 0.9.9-rc.1 at the time of writing). The
 > text has been revised to separate current facts from remaining work and
 > from historical design notes. For actual build behavior, the following are
 > authoritative and take precedence over anything written here:
@@ -128,19 +128,20 @@ game's normal `i_video.cpp` flow:
   scheme. The task owns the entire device side (port, IO requests,
   OpenDevice/CloseDevice). The official vendored `devices/ahi.h` header is
   enforced with compile-time layout guards.
-- Music, default: built-in AdLib/OPL3 emulation mixed into the AHI stream,
-  using the lightweight DOSBox **dbopl** core (`dbopl.cpp` +
-  `opl3dbopl.cpp` shim) instead of the Nuked OPL3 core, which stalled a real
-  68060.
+- Music, default: OFF (MUSIC=OFF). Optional: MHI hardware MP3 decoder or
+  AdLib/OPL3 emulation mixed into the AHI stream, using the lightweight
+  DOSBox **dbopl** core (`dbopl.cpp` + `opl3dbopl.cpp` shim) instead of the
+  Nuked OPL3 core, which stalled a real 68060.
 - Music, opt-in `MUSIC=CAMD`: General MIDI event stream through
   `camd.library` to the fixed cluster `out.0` (`mpucamd.cpp`); silent unless
-  a MIDI driver/synth is attached; automatic fallback to AdLib/OPL3.
+  a MIDI driver/synth is attached; fallback to MUSIC=OFF (silent).
 - Music, opt-in `MUSIC=MHI`: MP3 files from the `MP3/` drawer through an MHI
   decoder driver (`mpumhi.cpp`; Prisma Megamix, MAS Player, Prelude MPEGit,
   Delfina/mpeg.device, or any driver in `LIBS:MHI/`); `MHIDRIVER=` overrides
-  driver auto-detection; falls back to AdLib/OPL3.
+  driver auto-detection; fallback to MUSIC=OFF (silent).
 - `NOSOUND` / `NOMUSIC` parameters; persistent volumes (music_adlib,
-  music_mhi, sfx) stored in `amiga.cfg` (`src/amiga/amiga_cfg.cpp/h`).
+  music_mhi, music_wave, sfx) stored in `amiga.cfg`
+  (`src/amiga/amiga_cfg.cpp/h`).
 - AHI sound effects and AdLib music were tested on real hardware (0.9.0);
   CAMD and MHI paths are implemented and documented but depend on external
   MIDI/MHI hardware: **requires validation** on those setups.

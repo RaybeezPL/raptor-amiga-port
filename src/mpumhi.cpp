@@ -484,7 +484,8 @@ MHI_FeederStop(
         {
             /* The driver never returned all buffers (logged from the main
              * task on the next PLAY).  Resync: stale buffers may still come
-             * back later and are safely refilled by MHI_Service(). */
+             * back later but are dropped (not refilled) because
+             * MHI_Service() only refills while state == MHISTATE_PLAYING. */
             g_mhi.stop_incomplete = g_mhi.queued;
             g_mhi.queued = 0;
         }
@@ -743,7 +744,7 @@ MHI_HandleCommand(
             }
             else
             {
-                g_mhi.open_error = 1;
+                // g_mhi.open_error już ustawione przez MHI_FeederOpen() = IoErr() - nie nadpisuj
                 g_mhi.state = MHISTATE_IDLE;    /* silence */
             }
             break;
@@ -833,8 +834,8 @@ MHI_FeederOpenDriver(
 {
     int i;
 
-    /* Explicit override: try as given; a bare name also looks in
-     * LIBS:MHI/ first. */
+    /* Explicit override: try as given. */
+    // A bare name also tries LIBS:MHI/<name> as a fallback
     if (g_mhi.driver_override[0])
     {
         if (MHI_TryDriver(g_mhi.driver_override, mhi_mask))
@@ -1187,8 +1188,16 @@ init_fail:
     {
         if (g_mhi.buffers[i])
         {
-            FreeMem(g_mhi.buffers[i], MHI_BUF_SIZE);
-            g_mhi.buffers[i] = NULL;
+            if (g_mhi.running)
+            {
+                // Buffers leaked: feeder task still running (use-after-free risk)
+                MHI_LOG("WARNING - feeder still running, leaking buffers to avoid use-after-free");
+            }
+            else
+            {
+                FreeMem(g_mhi.buffers[i], MHI_BUF_SIZE);
+                g_mhi.buffers[i] = NULL;
+            }
         }
     }
 
@@ -1240,8 +1249,16 @@ MHI_MusicDeInit(
     {
         if (g_mhi.buffers[i])
         {
-            FreeMem(g_mhi.buffers[i], MHI_BUF_SIZE);
-            g_mhi.buffers[i] = NULL;
+            if (g_mhi.running)
+            {
+                // Buffers leaked: feeder task still running (use-after-free risk)
+                MHI_LOG("WARNING - feeder still running, leaking buffers to avoid use-after-free");
+            }
+            else
+            {
+                FreeMem(g_mhi.buffers[i], MHI_BUF_SIZE);
+                g_mhi.buffers[i] = NULL;
+            }
         }
     }
 
@@ -1373,7 +1390,9 @@ MHI_SongPlaying(
         if (g_mhi.queued == 0)
             return 0;
 
-        if ((ULONG)(SDL_GetTicks() - g_mhi.traffic_ticks) > 4000)
+        // Watchdog timeowy tylko dla nieloopujących piosenek
+        // (loopujące mogą grać długo na driverach bez sygnałów)
+        if (!g_mhi.loop && (ULONG)(SDL_GetTicks() - g_mhi.traffic_ticks) > 4000)
             return 0;
     }
 

@@ -205,7 +205,7 @@ Sound effects and music use two separate, native Amiga subsystems:
    Music (MHI):   The MUSIC=MHI parameter plays the soundtrack as MP3
                    files through an MHI decoder driver - the Amiga
                    MPEG-audio standard used by hardware decoders such
-                   as the Prisma Megamix (prismamhi.library), MAS
+                   as the Prisma Megamix (mhiprisma.library), MAS
                    Player (mhimaspro/mhimasstd.library), Prelude
                    MPEGit (mhimpegit.library) or mpeg.device hardware
                    like the Delfina (mhimdev.library). The driver
@@ -259,13 +259,13 @@ Sound effects and music use two separate, native Amiga subsystems:
                    src/mpumhi.cpp (mhi_song_map).
 
                    The game picks the driver automatically: it tries
-                   prismamhi.library, mhimaspro/mhimasstd.library,
+                   mhiprisma.library, mhimaspro/mhimasstd.library,
                    mhimpegit.library, mhimdev.library, then scans
                    LIBS:MHI/ for any other installed driver. The
                    MHIDRIVER= parameter (e.g. -mhidriver=mhimaspro.library)
                    forces a specific driver. If the MHI driver cannot be
                    opened, the MP3 drawer is missing, or a matching MP3
-                   file cannot be found, MHI music remains silent; sound
+                   file cannot be found, MHI music switches to MUSIC=OFF (silent); sound
                    effects continue normally. Raptor does not
                    automatically switch to another music backend.
                    Select MUSIC=ADLIB, MUSIC=CAMD, MUSIC=WAVE or
@@ -383,7 +383,7 @@ accepted. Parameters may be combined in any order.
     -mhidriver=D Overrides the MHI decoder driver auto-detection
                 (only relevant together with MUSIC=MHI). D is a
                 driver library name or full path, e.g.
-                "-mhidriver=prismamhi.library" or
+                "-mhidriver=mhiprisma.library" or
                 "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
     -mouse=ON|OFF

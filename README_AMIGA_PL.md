@@ -212,7 +212,7 @@ podsystemów Amigi:
    Muzyka (MHI):    Parametr MUSIC=MHI odtwarza soundtrack jako pliki MP3
                     przez MHI decoder driver — standard Amiga dla dźwięku
                     MPEG, używany przez hardware decoders, takie jak Prisma
-                    Megamix (prismamhi.library), MAS Player
+                    Megamix (mhiprisma.library), MAS Player
                     (mhimaspro/mhimasstd.library), Prelude MPEGit
                     (mhimpegit.library) albo hardware mpeg.device, np. Delfina
                     (mhimdev.library). Driver sam dekoduje i wysyła MP3,
@@ -267,7 +267,7 @@ podsystemów Amigi:
                     src/mpumhi.cpp (mhi_song_map).
 
                     Gra automatycznie wybiera driver: próbuje kolejno
-                    prismamhi.library, mhimaspro/mhimasstd.library,
+                    mhiprisma.library, mhimaspro/mhimasstd.library,
                     mhimpegit.library, mhimdev.library, a następnie skanuje
                     LIBS:MHI/ w poszukiwaniu innych zainstalowanych driverów.
                     Parametr MHIDRIVER= (np. -mhidriver=mhimaspro.library)
@@ -393,7 +393,7 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
     -mhidriver=D Zastępuje automatyczne wykrywanie MHI decoder drivera
                 (istotne wyłącznie razem z MUSIC=MHI). D to nazwa biblioteki
                 drivera albo pełna ścieżka, np.
-                "-mhidriver=prismamhi.library" lub
+                "-mhidriver=mhiprisma.library" lub
                 "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
     -mouse=ON|OFF
