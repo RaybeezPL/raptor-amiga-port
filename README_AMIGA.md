@@ -169,11 +169,18 @@ Sound effects and music use two separate, native Amiga subsystems:
                    NOSOUND is selected. Select MUSIC=ADLIB, MUSIC=CAMD,
                    MUSIC=MHI or MUSIC=WAVE explicitly to enable music.
 
-                   MUSIC=ADLIB plays the MUS tracks through the
-                   built-in AdLib/OPL3 emulation (the authentic
-                   Raptor sound), mixed into the AHI audio stream.
-                   The emulator uses the lightweight DOSBox dbopl
-                   core, which costs only a few percent of a 68060.
+                    MUSIC=ADLIB plays the MUS tracks through the
+                    built-in AdLib/OPL3 emulation (the authentic
+                    Raptor sound), mixed into the AHI audio stream.
+                    The emulator uses the lightweight DOSBox dbopl
+                    core, which costs only a few percent of a 68060.
+
+                    MUSIC=ADLIB is primarily intended for WinUAE and
+                    PiStorm/PiMiga-based environments. For fast, smooth
+                    gameplay on real Amiga hardware, use MUSIC=WAVE or
+                    MP3 playback through MUSIC=MHI with the corresponding
+                    game parameter. This is a performance recommendation;
+                    MUSIC=ADLIB remains available on real hardware.
 
                    Alternatively, the MUSIC=CAMD parameter plays the
                    MUS tracks as a General MIDI event stream through
@@ -354,9 +361,13 @@ accepted. Parameters may be combined in any order.
                camd.library is never opened in this mode.
 
    -music=M    Selects the music backend. M may be:
-                 ADLIB - built-in AdLib/OPL3 emulation mixed into
-                         the AHI audio stream (the authentic
-                         Raptor sound, always audible);
+                  ADLIB - built-in AdLib/OPL3 emulation mixed into
+                          the AHI audio stream (the authentic Raptor
+                          sound, always audible); primarily intended
+                          for WinUAE and PiStorm/PiMiga environments.
+                          On real Amiga hardware, MUSIC=WAVE or
+                          MUSIC=MHI is recommended for fast, smooth
+                          gameplay.
                  CAMD  - General MIDI event stream through
                          camd.library; needs a configured MIDI
                          driver or a CAMD software synthesizer on

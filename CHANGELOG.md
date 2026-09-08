@@ -4,6 +4,13 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- MHI MP3 playback now skips ID3v2.3/ID3v2.4 metadata at the start of
+  a file, including an optional ID3v2.4 footer, and a trailing classic
+  ID3v1 "TAG" block. Only the calculated MPEG-audio range is streamed
+  to the decoder; the MP3 file is not modified. Verified with Prisma
+  Megamix using mhiprisma.library.
+
 ## [0.9.9-rc.1] - 2026-09-04
 
 ### Added

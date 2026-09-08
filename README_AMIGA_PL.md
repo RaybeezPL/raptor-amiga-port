@@ -175,11 +175,19 @@ podsystemów Amigi:
                     wybrano NOSOUND. Aby włączyć muzykę, wybierz jawnie
                     MUSIC=ADLIB, MUSIC=CAMD, MUSIC=MHI lub MUSIC=WAVE.
 
-                    MUSIC=ADLIB odtwarza utwory MUS przez wbudowaną
-                    emulację AdLib/OPL3 (autentyczne brzmienie Raptora),
-                    miksowaną ze strumieniem audio AHI. Emulator korzysta
-                    z lekkiego rdzenia dbopl z DOSBoxa, który zużywa tylko
-                    kilka procent mocy procesora 68060.
+                     MUSIC=ADLIB odtwarza utwory MUS przez wbudowaną
+                     emulację AdLib/OPL3 (autentyczne brzmienie Raptora),
+                     miksowaną ze strumieniem audio AHI. Emulator korzysta
+                     z lekkiego rdzenia dbopl z DOSBoxa, który zużywa tylko
+                     kilka procent mocy procesora 68060.
+
+                     MUSIC=ADLIB jest przeznaczone przede wszystkim dla
+                     WinUAE oraz środowisk opartych na PiStorm/PiMiga.
+                     Na prawdziwym sprzęcie Amiga, aby zachować szybką i
+                     płynną rozgrywkę, używaj MUSIC=WAVE albo muzyki MP3
+                     przez MUSIC=MHI, uruchamiając grę z odpowiednim
+                     parametrem. To rekomendacja wydajnościowa;
+                     MUSIC=ADLIB pozostaje dostępne na prawdziwym sprzęcie.
 
                     Alternatywnie parametr MUSIC=CAMD odtwarza utwory MUS
                     jako strumień zdarzeń General MIDI przez camd.library
@@ -366,9 +374,13 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                W tym trybie camd.library nie zostanie otwarte.
 
    -music=M    Wybiera backend muzyki. M może przyjąć wartość:
-                 ADLIB — wbudowana emulacja AdLib/OPL3 miksowana ze
-                         strumieniem audio AHI (autentyczne brzmienie
-                         Raptora, zawsze słyszalne);
+                  ADLIB — wbudowana emulacja AdLib/OPL3 miksowana ze
+                          strumieniem audio AHI (autentyczne brzmienie
+                          Raptora, zawsze słyszalne); przeznaczona
+                          przede wszystkim dla WinUAE i środowisk
+                          PiStorm/PiMiga. Na prawdziwym sprzęcie Amiga
+                          dla szybkiej, płynnej rozgrywki zalecane są
+                          MUSIC=WAVE lub MUSIC=MHI.
                  CAMD  — strumień zdarzeń General MIDI przez camd.library;
                          wymaga skonfigurowanego MIDI drivera albo CAMD
                          software synthesizera w klastrze "out.0", w przeciwnym

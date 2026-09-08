@@ -566,9 +566,91 @@ MHI_FillBuffer(
 }
 
 /***************************************************************************
- * MHI_FeederOpen() - open an MP3 file (passed to the driver complete,
- * tags included) and preload all stream buffers.  Returns 1 when ready
- * to MHIPlay().
+ * MHI_StripID3Tags() - determine the playable MPEG-audio range.
+ *
+ * Skips ID3v2.3/ID3v2.4 metadata at the beginning of the file and a
+ * classic ID3v1 "TAG" block at the end. The caller positions the file
+ * to the returned start offset.
+ *
+ * Returns FALSE only for invalid output pointers. Tag detection failures
+ * leave the relevant boundary at the full-file default.
+ ***************************************************************************/
+static int
+MHI_StripID3Tags(
+    BPTR fh,
+    LONG file_size,
+    LONG *out_start,
+    LONG *out_end
+)
+{
+    LONG start = 0;
+    LONG end = file_size;
+
+    if (!out_start || !out_end)
+        return FALSE;
+
+    if (file_size > 0)
+    {
+        UBYTE header[10];
+
+        /* ID3v2 at the start of the file: "ID3", version 2.3 or 2.4. */
+        if (Seek(fh, 0, OFFSET_BEGINNING) != -1 &&
+            Read(fh, header, 10) == 10)
+        {
+            if (header[0] == 'I' && header[1] == 'D' && header[2] == '3' &&
+                header[3] == 2 &&
+                (header[4] == 3 || header[4] == 4) &&
+                !(header[6] & 0x80) && !(header[7] & 0x80) &&
+                !(header[8] & 0x80) && !(header[9] & 0x80))
+            {
+                /* Decode the 28-bit synchsafe size stored in the ID3v2 header. */
+                ULONG tag_size = ((ULONG)header[6] << 21) |
+                                 ((ULONG)header[7] << 14) |
+                                 ((ULONG)header[8] << 7)  |
+                                 (ULONG)header[9];
+
+                /* ID3v2.4 with the footer-present flag adds a 10-byte
+                 * footer ("3DI" + size) after the tag body. */
+                ULONG total = (header[4] == 4 && (header[5] & 0x10)) ? 20 : 10;
+
+                /* Overflow/bounds guard: strip only when the whole tag
+                 * (header + body + footer) fits inside the file. */
+                if ((LONG)total < file_size &&
+                    tag_size < (ULONG)(file_size - (LONG)total))
+                    start = (LONG)(total + tag_size);
+            }
+        }
+
+        /* ID3v1 at the end: the last 128 bytes start with "TAG". */
+        if (file_size >= 128)
+        {
+            UBYTE tag[3];
+
+            if (Seek(fh, file_size - 128, OFFSET_BEGINNING) != -1 &&
+                Read(fh, tag, 3) == 3)
+            {
+                if (tag[0] == 'T' && tag[1] == 'A' && tag[2] == 'G')
+                    end = file_size - 128;
+            }
+        }
+    }
+
+    /* Safety fallback: never hand out an empty or inverted range. */
+    if (start >= end)
+    {
+        start = 0;
+        end = file_size;
+    }
+
+    *out_start = start;
+    *out_end = end;
+    return TRUE;
+}
+
+/***************************************************************************
+ * MHI_FeederOpen() - open an MP3 file, strip the ID3 metadata tags from
+ * the streamed range and preload all stream buffers.  Only the raw MPEG
+ * audio data is passed to the driver.  Returns 1 when ready to MHIPlay().
  ***************************************************************************/
 static int
 MHI_FeederOpen(
@@ -600,10 +682,10 @@ MHI_FeederOpen(
     g_mhi.debug_seek_end = end;
     g_mhi.debug_seek_back = IoErr();
 
-    /* Pass the complete MP3 file to the MHI decoder intentionally.
-     * ID3v2 headers and trailing ID3v1 tags are not stripped; compatible
-     * MHI drivers are expected to handle the full MP3 stream. */
-    start = 0;
+    /* Strip ID3v2 (start) and ID3v1 (end) metadata: only the MPEG audio
+     * stream goes to the decoder.  On any detection problem the helper
+     * falls back to the full file range. */
+    MHI_StripID3Tags(f, end, &start, &end);
 
     if (end <= start)
     {

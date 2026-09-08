@@ -105,7 +105,11 @@ Working:
   (`MUSIC=MHI`) for a Prisma Megamix / MAS / Delfina hardware decoder,
   with files in the game's `MP3/` drawer, or **pre-decoded WAVE music**
   (`MUSIC=WAVE`) with WAV files in the game's `WAVE/` drawer mixed
-  into the AHI stream
+  into the AHI stream. `MUSIC=ADLIB` is primarily intended for WinUAE
+  and PiStorm/PiMiga-based environments. For fast, smooth gameplay on
+  real Amiga hardware, use `MUSIC=WAVE` or MP3 playback through
+  `MUSIC=MHI` with the corresponding game parameter. This is a
+  performance recommendation; ADLIB remains available on real hardware.
 - **Persistent audio volumes** via `amiga.cfg` in the game directory
   (created on first run): separate startup volumes for AdLib/OPL3
   music, MHI/MP3 music, WAVE music and sound effects; the in-game
