@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Version: 0.9.9-rc.1 - the final pre-release build before the planned release.
+Version: 0.9.9-rc.2 - release candidate.
 
 =====================================================
 
@@ -753,8 +753,7 @@ Roadmap / Remaining Work
 ------------------------
 
 - Fine-tuning and performance polish on real 68k hardware.
-- Version 0.9.9-rc.1 is the final pre-release build before the planned
-  release.
+- Version 0.9.9-rc.2 is a release candidate.
 
 
 Credits & Contact

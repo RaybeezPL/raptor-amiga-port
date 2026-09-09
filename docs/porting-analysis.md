@@ -2,7 +2,7 @@
 
 > **Status notice.** This document originated in July 2026 as a pre-porting
 > analysis for an AmigaOS 3.x / m68k port of Raptor. The Amiga build path is
-> now **implemented** (port version 0.9.9-rc.1 at the time of writing). The
+> now **implemented** (port version 0.9.9-rc.2 at the time of writing). The
 > text has been revised to separate current facts from remaining work and
 > from historical design notes. For actual build behavior, the following are
 > authoritative and take precedence over anything written here:

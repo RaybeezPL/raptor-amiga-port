@@ -41,7 +41,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.9-rc.1** — the final pre-release build before the planned release.
+Current version: **0.9.9-rc.2** — release candidate.
 
 Working:
 
@@ -129,8 +129,7 @@ Working:
 Work still in progress / roadmap:
 
 - Fine-tuning and performance polish on real 68k hardware
-- Version **0.9.9-rc.1** is the final pre-release build before the
-  planned release
+- Version **0.9.9-rc.2** — release candidate
 
 For detailed requirements, controls, parameters and troubleshooting see
 **README_AMIGA.md** - the main port documentation.
