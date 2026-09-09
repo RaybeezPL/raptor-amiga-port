@@ -78,9 +78,9 @@ struct Library *MHIBase = NULL;
 #define MHI_LOG(...) do { printf(__VA_ARGS__); printf("\n"); fflush(stdout); } while (0)
 #endif
 
-/* Stream buffers: 4 x 32 KB = 128 KB total (~8 s at 128 kbit/s), owned
+/* Stream buffers: 8 x 32 KB = 256 KB total (~16 s at 128 kbit/s), owned
  * by the main task (MEMF_PUBLIC) and only used by the feeder task. */
-#define MHI_NUM_BUFS   4
+#define MHI_NUM_BUFS   8
 #define MHI_BUF_SIZE   (32 * 1024)
 
 /* Commands main task -> feeder task (g_mhi.cmd). */
@@ -156,6 +156,7 @@ static struct MHIState
     volatile LONG debug_play_called;/* PLAY: MHIPlay() was invoked            */
     char   driver_name[64];         /* MHIQ_DECODER_NAME copy */
     char   opened_path[256];        /* driver library path that opened */
+    LONG   driver_class;            /* MHIDRV_* classification of opened_path */
 } g_mhi;
 
 /***************************************************************************
@@ -208,13 +209,27 @@ static const struct
  * test hardware of this port); afterwards the LIBS:MHI/ drawer is
  * scanned for any other installed driver. */
 static const char * const mhi_default_drivers[] = {
-    "LIBS:MHI/mhiprisma.library",       /* Prisma Megamix (clockport MP3)   */
-    "LIBS:MHI/mhimaspro.library",       /* MAS Player Pro                   */
-    "LIBS:MHI/mhiArmedWarp.library",    /* Warp                             */
-    "LIBS:MHI/mhimasstd.library",       /* MAS Player standard              */
-    "LIBS:MHI/mhimpegit.library",       /* Prelude / MPEGit module          */
-    "LIBS:MHI/mhimdev.library",         /* mpeg.device bridge (Delfina, ...)*/
+    "LIBS:MHI/mhiprisma.library",       /* Prisma Megamix (clockport MP3)      */
+    "LIBS:MHI/mhiamiblaster.library",   /* Amiblaster Deluxe/Ultra/CP-Mini     */
+    "LIBS:MHI/mhimpegit.library",       /* Prelude Z2 MPEGit / Prelude ZII+    */
+    "LIBS:MHI/mhimaspro.library",       /* MAS Player Pro                      */
+    "LIBS:MHI/mhimasstd.library",       /* MAS Player standard                 */
+    "LIBS:MHI/mhiArmedWarp.library",    /* ArmedWarp                           */
+    "LIBS:MHI/mhimdev.library",         /* mpeg.device bridge (Delfina, ...)   */
     NULL
+};
+
+/* Classification of the actually opened driver, derived from the opened
+ * library path (g_mhi.opened_path) - never from MHIQ_DECODER_NAME, whose
+ * string varies between driver branches/versions.  Diagnostics only. */
+enum
+{
+    MHIDRV_OTHER = 0,
+    MHIDRV_PRISMA,
+    MHIDRV_PRELUDE_MPEGIT,
+    MHIDRV_AMIBLASTER,
+    MHIDRV_ARMEDWARP,
+    MHIDRV_MAS
 };
 
 /***************************************************************************
@@ -276,6 +291,46 @@ MHI_EqualCI(
     }
 
     return (*a == 0 && *b == 0);
+}
+
+/***************************************************************************
+ * MHI_ClassifyDriver() - classify the opened driver by its library path
+ * (case-insensitive substring match on the confirmed library names).
+ * MHIQ_DECODER_NAME is intentionally NOT used for logic: the name string
+ * differs between driver branches/versions and stays diagnostics-only.
+ ***************************************************************************/
+static int
+MHI_ClassifyDriver(
+    const char *path
+)
+{
+    if (!path || !*path)
+        return MHIDRV_OTHER;
+
+    if (MHI_ContainsCI(path, "mhiprisma"))     return MHIDRV_PRISMA;
+    if (MHI_ContainsCI(path, "mhimpegit"))     return MHIDRV_PRELUDE_MPEGIT;
+    if (MHI_ContainsCI(path, "mhiamiblaster")) return MHIDRV_AMIBLASTER;
+    if (MHI_ContainsCI(path, "mhiarmedwarp"))  return MHIDRV_ARMEDWARP;
+    if (MHI_ContainsCI(path, "mhimaspro"))     return MHIDRV_MAS;
+    if (MHI_ContainsCI(path, "mhimasstd"))     return MHIDRV_MAS;
+
+    return MHIDRV_OTHER;
+}
+
+static const char *
+MHI_DriverClassName(
+    int cls
+)
+{
+    switch (cls)
+    {
+        case MHIDRV_PRISMA:         return "Prisma MegaMix";
+        case MHIDRV_PRELUDE_MPEGIT: return "Prelude/MPEGit";
+        case MHIDRV_AMIBLASTER:     return "Amiblaster";
+        case MHIDRV_ARMEDWARP:      return "ArmedWarp";
+        case MHIDRV_MAS:            return "MAS Player";
+        default:                    return "other/unknown";
+    }
 }
 
 /* Builds the underscore variant of a title fragment: every space is
@@ -888,6 +943,8 @@ MHI_TryDriver(
     strncpy(g_mhi.opened_path, path, sizeof(g_mhi.opened_path) - 1);
     g_mhi.opened_path[sizeof(g_mhi.opened_path) - 1] = 0;
 
+    g_mhi.driver_class = MHI_ClassifyDriver(g_mhi.opened_path);
+
     {
         /* MHIQuery(MHIQ_DECODER_NAME) returns a string pointer. */
         const char *nm = (const char *)MHIQuery(MHIQ_DECODER_NAME);
@@ -1185,6 +1242,7 @@ MHI_MusicInit(
     g_mhi.debug_vol_scaled = 0;
     g_mhi.debug_play_called = 0;
     g_mhi.opened_path[0] = 0;
+    g_mhi.driver_class = MHIDRV_OTHER;
 
     for (i = 0; i < MHI_NUM_BUFS; i++)
 {
@@ -1255,9 +1313,10 @@ MHI_MusicInit(
         goto init_fail;
     }
 
-    MHI_LOG("MHI: decoder driver '%s' (%s), volume control: %s",
+    MHI_LOG("MHI: decoder driver '%s' (%s) [%s], volume control: %s",
             g_mhi.driver_name[0] ? g_mhi.driver_name : "unknown",
             g_mhi.opened_path,
+            MHI_DriverClassName((int)g_mhi.driver_class),
             g_mhi.vol_supported ? "yes" : "no");
 
     return 1;
