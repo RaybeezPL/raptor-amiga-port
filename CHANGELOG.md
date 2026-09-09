@@ -4,6 +4,13 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- MHI MP3 playback now skips ID3v2.3/ID3v2.4 metadata at the start of
+  a file, including an optional ID3v2.4 footer, and a trailing classic
+  ID3v1 "TAG" block. Only the calculated MPEG-audio range is streamed
+  to the decoder; the MP3 file is not modified. Verified with Prisma
+  Megamix using mhiprisma.library.
+
 ## [0.9.9-rc.1] - 2026-09-04
 
 ### Added
@@ -101,9 +108,9 @@ Version name: **0.9.6_MHI**
   length.
 
 ### Changed
-- 2x master gain applied to the AHI software stream (SFX + AdLib) in
-  `FX_Fill()` with 32-bit clamping — matches the output level of the
-  MHI hardware MP3 decoder.
+- 2x master gain was previously applied to the AHI software stream
+  (SFX + AdLib) in `FX_Fill()`, but was later removed (only hard-clamp
+  to int16 remains). Output levels now match MHI without extra gain.
 - `MUS_SetVolume()` is used during init instead of `MHI_SetVolume()`
   so `music_currentvol` stays in sync.
 - `GLB_InitSystem()` now searches 5 files (FILE0000..FILE0004.GLB)
@@ -134,20 +141,20 @@ AA3000 — to be confirmed).
   `-music=`, dashless `MUSIC=`, and Workbench icon ToolType `MUSIC=`).
   The new `src/mpumhi.cpp` backend plays MP3 files from the `MP3/`
   drawer in the game directory through an installed MHI decoder driver
-  (e.g. `LIBS:MHI/prismamhi.library` for the Prisma Megamix), leaving
+  (e.g. `LIBS:MHI/mhiprisma.library` for the Prisma Megamix), leaving
   the AHI sound-effects stream untouched. Driver selection order:
   `MHIDRIVER=` override (new optional parameter, CLI and ToolType),
-  prismamhi.library, mhimaspro/mhimasstd.library, mhimpegit.library,
+  mhiprisma.library, mhimaspro/mhimasstd.library, mhimpegit.library,
   mhimdev.library, then any other driver found in `LIBS:MHI/`. When no
-  driver can be opened the game falls back to AdLib/OPL3 music (same as
-  the CAMD fallback). Each GLB music item is mapped to a song title
+  driver can be opened the game falls back to MUSIC=OFF (silent). Each
+  GLB music item is mapped to a song title
   fragment (`mhi_song_map` in `src/mpumhi.cpp`); the file lookup is a
   case-insensitive substring match (`*.mp3`, first match in the drawer
   wins) - no track numbers are used. The simplified naming scheme
   (`Main Menu.mp3`, `Wave Music 1.mp3`, ..., `Apogee Fanfare.mp3`) is
   documented in README_AMIGA.md. A song without a matching file stays
   silent by design. Streaming runs in a dedicated "Raptor MHI Task"
-  (8 x 32 KB buffers, signal-driven refill, ID3v2/ID3v1 tag handling,
+  (4 x 32 KB buffers, signal-driven refill, no ID3v2/ID3v1 stripping,
   loop support, underrun restart) following the canonical pattern from
   the MHI dev kit's `MHIplay.c`; driver volume control (`MHIP_VOLUME`)
   is forwarded from the in-game music volume when the driver supports

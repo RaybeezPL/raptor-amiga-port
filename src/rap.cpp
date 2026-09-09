@@ -47,6 +47,8 @@
  * not real command-line arguments. */
 #include <workbench/startup.h>
 #include <proto/icon.h>
+#include <proto/exec.h>
+#include <exec/tasks.h>
 #include "mpumhi.h"
 #endif // __AMIGA__
 
@@ -68,6 +70,37 @@ exit_shutdown_func_t g_exit_shutdown_func = NULL;
  * program output. Shell/CLI launches leave the user's shell alone. */
 static int g_wb_started = 0;
 #endif
+
+#ifdef __AMIGA__
+/* --- Minimum main-process stack (64 KB) ------------------------------------
+ *
+ * libnix "swapstack" documented pattern (libnix.texi "Minimum stack
+ * setting" + swapstack.c header):
+ *
+ *     extern void __stkinit(void);
+ *     void * __x = __stkinit;
+ *     unsigned long __stack = YOUR_STACK_SIZE;
+ *
+ * - `__stack` overrides libnix's default 4000-byte stub and requests a
+ *   65536-byte minimum main-process stack. The libnix startup runs
+ *   __stkinit BEFORE main(): if the Shell/Workbench already provided
+ *   >= 65536 bytes it returns immediately (the larger stack is preserved
+ *   untouched), otherwise it allocates the new stack and swaps to it.
+ *   Allocation failure exits cleanly before the game starts.
+ * - The non-static `__stack_init_force` reference is REQUIRED: swapstack.o
+ *   lives inside libnix20.a (linked via -noixemul: gcc spec resolves to
+ *   -lnix20 -lnixmain -lnix -lstubs) and static archive members are only
+ *   extracted when referenced. This reference forces swapstack.o out of
+ *   the archive and registers __stkinit/__stkexit with the libnix
+ *   startup/exit tables.
+ * - Both symbols are C symbols. Under the m68k-amigaos ABI they get one
+ *   leading underscore (___stack / ___stkinit), verified with
+ *   m68k-amigaos-nm libnix20.a.
+ */
+extern "C" void __stkinit(void);
+void (* __stack_init_force)(void) __attribute__((used)) = &__stkinit;
+extern "C" unsigned long __stack = 65536;
+#endif // __AMIGA__
 
 int wRandSeed = 1;
 
@@ -1865,6 +1898,16 @@ main(
     {
         freopen("NIL:", "w", stdout);
         freopen("NIL:", "w", stderr);
+    }
+
+    /* Startup diagnostic: report the ACTUAL allocated main-process stack
+     * (after libnix's __stkinit already guaranteed the 65536-byte minimum).
+     * Diagnostic only - the stack must NOT be swapped again from main(). */
+    {
+        struct Task *task = FindTask(NULL);
+        unsigned long stack_size =
+            (unsigned long)((char *)task->tc_SPUpper - (char *)task->tc_SPLower);
+        printf("[SYSTEM] main stack: %lu bytes\n", stack_size);
     }
 #endif
 

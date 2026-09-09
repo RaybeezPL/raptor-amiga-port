@@ -78,9 +78,9 @@ struct Library *MHIBase = NULL;
 #define MHI_LOG(...) do { printf(__VA_ARGS__); printf("\n"); fflush(stdout); } while (0)
 #endif
 
-/* Stream buffers: 4 x 32 KB = 128 KB total (~8 s at 128 kbit/s), owned
+/* Stream buffers: 8 x 32 KB = 256 KB total (~16 s at 128 kbit/s), owned
  * by the main task (MEMF_PUBLIC) and only used by the feeder task. */
-#define MHI_NUM_BUFS   4
+#define MHI_NUM_BUFS   8
 #define MHI_BUF_SIZE   (32 * 1024)
 
 /* Commands main task -> feeder task (g_mhi.cmd). */
@@ -156,6 +156,7 @@ static struct MHIState
     volatile LONG debug_play_called;/* PLAY: MHIPlay() was invoked            */
     char   driver_name[64];         /* MHIQ_DECODER_NAME copy */
     char   opened_path[256];        /* driver library path that opened */
+    LONG   driver_class;            /* MHIDRV_* classification of opened_path */
 } g_mhi;
 
 /***************************************************************************
@@ -208,13 +209,27 @@ static const struct
  * test hardware of this port); afterwards the LIBS:MHI/ drawer is
  * scanned for any other installed driver. */
 static const char * const mhi_default_drivers[] = {
-    "LIBS:MHI/mhiprisma.library",       /* Prisma Megamix (clockport MP3)   */
-    "LIBS:MHI/mhimaspro.library",       /* MAS Player Pro                   */
-    "LIBS:MHI/mhiArmedWarp.library",    /* Warp                             */
-    "LIBS:MHI/mhimasstd.library",       /* MAS Player standard              */
-    "LIBS:MHI/mhimpegit.library",       /* Prelude / MPEGit module          */
-    "LIBS:MHI/mhimdev.library",         /* mpeg.device bridge (Delfina, ...)*/
+    "LIBS:MHI/mhiprisma.library",       /* Prisma Megamix (clockport MP3)      */
+    "LIBS:MHI/mhiamiblaster.library",   /* Amiblaster Deluxe/Ultra/CP-Mini     */
+    "LIBS:MHI/mhimpegit.library",       /* Prelude Z2 MPEGit / Prelude ZII+    */
+    "LIBS:MHI/mhimaspro.library",       /* MAS Player Pro                      */
+    "LIBS:MHI/mhimasstd.library",       /* MAS Player standard                 */
+    "LIBS:MHI/mhiArmedWarp.library",    /* ArmedWarp                           */
+    "LIBS:MHI/mhimdev.library",         /* mpeg.device bridge (Delfina, ...)   */
     NULL
+};
+
+/* Classification of the actually opened driver, derived from the opened
+ * library path (g_mhi.opened_path) - never from MHIQ_DECODER_NAME, whose
+ * string varies between driver branches/versions.  Diagnostics only. */
+enum
+{
+    MHIDRV_OTHER = 0,
+    MHIDRV_PRISMA,
+    MHIDRV_PRELUDE_MPEGIT,
+    MHIDRV_AMIBLASTER,
+    MHIDRV_ARMEDWARP,
+    MHIDRV_MAS
 };
 
 /***************************************************************************
@@ -276,6 +291,46 @@ MHI_EqualCI(
     }
 
     return (*a == 0 && *b == 0);
+}
+
+/***************************************************************************
+ * MHI_ClassifyDriver() - classify the opened driver by its library path
+ * (case-insensitive substring match on the confirmed library names).
+ * MHIQ_DECODER_NAME is intentionally NOT used for logic: the name string
+ * differs between driver branches/versions and stays diagnostics-only.
+ ***************************************************************************/
+static int
+MHI_ClassifyDriver(
+    const char *path
+)
+{
+    if (!path || !*path)
+        return MHIDRV_OTHER;
+
+    if (MHI_ContainsCI(path, "mhiprisma"))     return MHIDRV_PRISMA;
+    if (MHI_ContainsCI(path, "mhimpegit"))     return MHIDRV_PRELUDE_MPEGIT;
+    if (MHI_ContainsCI(path, "mhiamiblaster")) return MHIDRV_AMIBLASTER;
+    if (MHI_ContainsCI(path, "mhiarmedwarp"))  return MHIDRV_ARMEDWARP;
+    if (MHI_ContainsCI(path, "mhimaspro"))     return MHIDRV_MAS;
+    if (MHI_ContainsCI(path, "mhimasstd"))     return MHIDRV_MAS;
+
+    return MHIDRV_OTHER;
+}
+
+static const char *
+MHI_DriverClassName(
+    int cls
+)
+{
+    switch (cls)
+    {
+        case MHIDRV_PRISMA:         return "Prisma MegaMix";
+        case MHIDRV_PRELUDE_MPEGIT: return "Prelude/MPEGit";
+        case MHIDRV_AMIBLASTER:     return "Amiblaster";
+        case MHIDRV_ARMEDWARP:      return "ArmedWarp";
+        case MHIDRV_MAS:            return "MAS Player";
+        default:                    return "other/unknown";
+    }
 }
 
 /* Builds the underscore variant of a title fragment: every space is
@@ -484,7 +539,8 @@ MHI_FeederStop(
         {
             /* The driver never returned all buffers (logged from the main
              * task on the next PLAY).  Resync: stale buffers may still come
-             * back later and are safely refilled by MHI_Service(). */
+             * back later but are dropped (not refilled) because
+             * MHI_Service() only refills while state == MHISTATE_PLAYING. */
             g_mhi.stop_incomplete = g_mhi.queued;
             g_mhi.queued = 0;
         }
@@ -565,9 +621,91 @@ MHI_FillBuffer(
 }
 
 /***************************************************************************
- * MHI_FeederOpen() - open an MP3 file (passed to the driver complete,
- * tags included) and preload all stream buffers.  Returns 1 when ready
- * to MHIPlay().
+ * MHI_StripID3Tags() - determine the playable MPEG-audio range.
+ *
+ * Skips ID3v2.3/ID3v2.4 metadata at the beginning of the file and a
+ * classic ID3v1 "TAG" block at the end. The caller positions the file
+ * to the returned start offset.
+ *
+ * Returns FALSE only for invalid output pointers. Tag detection failures
+ * leave the relevant boundary at the full-file default.
+ ***************************************************************************/
+static int
+MHI_StripID3Tags(
+    BPTR fh,
+    LONG file_size,
+    LONG *out_start,
+    LONG *out_end
+)
+{
+    LONG start = 0;
+    LONG end = file_size;
+
+    if (!out_start || !out_end)
+        return FALSE;
+
+    if (file_size > 0)
+    {
+        UBYTE header[10];
+
+        /* ID3v2 at the start of the file: "ID3", version 2.3 or 2.4. */
+        if (Seek(fh, 0, OFFSET_BEGINNING) != -1 &&
+            Read(fh, header, 10) == 10)
+        {
+            if (header[0] == 'I' && header[1] == 'D' && header[2] == '3' &&
+                header[3] == 2 &&
+                (header[4] == 3 || header[4] == 4) &&
+                !(header[6] & 0x80) && !(header[7] & 0x80) &&
+                !(header[8] & 0x80) && !(header[9] & 0x80))
+            {
+                /* Decode the 28-bit synchsafe size stored in the ID3v2 header. */
+                ULONG tag_size = ((ULONG)header[6] << 21) |
+                                 ((ULONG)header[7] << 14) |
+                                 ((ULONG)header[8] << 7)  |
+                                 (ULONG)header[9];
+
+                /* ID3v2.4 with the footer-present flag adds a 10-byte
+                 * footer ("3DI" + size) after the tag body. */
+                ULONG total = (header[4] == 4 && (header[5] & 0x10)) ? 20 : 10;
+
+                /* Overflow/bounds guard: strip only when the whole tag
+                 * (header + body + footer) fits inside the file. */
+                if ((LONG)total < file_size &&
+                    tag_size < (ULONG)(file_size - (LONG)total))
+                    start = (LONG)(total + tag_size);
+            }
+        }
+
+        /* ID3v1 at the end: the last 128 bytes start with "TAG". */
+        if (file_size >= 128)
+        {
+            UBYTE tag[3];
+
+            if (Seek(fh, file_size - 128, OFFSET_BEGINNING) != -1 &&
+                Read(fh, tag, 3) == 3)
+            {
+                if (tag[0] == 'T' && tag[1] == 'A' && tag[2] == 'G')
+                    end = file_size - 128;
+            }
+        }
+    }
+
+    /* Safety fallback: never hand out an empty or inverted range. */
+    if (start >= end)
+    {
+        start = 0;
+        end = file_size;
+    }
+
+    *out_start = start;
+    *out_end = end;
+    return TRUE;
+}
+
+/***************************************************************************
+ * MHI_FeederOpen() - open an MP3 file, strip the ID3 metadata tags from
+ * the streamed range and preload all stream buffers.  Only the raw MPEG
+ * audio data is passed to the driver.  Returns 1 when ready to MHIPlay().
  ***************************************************************************/
 static int
 MHI_FeederOpen(
@@ -599,10 +737,10 @@ MHI_FeederOpen(
     g_mhi.debug_seek_end = end;
     g_mhi.debug_seek_back = IoErr();
 
-    /* Pass the complete MP3 file to the MHI decoder intentionally.
-     * ID3v2 headers and trailing ID3v1 tags are not stripped; compatible
-     * MHI drivers are expected to handle the full MP3 stream. */
-    start = 0;
+    /* Strip ID3v2 (start) and ID3v1 (end) metadata: only the MPEG audio
+     * stream goes to the decoder.  On any detection problem the helper
+     * falls back to the full file range. */
+    MHI_StripID3Tags(f, end, &start, &end);
 
     if (end <= start)
     {
@@ -743,7 +881,7 @@ MHI_HandleCommand(
             }
             else
             {
-                g_mhi.open_error = 1;
+                // g_mhi.open_error już ustawione przez MHI_FeederOpen() = IoErr() - nie nadpisuj
                 g_mhi.state = MHISTATE_IDLE;    /* silence */
             }
             break;
@@ -805,6 +943,8 @@ MHI_TryDriver(
     strncpy(g_mhi.opened_path, path, sizeof(g_mhi.opened_path) - 1);
     g_mhi.opened_path[sizeof(g_mhi.opened_path) - 1] = 0;
 
+    g_mhi.driver_class = MHI_ClassifyDriver(g_mhi.opened_path);
+
     {
         /* MHIQuery(MHIQ_DECODER_NAME) returns a string pointer. */
         const char *nm = (const char *)MHIQuery(MHIQ_DECODER_NAME);
@@ -833,8 +973,8 @@ MHI_FeederOpenDriver(
 {
     int i;
 
-    /* Explicit override: try as given; a bare name also looks in
-     * LIBS:MHI/ first. */
+    /* Explicit override: try as given. */
+    // A bare name also tries LIBS:MHI/<name> as a fallback
     if (g_mhi.driver_override[0])
     {
         if (MHI_TryDriver(g_mhi.driver_override, mhi_mask))
@@ -1102,6 +1242,7 @@ MHI_MusicInit(
     g_mhi.debug_vol_scaled = 0;
     g_mhi.debug_play_called = 0;
     g_mhi.opened_path[0] = 0;
+    g_mhi.driver_class = MHIDRV_OTHER;
 
     for (i = 0; i < MHI_NUM_BUFS; i++)
 {
@@ -1172,9 +1313,10 @@ MHI_MusicInit(
         goto init_fail;
     }
 
-    MHI_LOG("MHI: decoder driver '%s' (%s), volume control: %s",
+    MHI_LOG("MHI: decoder driver '%s' (%s) [%s], volume control: %s",
             g_mhi.driver_name[0] ? g_mhi.driver_name : "unknown",
             g_mhi.opened_path,
+            MHI_DriverClassName((int)g_mhi.driver_class),
             g_mhi.vol_supported ? "yes" : "no");
 
     return 1;
@@ -1187,8 +1329,16 @@ init_fail:
     {
         if (g_mhi.buffers[i])
         {
-            FreeMem(g_mhi.buffers[i], MHI_BUF_SIZE);
-            g_mhi.buffers[i] = NULL;
+            if (g_mhi.running)
+            {
+                // Buffers leaked: feeder task still running (use-after-free risk)
+                MHI_LOG("WARNING - feeder still running, leaking buffers to avoid use-after-free");
+            }
+            else
+            {
+                FreeMem(g_mhi.buffers[i], MHI_BUF_SIZE);
+                g_mhi.buffers[i] = NULL;
+            }
         }
     }
 
@@ -1240,8 +1390,16 @@ MHI_MusicDeInit(
     {
         if (g_mhi.buffers[i])
         {
-            FreeMem(g_mhi.buffers[i], MHI_BUF_SIZE);
-            g_mhi.buffers[i] = NULL;
+            if (g_mhi.running)
+            {
+                // Buffers leaked: feeder task still running (use-after-free risk)
+                MHI_LOG("WARNING - feeder still running, leaking buffers to avoid use-after-free");
+            }
+            else
+            {
+                FreeMem(g_mhi.buffers[i], MHI_BUF_SIZE);
+                g_mhi.buffers[i] = NULL;
+            }
         }
     }
 
@@ -1373,7 +1531,9 @@ MHI_SongPlaying(
         if (g_mhi.queued == 0)
             return 0;
 
-        if ((ULONG)(SDL_GetTicks() - g_mhi.traffic_ticks) > 4000)
+        // Watchdog timeowy tylko dla nieloopujących piosenek
+        // (loopujące mogą grać długo na driverach bez sygnałów)
+        if (!g_mhi.loop && (ULONG)(SDL_GetTicks() - g_mhi.traffic_ticks) > 4000)
             return 0;
     }
 

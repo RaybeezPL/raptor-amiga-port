@@ -39,7 +39,7 @@ int MHI_SongPlaying(void);
  * MUS_SetVolume).  Internally stored as-is; scaled to the MHI driver's
  * 0..100 MHIP_VOLUME range (percent) inside the feeder task via
  * MHI_ScaleVolume() when the driver supports MHIQ_VOLUME_CONTROL,
- * otherwise ignored. Note: Volume scaling from 0..127 to 0..100 is handled internally. */
+ * otherwise ignored. */
 void MHI_SetVolume(int volume);
 
 /* Optional driver override from the MHIDRIVER= CLI parameter / icon

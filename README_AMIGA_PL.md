@@ -175,11 +175,19 @@ podsystemów Amigi:
                     wybrano NOSOUND. Aby włączyć muzykę, wybierz jawnie
                     MUSIC=ADLIB, MUSIC=CAMD, MUSIC=MHI lub MUSIC=WAVE.
 
-                    MUSIC=ADLIB odtwarza utwory MUS przez wbudowaną
-                    emulację AdLib/OPL3 (autentyczne brzmienie Raptora),
-                    miksowaną ze strumieniem audio AHI. Emulator korzysta
-                    z lekkiego rdzenia dbopl z DOSBoxa, który zużywa tylko
-                    kilka procent mocy procesora 68060.
+                     MUSIC=ADLIB odtwarza utwory MUS przez wbudowaną
+                     emulację AdLib/OPL3 (autentyczne brzmienie Raptora),
+                     miksowaną ze strumieniem audio AHI. Emulator korzysta
+                     z lekkiego rdzenia dbopl z DOSBoxa, który zużywa tylko
+                     kilka procent mocy procesora 68060.
+
+                     MUSIC=ADLIB jest przeznaczone przede wszystkim dla
+                     WinUAE oraz środowisk opartych na PiStorm/PiMiga.
+                     Na prawdziwym sprzęcie Amiga, aby zachować szybką i
+                     płynną rozgrywkę, używaj MUSIC=WAVE albo muzyki MP3
+                     przez MUSIC=MHI, uruchamiając grę z odpowiednim
+                     parametrem. To rekomendacja wydajnościowa;
+                     MUSIC=ADLIB pozostaje dostępne na prawdziwym sprzęcie.
 
                     Alternatywnie parametr MUSIC=CAMD odtwarza utwory MUS
                     jako strumień zdarzeń General MIDI przez camd.library
@@ -212,7 +220,7 @@ podsystemów Amigi:
    Muzyka (MHI):    Parametr MUSIC=MHI odtwarza soundtrack jako pliki MP3
                     przez MHI decoder driver — standard Amiga dla dźwięku
                     MPEG, używany przez hardware decoders, takie jak Prisma
-                    Megamix (prismamhi.library), MAS Player
+                    Megamix (mhiprisma.library), MAS Player
                     (mhimaspro/mhimasstd.library), Prelude MPEGit
                     (mhimpegit.library) albo hardware mpeg.device, np. Delfina
                     (mhimdev.library). Driver sam dekoduje i wysyła MP3,
@@ -267,7 +275,7 @@ podsystemów Amigi:
                     src/mpumhi.cpp (mhi_song_map).
 
                     Gra automatycznie wybiera driver: próbuje kolejno
-                    prismamhi.library, mhimaspro/mhimasstd.library,
+                    mhiprisma.library, mhimaspro/mhimasstd.library,
                     mhimpegit.library, mhimdev.library, a następnie skanuje
                     LIBS:MHI/ w poszukiwaniu innych zainstalowanych driverów.
                     Parametr MHIDRIVER= (np. -mhidriver=mhimaspro.library)
@@ -366,9 +374,13 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                W tym trybie camd.library nie zostanie otwarte.
 
    -music=M    Wybiera backend muzyki. M może przyjąć wartość:
-                 ADLIB — wbudowana emulacja AdLib/OPL3 miksowana ze
-                         strumieniem audio AHI (autentyczne brzmienie
-                         Raptora, zawsze słyszalne);
+                  ADLIB — wbudowana emulacja AdLib/OPL3 miksowana ze
+                          strumieniem audio AHI (autentyczne brzmienie
+                          Raptora, zawsze słyszalne); przeznaczona
+                          przede wszystkim dla WinUAE i środowisk
+                          PiStorm/PiMiga. Na prawdziwym sprzęcie Amiga
+                          dla szybkiej, płynnej rozgrywki zalecane są
+                          MUSIC=WAVE lub MUSIC=MHI.
                  CAMD  — strumień zdarzeń General MIDI przez camd.library;
                          wymaga skonfigurowanego MIDI drivera albo CAMD
                          software synthesizera w klastrze "out.0", w przeciwnym
@@ -393,7 +405,7 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
     -mhidriver=D Zastępuje automatyczne wykrywanie MHI decoder drivera
                 (istotne wyłącznie razem z MUSIC=MHI). D to nazwa biblioteki
                 drivera albo pełna ścieżka, np.
-                "-mhidriver=prismamhi.library" lub
+                "-mhidriver=mhiprisma.library" lub
                 "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
     -mouse=ON|OFF

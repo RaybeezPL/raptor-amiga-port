@@ -169,11 +169,18 @@ Sound effects and music use two separate, native Amiga subsystems:
                    NOSOUND is selected. Select MUSIC=ADLIB, MUSIC=CAMD,
                    MUSIC=MHI or MUSIC=WAVE explicitly to enable music.
 
-                   MUSIC=ADLIB plays the MUS tracks through the
-                   built-in AdLib/OPL3 emulation (the authentic
-                   Raptor sound), mixed into the AHI audio stream.
-                   The emulator uses the lightweight DOSBox dbopl
-                   core, which costs only a few percent of a 68060.
+                    MUSIC=ADLIB plays the MUS tracks through the
+                    built-in AdLib/OPL3 emulation (the authentic
+                    Raptor sound), mixed into the AHI audio stream.
+                    The emulator uses the lightweight DOSBox dbopl
+                    core, which costs only a few percent of a 68060.
+
+                    MUSIC=ADLIB is primarily intended for WinUAE and
+                    PiStorm/PiMiga-based environments. For fast, smooth
+                    gameplay on real Amiga hardware, use MUSIC=WAVE or
+                    MP3 playback through MUSIC=MHI with the corresponding
+                    game parameter. This is a performance recommendation;
+                    MUSIC=ADLIB remains available on real hardware.
 
                    Alternatively, the MUSIC=CAMD parameter plays the
                    MUS tracks as a General MIDI event stream through
@@ -205,7 +212,7 @@ Sound effects and music use two separate, native Amiga subsystems:
    Music (MHI):   The MUSIC=MHI parameter plays the soundtrack as MP3
                    files through an MHI decoder driver - the Amiga
                    MPEG-audio standard used by hardware decoders such
-                   as the Prisma Megamix (prismamhi.library), MAS
+                   as the Prisma Megamix (mhiprisma.library), MAS
                    Player (mhimaspro/mhimasstd.library), Prelude
                    MPEGit (mhimpegit.library) or mpeg.device hardware
                    like the Delfina (mhimdev.library). The driver
@@ -259,13 +266,13 @@ Sound effects and music use two separate, native Amiga subsystems:
                    src/mpumhi.cpp (mhi_song_map).
 
                    The game picks the driver automatically: it tries
-                   prismamhi.library, mhimaspro/mhimasstd.library,
+                   mhiprisma.library, mhimaspro/mhimasstd.library,
                    mhimpegit.library, mhimdev.library, then scans
                    LIBS:MHI/ for any other installed driver. The
                    MHIDRIVER= parameter (e.g. -mhidriver=mhimaspro.library)
                    forces a specific driver. If the MHI driver cannot be
                    opened, the MP3 drawer is missing, or a matching MP3
-                   file cannot be found, MHI music remains silent; sound
+                   file cannot be found, MHI music switches to MUSIC=OFF (silent); sound
                    effects continue normally. Raptor does not
                    automatically switch to another music backend.
                    Select MUSIC=ADLIB, MUSIC=CAMD, MUSIC=WAVE or
@@ -354,9 +361,13 @@ accepted. Parameters may be combined in any order.
                camd.library is never opened in this mode.
 
    -music=M    Selects the music backend. M may be:
-                 ADLIB - built-in AdLib/OPL3 emulation mixed into
-                         the AHI audio stream (the authentic
-                         Raptor sound, always audible);
+                  ADLIB - built-in AdLib/OPL3 emulation mixed into
+                          the AHI audio stream (the authentic Raptor
+                          sound, always audible); primarily intended
+                          for WinUAE and PiStorm/PiMiga environments.
+                          On real Amiga hardware, MUSIC=WAVE or
+                          MUSIC=MHI is recommended for fast, smooth
+                          gameplay.
                  CAMD  - General MIDI event stream through
                          camd.library; needs a configured MIDI
                          driver or a CAMD software synthesizer on
@@ -383,7 +394,7 @@ accepted. Parameters may be combined in any order.
     -mhidriver=D Overrides the MHI decoder driver auto-detection
                 (only relevant together with MUSIC=MHI). D is a
                 driver library name or full path, e.g.
-                "-mhidriver=prismamhi.library" or
+                "-mhidriver=mhiprisma.library" or
                 "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
     -mouse=ON|OFF
