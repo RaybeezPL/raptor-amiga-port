@@ -135,6 +135,15 @@ Z poziomu Shell/CLI uruchom grę po prostu poleceniem:
 
    raptor
 
+Raptor automatycznie żąda minimalnego stosu procesu głównego o
+wielkości 65536 bajtów przez natywny mechanizm startowy libnix
+`__stack` / swapstack, przed wywołaniem `main()`. Użytkownicy CLI
+nie muszą już ręcznie wykonywać `Stack 65536`; jeśli Shell/Workbench
+zapewnia już >= 65536 bajtów, większy stos jest zachowywany. To
+naprawia błąd uruchamiania z CLI na prawdziwym sprzęcie, obserwowany
+przy zbyt małym stosie. Stos wątku MHI feeder oraz stos zadania AHI
+pozostają bez zmian.
+
 Domyślnie żaden backend muzyki nie jest włączony. Jeżeli nie podano
 opcji MUSIC=, Raptor używa MUSIC=OFF i nie inicjalizuje muzyki
 AdLib/OPL3, CAMD, MHI ani WAVE. Efekty dźwiękowe pozostają aktywne,
@@ -220,11 +229,23 @@ podsystemów Amigi:
    Muzyka (MHI):    Parametr MUSIC=MHI odtwarza soundtrack jako pliki MP3
                     przez MHI decoder driver — standard Amiga dla dźwięku
                     MPEG, używany przez hardware decoders, takie jak Prisma
-                    Megamix (mhiprisma.library), MAS Player
-                    (mhimaspro/mhimasstd.library), Prelude MPEGit
-                    (mhimpegit.library) albo hardware mpeg.device, np. Delfina
-                    (mhimdev.library). Driver sam dekoduje i wysyła MP3,
-                    dlatego nie ingeruje w strumień AHI używany przez efekty.
+                    Megamix (mhiprisma.library), Amiblaster
+                    (mhiamiblaster.library), Prelude MPEGit
+                    (mhimpegit.library), MAS Player
+                    (mhimaspro/mhimasstd.library), ArmedWarp
+                    (mhiArmedWarp.library) albo hardware mpeg.device, np.
+                    Delfina (mhimdev.library). Driver sam dekoduje i wysyła
+                    MP3, dlatego nie ingeruje w strumień AHI używany przez
+                    efekty. Pliki MP3 są strumieniowane przez 8 buforów
+                    po 32 KB (łącznie 256 KB, ~16 s przy 128 kbit/s);
+                    metadane ID3v2.3/ID3v2.4 na początku pliku (w tym
+                    opcjonalny footer ID3v2.4) oraz końcowy blok ID3v1
+                    "TAG" są usuwane przed przekazaniem danych MPEG-audio
+                    do dekodera. Sam plik MP3 nie jest modyfikowany.
+                    Prisma MegaMix to konfiguracja zweryfikowana na
+                    prawdziwym sprzęcie; pozostałe rodziny driverów są
+                    rozpoznawane przez auto-detekcję, ale nie były
+                    fizycznie testowane w tym wydaniu.
 
                     Wewnątrz katalogu gry utwórz drawer o nazwie "MP3" i
                     skopiuj do niego pliki MP3 ze ścieżki dźwiękowej. Każdy
@@ -275,16 +296,24 @@ podsystemów Amigi:
                     src/mpumhi.cpp (mhi_song_map).
 
                     Gra automatycznie wybiera driver: próbuje kolejno
-                    mhiprisma.library, mhimaspro/mhimasstd.library,
-                    mhimpegit.library, mhimdev.library, a następnie skanuje
-                    LIBS:MHI/ w poszukiwaniu innych zainstalowanych driverów.
+                    mhiprisma.library, mhiamiblaster.library,
+                    mhimpegit.library, mhimaspro.library,
+                    mhimasstd.library, mhiArmedWarp.library,
+                    mhimdev.library, a następnie skanuje LIBS:MHI/
+                    w poszukiwaniu innych zainstalowanych driverów.
                     Parametr MHIDRIVER= (np. -mhidriver=mhimaspro.library)
-                    wymusza użycie konkretnego drivera. Jeżeli sterownik MHI
-                    nie może zostać otwarty, katalog MP3 nie istnieje albo
-                    nie zostanie znaleziony pasujący plik MP3, muzyka MHI
-                    pozostaje cicha; efekty dźwiękowe działają normalnie.
-                    Raptor nie przełącza się automatycznie na inny backend
-                    muzyki. W razie potrzeby wybierz jawnie MUSIC=ADLIB,
+                    wymusza użycie konkretnego drivera. Otwarty driver jest
+                    klasyfikowany na podstawie ścieżki biblioteki
+                    (dopasowanie podciągu bez uwzględniania wielkości
+                    liter) i raportowany w logu startowym, np. "MHI:
+                    decoder driver '...' (LIBS:MHI/mhiprisma.library)
+                    [Prisma MegaMix], volume control: ...". Jeżeli
+                    sterownik MHI nie może zostać otwarty, katalog MP3 nie
+                    istnieje albo nie zostanie znaleziony pasujący plik
+                    MP3, muzyka MHI przechodzi na MUSIC=OFF (cicha);
+                    efekty dźwiękowe działają normalnie. Raptor nie
+                    przełącza się automatycznie na inny backend muzyki.
+                    W razie potrzeby wybierz jawnie MUSIC=ADLIB,
                     MUSIC=CAMD, MUSIC=WAVE lub MUSIC=OFF. Uwaga: dla
                     klasycznych komputerów 68k nie istnieje software-only
                     MHI decoder — MUSIC=MHI wymaga jednego z opisanych
@@ -678,12 +707,15 @@ Znane ograniczenia
   przechodzi na MUSIC=OFF (efekty dźwiękowe pozostają aktywne);
   wybierz jawnie MUSIC=ADLIB, MUSIC=MHI, MUSIC=WAVE lub MUSIC=OFF.
 - Muzyka MP3 (MUSIC=MHI) wymaga zainstalowanego MHI decoder drivera
-  w LIBS:MHI/ (Prisma Megamix, MAS Player, Prelude MPEGit albo hardware
-  mpeg.device, np. Delfina). Dla klasycznych komputerów 68k nie ma
-  software-only MHI decodera; jeśli MHI driver nie może zostać otwarty,
-  muzyka przechodzi na MUSIC=OFF (efekty dźwiękowe pozostają aktywne).
-  Utwory, których pliku MP3 brakuje w drawerze MP3/, pozostają celowo
-  ciche.
+  w LIBS:MHI/ (Prisma Megamix, Amiblaster, MAS Player, Prelude MPEGit,
+  ArmedWarp albo hardware mpeg.device, np. Delfina). Dla klasycznych
+  komputerów 68k nie ma software-only MHI decodera; jeśli MHI driver
+  nie może zostać otwarty, muzyka przechodzi na MUSIC=OFF (efekty
+  dźwiękowe pozostają aktywne). Utwory, których pliku MP3 brakuje
+  w drawerze MP3/, pozostają celowo ciche. Prisma MegaMix to
+  konfiguracja zweryfikowana na prawdziwym sprzęcie; pozostałe rodziny
+  driverów są rozpoznawane przez auto-detekcję, ale nie były fizycznie
+  testowane w tym wydaniu.
 - Głośność muzyki i efektów zmieniana w menu opcji jest zapisywana do
   amiga.cfg w katalogu gry (pliku tworzonego przy pierwszym uruchomieniu)
   i przywracana przy kolejnym starcie. Każdy backend muzyki ma własny
@@ -707,7 +739,12 @@ Testowane konfiguracje
 - Amiga 1200 z Mediatorem, Blizzardem 1260, Voodoo3 oraz Prelude
   na clock porcie — przetestowano także odtwarzanie MHI.
 - Amiga 2000 z TekMagic 68060 50 MHz, CyberVision 64/3D oraz
-  Prisma MegaMix.
+  Prisma MegaMix. Automatyczna ścieżka stosu 65536 bajtów została
+  przetestowana pomyślnie na tym komputerze, a istniejący stos
+  Shella 131072 bajtów został zachowany; testowano przez intro ->
+  menu -> attract demo -> gameplay -> zmiany poziomów/utworów.
+  Prisma MHI pokazała 8 buforów w kolejce/wstępnie załadowanych
+  i działała normalnie.
 - Amiga 4000 z 68060 50 MHz, Picasso IV i AGA — przetestowano
   WAVE, MIDI/CAMD oraz MHI.
 - WinUAE z konfiguracjami 68030 i 68060, z FPU i bez FPU,

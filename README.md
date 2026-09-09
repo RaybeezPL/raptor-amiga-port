@@ -72,7 +72,12 @@ Working:
   option Raptor uses `MUSIC=OFF` and initializes no AdLib/OPL3, CAMD,
   MHI or WAVE music backend — enable music explicitly with
   `MUSIC=ADLIB`, `MUSIC=MHI`, `MUSIC=CAMD` or `MUSIC=WAVE` (CLI:
-  `-music=CAMD`; icon ToolType: `MUSIC=CAMD`)
+  `-music=CAMD`; icon ToolType: `MUSIC=CAMD`). MHI streams MP3 files
+  through 8 x 32 KB buffers (256 KB total), strips ID3v2/ID3v1
+  metadata before decoding, and recognizes the Prisma MegaMix,
+  Amiblaster, Prelude/MPEGit, MAS Player, ArmedWarp and mpeg.device
+  driver families (Prisma MegaMix is the real-hardware verified
+  configuration)
 - **`MOUSE=ON|OFF`** / **`NOMOUSE`** and **`JOYSTICK=ON|OFF`** / **`NOJOY`**
   parameters — enable/disable the mouse and joystick input devices (CLI:
   `-mouse=off`, `-nomouse`, `-joystick=off`, `-nojoy`; icon ToolTypes:
@@ -114,6 +119,11 @@ Working:
   (created on first run): separate startup volumes for AdLib/OPL3
   music, MHI/MP3 music, WAVE music and sound effects; the in-game
   Options sliders write their values back to it
+- **Automatic 64 KB main-process stack** on Amiga: Raptor requests a
+  minimum 65536-byte main stack through the libnix `__stack` /
+  swapstack startup mechanism before `main()`, so CLI users no longer
+  need to execute `Stack 65536` manually; if Shell/Workbench already
+  provides a larger stack, it is preserved
 
 
 Work still in progress / roadmap:

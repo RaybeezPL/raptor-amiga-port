@@ -4,12 +4,52 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
 
 ## [Unreleased]
 
+## [0.9.9-rc.2] - 2026-09-09
+
 ### Fixed
 - MHI MP3 playback now skips ID3v2.3/ID3v2.4 metadata at the start of
   a file, including an optional ID3v2.4 footer, and a trailing classic
   ID3v1 "TAG" block. Only the calculated MPEG-audio range is streamed
   to the decoder; the MP3 file is not modified. Verified with Prisma
   Megamix using mhiprisma.library.
+- MHI stream buffers are no longer freed while the feeder task is still
+  running: `MHI_MusicInit()`/`MHI_MusicDeInit()` now leak the buffers
+  with a warning instead of risking a use-after-free when the feeder
+  task has not stopped in time.
+- The 4-second MHI end-of-song watchdog now applies only to non-looping
+  songs: looping songs on drivers that never signal (e.g. Prisma
+  MegaMix) are no longer cut off after four seconds of silence.
+- MHI open errors preserve the real `IoErr()` from `MHI_FeederOpen()`
+  instead of being overwritten with a generic error code.
+- Amiga: Raptor now requests a minimum 65536-byte main-process stack
+  automatically through the libnix `__stack` / swapstack startup
+  mechanism, before `main()`. CLI users no longer need to execute
+  `Stack 65536` manually; if Shell/Workbench already provides
+  >= 65536 bytes, the larger stack is preserved. This fixes the
+  real-hardware CLI failure observed with a too-small stack. The MHI
+  feeder stack and the AHI task stack are unchanged. Verified on real
+  hardware: the automatic 65536-byte path was tested successfully and
+  an existing 131072-byte Shell stack was preserved; tested through
+  intro -> menu -> attract demo -> gameplay -> level/song changes.
+
+### Changed
+- MHI streaming buffers restored from 4 to 8 x 32 KB = 256 KB total
+  (~16 s at 128 kbit/s); the preload/refill architecture is otherwise
+  unchanged. Prisma MHI showed 8 buffers queued/preloaded and operated
+  normally on real hardware.
+- MHI driver auto-detection now includes an explicit
+  `LIBS:MHI/mhiamiblaster.library` candidate (Amiblaster
+  Deluxe/Ultra/CP-Mini) and reorders the candidate list:
+  mhiprisma.library, mhiamiblaster.library, mhimpegit.library,
+  mhimaspro.library, mhimasstd.library, mhiArmedWarp.library,
+  mhimdev.library, then the `LIBS:MHI/#?.library` scan. The
+  `MHIDRIVER=` override is preserved.
+- The opened MHI driver is now classified by its library path
+  (case-insensitive substring match) and reported in the startup log,
+  e.g. `MHI: decoder driver '...' (LIBS:MHI/mhiprisma.library)
+  [Prisma MegaMix], volume control: ...`. Classification is
+  diagnostics-only and never uses `MHIQ_DECODER_NAME`, whose string
+  varies between driver branches/versions.
 
 ## [0.9.9-rc.1] - 2026-09-04
 

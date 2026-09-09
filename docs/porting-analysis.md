@@ -136,9 +136,15 @@ game's normal `i_video.cpp` flow:
   `camd.library` to the fixed cluster `out.0` (`mpucamd.cpp`); silent unless
   a MIDI driver/synth is attached; fallback to MUSIC=OFF (silent).
 - Music, opt-in `MUSIC=MHI`: MP3 files from the `MP3/` drawer through an MHI
-  decoder driver (`mpumhi.cpp`; Prisma Megamix, MAS Player, Prelude MPEGit,
-  Delfina/mpeg.device, or any driver in `LIBS:MHI/`); `MHIDRIVER=` overrides
-  driver auto-detection; fallback to MUSIC=OFF (silent).
+  decoder driver (`mpumhi.cpp`; Prisma Megamix, Amiblaster, Prelude MPEGit,
+  MAS Player, ArmedWarp, Delfina/mpeg.device, or any driver in `LIBS:MHI/`);
+  `MHIDRIVER=` overrides driver auto-detection; fallback to MUSIC=OFF
+  (silent). Streaming uses 8 x 32 KB buffers (256 KB total) with the
+  preload/refill architecture; ID3v2.3/ID3v2.4 metadata (including an
+  optional v2.4 footer) and a trailing ID3v1 "TAG" block are stripped
+  before the MPEG-audio range is queued to the decoder. The opened driver
+  is classified by its library path (case-insensitive substring match,
+  never `MHIQ_DECODER_NAME`) and reported in the startup log.
 - `NOSOUND` / `NOMUSIC` parameters; persistent volumes (music_adlib,
   music_mhi, music_wave, sfx) stored in `amiga.cfg`
   (`src/amiga/amiga_cfg.cpp/h`).
@@ -168,6 +174,12 @@ game's normal `i_video.cpp` flow:
 - The game requires the five GLB data files (`FILE0000.GLB` ..
   `FILE0004.GLB`) from the full version 1.2; `GLB_InitSystem()` no longer
   looks for the obsolete `FILE0005.GLB`.
+- The main process requests a minimum 65536-byte stack automatically
+  through the libnix `__stack` / swapstack startup mechanism, before
+  `main()`; if Shell/Workbench already provides >= 65536 bytes, the
+  larger stack is preserved. The MHI feeder stack (16384) and the AHI
+  task stack are unchanged. A `[SYSTEM] main stack: N bytes` diagnostic
+  is printed at startup.
 
 ### 1.8 Validation status summary
 
@@ -183,7 +195,7 @@ game's normal `i_video.cpp` flow:
 | Joystick / CD32 pad | Implemented | Requires validation across devices |
 | AHI SFX + AdLib/dbopl music | Implemented | Tested |
 | CAMD MIDI | Implemented | Requires validation (needs MIDI driver/synth) |
-| MHI MP3 | Implemented | Requires validation (needs MHI hardware decoder) |
+| MHI MP3 | Implemented | Prisma MegaMix tested on real hardware; other driver families (Amiblaster, ArmedWarp, etc.) require validation |
 | Save/load, `amiga.cfg` | Implemented | Tested (basic flow) |
 
 ---
