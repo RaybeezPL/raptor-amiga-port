@@ -80,7 +80,7 @@ struct Library *MHIBase = NULL;
 
 /* Stream buffers: 8 x 32 KB = 256 KB total (~16 s at 128 kbit/s), owned
  * by the main task (MEMF_PUBLIC) and only used by the feeder task. */
-#define MHI_NUM_BUFS   8
+#define MHI_NUM_BUFS   4
 #define MHI_BUF_SIZE   (32 * 1024)
 
 /* Commands main task -> feeder task (g_mhi.cmd). */
@@ -154,10 +154,11 @@ static struct MHIState
     volatile LONG debug_vol_issued; /* PLAY: MHISetParam(volume) was issued   */
     volatile LONG debug_vol_scaled; /* PLAY: value passed to MHISetParam      */
     volatile LONG debug_play_called;/* PLAY: MHIPlay() was invoked            */
-    char   driver_name[64];         /* MHIQ_DECODER_NAME copy */
-    char   opened_path[256];        /* driver library path that opened */
-    LONG   driver_class;            /* MHIDRV_* classification of opened_path */
-} g_mhi;
+     char   driver_name[64];         /* MHIQ_DECODER_NAME copy */
+     char   opened_path[256];        /* driver library path that opened */
+     char   init_fail_path[256];     /* driver path whose MHIAllocDecoder failed */
+     LONG   driver_class;            /* MHIDRV_* classification of opened_path */
+ } g_mhi;
 
 /***************************************************************************
  * Song mapping: GLB music item -> MP3 file title fragment.
@@ -214,7 +215,7 @@ static const char * const mhi_default_drivers[] = {
     "LIBS:MHI/mhimpegit.library",       /* Prelude Z2 MPEGit / Prelude ZII+    */
     "LIBS:MHI/mhimaspro.library",       /* MAS Player Pro                      */
     "LIBS:MHI/mhimasstd.library",       /* MAS Player standard                 */
-    "LIBS:MHI/mhiArmedWarp.library",    /* ArmedWarp                           */
+    "LIBS:MHI/mhiArmedWARP.library",    /* ArmedWarp                           */
     "LIBS:MHI/mhimdev.library",         /* mpeg.device bridge (Delfina, ...)   */
     NULL
 };
@@ -912,7 +913,10 @@ MHI_HandleCommand(
 }
 /***************************************************************************
  * MHI_TryDriver() - open one driver library and allocate its decoder.
- * Called by the feeder task only.  Returns 1 on success.
+ * Called by the feeder task only.  Returns:
+ *   1  = success
+ *   0  = OpenLibrary failed
+ *  -1  = OpenLibrary succeeded but MHIAllocDecoder failed
  ***************************************************************************/
 static int
 MHI_TryDriver(
@@ -934,7 +938,11 @@ MHI_TryDriver(
     {
         MHIBase = NULL;
         CloseLibrary(base);
-        return 0;
+
+        strncpy(g_mhi.init_fail_path, path, sizeof(g_mhi.init_fail_path) - 1);
+        g_mhi.init_fail_path[sizeof(g_mhi.init_fail_path) - 1] = 0;
+
+        return -1;
     }
 
     g_mhi.base = base;
@@ -964,7 +972,10 @@ MHI_TryDriver(
 /***************************************************************************
  * MHI_FeederOpenDriver() - choose and open the decoder driver: the
  * MHIDRIVER= override first (if given), then the known list, then a scan
- * of LIBS:MHI/ for any other installed driver.  Returns 1 on success.
+ * of LIBS:MHI/ for any other installed driver.  Returns:
+ *   1  = success
+ *  -3  = no driver library opened
+ *  -4  = at least one driver library opened but decoder allocation failed
  ***************************************************************************/
 static int
 MHI_FeederOpenDriver(
@@ -972,30 +983,40 @@ MHI_FeederOpenDriver(
 )
 {
     int i;
+    int saw_decoder_fail = 0;
 
     /* Explicit override: try as given. */
     // A bare name also tries LIBS:MHI/<name> as a fallback
     if (g_mhi.driver_override[0])
     {
-        if (MHI_TryDriver(g_mhi.driver_override, mhi_mask))
+        int result = MHI_TryDriver(g_mhi.driver_override, mhi_mask);
+        if (result == 1)
             return 1;
+        if (result < 0)
+            saw_decoder_fail = 1;
 
         if (!strchr(g_mhi.driver_override, '/') &&
             !strchr(g_mhi.driver_override, ':'))
         {
             char path[300];
             sprintf(path, "LIBS:MHI/%s", g_mhi.driver_override);
-            if (MHI_TryDriver(path, mhi_mask))
+            result = MHI_TryDriver(path, mhi_mask);
+            if (result == 1)
                 return 1;
+            if (result < 0)
+                saw_decoder_fail = 1;
         }
 
-        return 0;   /* user asked for a specific driver: no fallbacks */
+        return saw_decoder_fail ? -4 : -3;   /* user asked for a specific driver: no fallbacks */
     }
 
     for (i = 0; mhi_default_drivers[i]; i++)
     {
-        if (MHI_TryDriver(mhi_default_drivers[i], mhi_mask))
+        int result = MHI_TryDriver(mhi_default_drivers[i], mhi_mask);
+        if (result == 1)
             return 1;
+        if (result < 0)
+            saw_decoder_fail = 1;
     }
 
     /* Last resort: any other driver installed in LIBS:MHI/. */
@@ -1031,8 +1052,19 @@ MHI_FeederOpenDriver(
                         }
                     }
 
-                    if (!known && MHI_TryDriver(path, mhi_mask))
-                        found = 1;
+                    if (!known)
+                    {
+                        int result = MHI_TryDriver(path, mhi_mask);
+                        if (result == 1)
+                            found = 1;
+                        else if (result < 0)
+                        {
+                            saw_decoder_fail = 1;
+                            rc = MatchNext(ap);
+                        }
+                        else
+                            rc = MatchNext(ap);
+                    }
                     else
                         rc = MatchNext(ap);
                 }
@@ -1046,7 +1078,7 @@ MHI_FeederOpenDriver(
         }
     }
 
-    return 0;
+    return saw_decoder_fail ? -4 : -3;
 }
 
 /***************************************************************************
@@ -1056,7 +1088,8 @@ MHI_FeederOpenDriver(
  * Init handshake for the main task (g_mhi.ready):
  *   0 = pending, 1 = streaming ready,
  *  -1 = no driver signal, -2 = no command signal,
- *  -3 = no MHI driver found/opened, -4 = MHIAllocDecoder failed
+ *  -3 = no MHI driver library could be opened,
+ *  -4 = MHI driver library opened, but MHIAllocDecoder failed
  * (all known-list drivers failed, LIBS:MHI/ scan included).
  ***************************************************************************/
 /* Compiled with -O0 like the AHI audio task: no FPU traps from
@@ -1094,13 +1127,16 @@ MHI_FeederEntry(
     g_mhi.cmd_sigmask = 1UL << csig;
     wait_mask = mhi_mask | g_mhi.cmd_sigmask;
 
-    if (!MHI_FeederOpenDriver(mhi_mask))
     {
-        FreeSignal(sig);
-        FreeSignal(csig);
-        g_mhi.ready = -3;
-        g_mhi.running = 0;
-        return;
+        int open_result = MHI_FeederOpenDriver(mhi_mask);
+        if (open_result != 1)
+        {
+            FreeSignal(sig);
+            FreeSignal(csig);
+            g_mhi.ready = open_result;
+            g_mhi.running = 0;
+            return;
+        }
     }
 
     g_mhi.ready = 1;
@@ -1242,6 +1278,7 @@ MHI_MusicInit(
     g_mhi.debug_vol_scaled = 0;
     g_mhi.debug_play_called = 0;
     g_mhi.opened_path[0] = 0;
+    g_mhi.init_fail_path[0] = 0;
     g_mhi.driver_class = MHIDRV_OTHER;
 
     for (i = 0; i < MHI_NUM_BUFS; i++)
@@ -1299,9 +1336,41 @@ MHI_MusicInit(
 
     if (g_mhi.ready != 1)
     {
-        MHI_LOG("MHI: init FAILED in feeder task (stage %ld: -1/-2 no signal, -3 no MHI driver; tried: %s)",
-                (long)g_mhi.ready,
-                g_mhi.driver_override[0] ? g_mhi.driver_override : "auto-detect list + LIBS:MHI/ scan");
+        switch ((int)g_mhi.ready)
+        {
+            case -4:
+                MHI_LOG("MHI: init FAILED in feeder task "
+                        "(stage -4: MHIAllocDecoder failed; tried: %s)",
+                        g_mhi.driver_override[0] ? g_mhi.driver_override
+                                                 : "auto-detect list + LIBS:MHI/ scan");
+
+                if (g_mhi.init_fail_path[0])
+                    MHI_LOG("MHI: init stage -4: MHIAllocDecoder failed (last decoder alloc failed for driver '%s')",
+                            g_mhi.init_fail_path);
+                break;
+
+            case -3:
+                MHI_LOG("MHI: init FAILED in feeder task "
+                        "(stage -3: no MHI driver library could be opened; tried: %s)",
+                        g_mhi.driver_override[0] ? g_mhi.driver_override
+                                                 : "auto-detect list + LIBS:MHI/ scan");
+                break;
+
+            case -2:
+                MHI_LOG("MHI: init FAILED in feeder task "
+                        "(stage -2: command signal allocation failed)");
+                break;
+
+            case -1:
+                MHI_LOG("MHI: init FAILED in feeder task "
+                        "(stage -1: driver signal allocation failed)");
+                break;
+
+            default:
+                MHI_LOG("MHI: init FAILED in feeder task "
+                        "(stage %d: unexpected feeder state)", (int)g_mhi.ready);
+                break;
+        }
 
         /* The feeder exits by itself on failure; wait for it to die. */
         spins = 0;
