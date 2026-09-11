@@ -224,8 +224,10 @@ Sound effects and music use two separate, native Amiga subsystems:
                    (mhiamiblaster.library), Prelude MPEGit
                    (mhimpegit.library), MAS Player
                    (mhimaspro/mhimasstd.library), ArmedWarp
-                   (mhiArmedWarp.library) or mpeg.device hardware
-                   like the Delfina (mhimdev.library). The driver
+                   (mhiArmedWarp.library), mpeg.device hardware
+                   like the Delfina (mhimdev.library) or the MNT ZZ9000
+                   with the ZZ9000AX MP3 decoder daughterboard
+                   (mhizz9000.library). The driver
                    decodes and outputs the MP3 by itself, so it does
                    not touch the AHI stream used by the sound effects.
                    MP3 files are streamed through 8 x 32 KB buffers
@@ -289,7 +291,8 @@ Sound effects and music use two separate, native Amiga subsystems:
                    mhiprisma.library, mhiamiblaster.library,
                    mhimpegit.library, mhimaspro.library,
                    mhimasstd.library, mhiArmedWarp.library,
-                   mhimdev.library, then scans LIBS:MHI/ for any other
+                   mhimdev.library, mhizz9000.library, then scans
+                   LIBS:MHI/ for any other
                    installed driver. The MHIDRIVER= parameter (e.g.
                    -mhidriver=mhimaspro.library) forces a specific
                    driver. The opened driver is classified by its

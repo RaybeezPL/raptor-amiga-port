@@ -216,6 +216,7 @@ static const char * const mhi_default_drivers[] = {
     "LIBS:MHI/mhimasstd.library",       /* MAS Player standard                 */
     "LIBS:MHI/mhiArmedWarp.library",    /* ArmedWarp                           */
     "LIBS:MHI/mhimdev.library",         /* mpeg.device bridge (Delfina, ...)   */
+    "LIBS:MHI/mhizz9000.library",       /* MNT ZZ9000 + ZZ9000AX (Zorro MP3)   */
     NULL
 };
 
@@ -229,7 +230,8 @@ enum
     MHIDRV_PRELUDE_MPEGIT,
     MHIDRV_AMIBLASTER,
     MHIDRV_ARMEDWARP,
-    MHIDRV_MAS
+    MHIDRV_MAS,
+    MHIDRV_ZZ9000
 };
 
 /***************************************************************************
@@ -313,6 +315,7 @@ MHI_ClassifyDriver(
     if (MHI_ContainsCI(path, "mhiarmedwarp"))  return MHIDRV_ARMEDWARP;
     if (MHI_ContainsCI(path, "mhimaspro"))     return MHIDRV_MAS;
     if (MHI_ContainsCI(path, "mhimasstd"))     return MHIDRV_MAS;
+    if (MHI_ContainsCI(path, "mhizz9000"))     return MHIDRV_ZZ9000;
 
     return MHIDRV_OTHER;
 }
@@ -329,6 +332,7 @@ MHI_DriverClassName(
         case MHIDRV_AMIBLASTER:     return "Amiblaster";
         case MHIDRV_ARMEDWARP:      return "ArmedWarp";
         case MHIDRV_MAS:            return "MAS Player";
+        case MHIDRV_ZZ9000:         return "MNT ZZ9000";
         default:                    return "other/unknown";
     }
 }
