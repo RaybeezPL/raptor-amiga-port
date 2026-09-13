@@ -1865,7 +1865,12 @@ static inline SDL_Renderer* SDL_CreateRenderer(SDL_Window *w, int idx, uint32_t 
 }
 
 static inline void SDL_DestroyRenderer(SDL_Renderer *r) {
-    free(r);
+    /* SDL_CreateRenderer() returns a function-local static object, so this
+     * renderer must NEVER be free()d - freeing static storage is undefined
+     * behavior and can corrupt the heap during shutdown. Just clear the
+     * stale window reference. */
+    if (r)
+        r->window = NULL;
 }
 
 static inline int SDL_GetRendererInfo(SDL_Renderer *r, SDL_RendererInfo *info) {
