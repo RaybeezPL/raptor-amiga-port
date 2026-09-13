@@ -46,11 +46,7 @@ static inline void EXIT_Clean(void)
 {
     if (g_exit_shutdown_func)
         g_exit_shutdown_func(0);
-#ifdef __AMIGA__
-    Exit(0);   /* see EXIT_Error above */
-#else
     exit(0);
-#endif
 }
 
 static inline void EXIT_Install(void (*func)(int))
