@@ -266,6 +266,23 @@ static inline int Amiga_IsNativeChipsetMode(ULONG modeid)
            ((modeid & 0xFFFF0000UL) == 0x00020000UL);     /* PAL  */
 }
 
+/* Detects native AGA via graphics.library's GfxBase chipset information.
+ * Treats the machine as AGA only when BOTH AGA flags are set in
+ * GfxBase->ChipRevBits0: GFXF_AA_ALICE (Alice) and GFXF_AA_LISA (Lisa).
+ * Returns 1 only when GfxBase is available and both flags are present.
+ * This helper never probes custom-chip registers, never reads BEAMCON0,
+ * and never infers AGA from the CPU type or a screen-open attempt. */
+static inline int Amiga_HasAGA(void)
+{
+    if (!GfxBase) {
+        return 0;
+    }
+
+    return ((GfxBase->ChipRevBits0 &
+             (GFXF_AA_ALICE | GFXF_AA_LISA)) ==
+            (GFXF_AA_ALICE | GFXF_AA_LISA));
+}
+
 /* Selects an RTG display ModeID from the live P96 mode list that matches the
  * requested logical resolution EXACTLY (width x height x depth). Returns the
  * DisplayID of the first exact P96 match, or INVALID_ID when no such real RTG
@@ -412,11 +429,11 @@ static inline void Amiga_ShowRtgRequester(const char *detail)
     struct EasyStruct es;
 
     snprintf(body, sizeof(body),
-        "Raptor requires an RTG (Picasso96) display for the selected GFX mode.\r\n\r\n"
-        "%s\r\n\r\n"
+        "Raptor requires an RTG (Picasso96) display for the selected GFX mode.\n\n"
+        "%s\n\n"
         "Please install a Picasso96 driver that offers a 320x200x8 or "
         "320x240x8 RTG mode (GFX=AUTO/RTG), or run the game on the classic "
-        "chipset screen with:\r\n"
+        "chipset screen with:\n"
         "  GFX=AGA   (CLI: -gfx=AGA)",
         detail ? detail : "");
 
@@ -429,6 +446,34 @@ static inline void Amiga_ShowRtgRequester(const char *detail)
 
     AmigaLog("[VIDEO] requester shown: RTG display required (%s)",
              detail ? detail : "");
+    EasyRequestArgs(NULL, &es, NULL, NULL);
+}
+
+/* Shows an English system requester explaining that GFX=AGA was selected
+ * but this machine does not have an AGA chipset. The game does NOT fall
+ * back to RTG and does NOT silently attempt the AGA screen; it aborts
+ * cleanly and tells the user to run GFX=AUTO or GFX=RTG on a P96/CGX
+ * graphics card instead. */
+static inline void Amiga_ShowAgaRequester(void)
+{
+    char body[400];
+    struct EasyStruct es;
+
+    snprintf(body, sizeof(body),
+        "Raptor requires an AGA chipset or a P96/CGX graphics card.\n\n"
+        "GFX=AGA was selected, but this machine does not have an AGA chipset.\n\n"
+        "On an ECS/OCS Amiga, use a Picasso96 or CyberGraphX compatible "
+        "graphics card and select:\n"
+        "  GFX=AUTO or GFX=RTG");
+
+    memset(&es, 0, sizeof(es));
+    es.es_StructSize = sizeof(es);
+    es.es_Flags = 0;
+    es.es_Title = "Raptor - AGA or RTG required";
+    es.es_TextFormat = body;
+    es.es_GadgetFormat = "OK";
+
+    AmigaLog("[VIDEO] requester shown: GFX=AGA requested but AGA chipset not detected");
     EasyRequestArgs(NULL, &es, NULL, NULL);
 }
 
@@ -486,6 +531,24 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
     {
         /* Native chipset 320x200x8 custom screen (no RTG required). */
         AmigaRTGLetterbox = 0;
+
+        /* --- AGA chipset gate (checked BEFORE any OpenScreen attempt) ---
+         * GFX=AGA requires a real AGA chipset. The machine is treated as AGA
+         * only when GfxBase reports BOTH GFXF_AA_ALICE and GFXF_AA_LISA in
+         * ChipRevBits0. Without both flags: log the detected revision, show
+         * the requester, and return NULL - do NOT attempt the AGA screen and
+         * do NOT silently fall back to RTG. */
+        if (!Amiga_HasAGA())
+        {
+            if (GfxBase) {
+                AmigaLog("[VIDEO] AGA: ChipRevBits0=0x%02lx "
+                         "(AGA required: GFXF_AA_ALICE|GFXF_AA_LISA)",
+                         (ULONG)GfxBase->ChipRevBits0);
+            }
+            Amiga_ShowAgaRequester();
+            AmigaLog("[VIDEO] AGA: AGA chipset not detected -> not starting");
+            return NULL;
+        }
 
         /* VIDEO=PAL/VIDEO=NTSC only set the monitor standard; on native AGA
          * forcing it means forcing a ModeID via SA_DisplayID, which changes
