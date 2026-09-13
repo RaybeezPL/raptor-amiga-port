@@ -474,12 +474,118 @@ MHI_FindFileForItem(
             if (MHI_ScanDrawer(MHI_MP3Base(), frag, exact, out, outlen))
                 return 1;
 
-            /* 3. Original case-insensitive substring fallback. */
+        /* 3. Original case-insensitive substring fallback. */
             return MHI_ScanDrawer(MHI_MP3Base(), frag, NULL, out, outlen);
         }
     }
 
     return 0;
+}
+
+/***************************************************************************
+ * MHI_ResolveDriverPath() - resolve the EXACT filename of an MHI driver
+ * expected in LIBS:MHI/.
+ *
+ * AmigaOS OpenLibrary is case-sensitive on a full path, so a driver
+ * requested with a different filename case than the installed library
+ * file (e.g. "mhiArmedWarp.library" vs. "mhiArmedWARP.library")
+ * would never open.  On a failed OpenLibrary() this scans
+ * LIBS:MHI/#?.library and, when the requested basename matches a drawer
+ * entry via MHI_EqualCI(), builds the path from the EXACT fib_FileName
+ * returned by AmigaDOS.  A bare request (no '/' or ':', e.g.
+ * MHIDRIVER=mhiArmedWarp.library) is treated as an implicit LIBS:MHI/
+ * name.
+ *
+ * Returns 1 with the exact path in "out", 0 when the request is not an
+ * LIBS:MHI/ candidate or no drawer entry matches.
+ ***************************************************************************/
+static int
+MHI_ResolveDriverPath(
+    const char *req,
+    char *out,
+    int outlen
+)
+{
+    struct AnchorPath *ap;
+    const char *base;
+    const char *slash;
+    char dir[32];
+    char pat[40];
+    LONG rc;
+    int found = 0;
+
+    if (!req || !*req || !out || outlen <= 0)
+        return 0;
+
+    out[0] = 0;
+
+    /* Split the request into directory + base name.  A bare name (no
+     * '/' and no ':') has no directory and is implicitly LIBS:MHI/. */
+    slash = strrchr(req, '/');
+    if (slash)
+    {
+        int dlen = (int)(slash - req) + 1;
+
+        /* Only LIBS:MHI/ candidates are resolved here (the volume name
+         * is case-insensitive, hence the CI compare). */
+        if (dlen >= (int)sizeof(dir))
+            return 0;
+
+        memcpy(dir, req, dlen);
+        dir[dlen] = 0;
+
+        if (!MHI_EqualCI(dir, "LIBS:MHI/"))
+            return 0;
+
+        base = slash + 1;
+    }
+    else if (strchr(req, ':'))
+    {
+        /* Path with a volume but no drawer: not an LIBS:MHI/ request -
+         * the caller's exact OpenLibrary() is the only attempt. */
+        return 0;
+    }
+    else
+    {
+        /* Bare name (e.g. MHIDRIVER=mhiArmedWarp.library) -> LIBS:MHI/. */
+        base = req;
+    }
+
+    if (!*base)
+        return 0;
+
+    /* A matched drawer entry has the same name length as the requested
+     * base name (MHI_EqualCI implies equal length), so this bounds the
+     * built path for any fib_FileName that can match. */
+    if (outlen < (int)strlen("LIBS:MHI/") + (int)strlen(base) + 1)
+        return 0;
+
+    ap = (struct AnchorPath *)AllocVec(sizeof(struct AnchorPath) + 512, MEMF_CLEAR);
+    if (!ap)
+        return 0;
+
+    ap->ap_Strlen = 512;
+
+    sprintf(pat, "LIBS:MHI/#?.library");
+
+    rc = MatchFirst((CONST_STRPTR)pat, ap);
+
+    while (rc == 0 && !found)
+    {
+        const char *name = ap->ap_Info.fib_FileName;
+
+        if (MHI_EqualCI(name, base))
+        {
+            sprintf(out, "LIBS:MHI/%s", name);
+            found = 1;
+        }
+        else
+            rc = MatchNext(ap);
+    }
+
+    MatchEnd(ap);
+    FreeVec(ap);
+    return found;
 }
 
 /***************************************************************************
@@ -926,8 +1032,23 @@ MHI_TryDriver(
 {
     struct Library *base;
     APTR h;
+    char resolved[300];
 
     base = OpenLibrary((CONST_STRPTR)path, 0);
+
+    /* Fast path failed: an MHI driver expected in LIBS:MHI/ may be
+     * installed with a different filename case.  Resolve the EXACT
+     * filename from the drawer and retry.  A bare MHIDRIVER= name is
+     * an implicit LIBS:MHI/ request and is handled here as well. */
+    if (!base && MHI_ResolveDriverPath(path, resolved, sizeof(resolved)))
+    {
+        base = OpenLibrary((CONST_STRPTR)resolved, 0);
+        if (base)
+        {
+            path = resolved;   /* g_mhi.opened_path records the ACTUAL path */
+        }
+    }
+
     if (!base)
         return 0;
 
@@ -985,8 +1106,10 @@ MHI_FeederOpenDriver(
     int i;
     int saw_decoder_fail = 0;
 
-    /* Explicit override: try as given. */
-    // A bare name also tries LIBS:MHI/<name> as a fallback
+    /* Explicit override: try as given.  MHI_TryDriver() performs the
+     * case-insensitive LIBS:MHI/ retry itself (and treats a bare name
+     * as an implicit LIBS:MHI/ request), so no separate fallback is
+     * needed here. */
     if (g_mhi.driver_override[0])
     {
         int result = MHI_TryDriver(g_mhi.driver_override, mhi_mask);
@@ -994,18 +1117,6 @@ MHI_FeederOpenDriver(
             return 1;
         if (result < 0)
             saw_decoder_fail = 1;
-
-        if (!strchr(g_mhi.driver_override, '/') &&
-            !strchr(g_mhi.driver_override, ':'))
-        {
-            char path[300];
-            sprintf(path, "LIBS:MHI/%s", g_mhi.driver_override);
-            result = MHI_TryDriver(path, mhi_mask);
-            if (result == 1)
-                return 1;
-            if (result < 0)
-                saw_decoder_fail = 1;
-        }
 
         return saw_decoder_fail ? -4 : -3;   /* user asked for a specific driver: no fallbacks */
     }
