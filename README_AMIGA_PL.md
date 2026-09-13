@@ -487,6 +487,19 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                 "-mhidriver=mhiprisma.library" lub
                 "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
+    -ahiunit=N   Wybiera jednostkę ahi.device używaną przez Raptora do
+                wyjścia efektów dźwiękowych (AHIUNIT=0|1|2|3). Domyślnie
+                Unit 0 — brak parametru AHIUNIT zachowuje dotychczasowe
+                działanie. Można wybrać Unit 1, 2 lub 3, jeżeli użytkownik
+                ma tak skonfigurowane AHI (np. wiele konfiguracji jednostek
+                albo dodatkowy sprzęt audio). Parametr dotyczy wyłącznie
+                wyjścia dźwięku przez ahi.device używane przez Raptora;
+                nie wybiera sterownika MHI i nie zmienia MUSIC=MHI.
+                Błędna wartość (pusta, nieliczbowa albo spoza zakresu,
+                np. AHIUNIT=4) powoduje powrót do Unit 0. Działa również
+                forma bez myślnika: "AHIUNIT=1", oraz CLI:
+                "raptor -ahiunit=1".
+
     -mouse=ON|OFF
                 Włącza lub wyłącza urządzenie myszy. OFF (albo starsza
                 forma -nomouse) wyłącza całą obsługę myszy: okno nie
@@ -588,6 +601,7 @@ Parametry są przekazywane za pomocą ToolTypes ikony:
       (NOMOUSE)
       JOYSTICK=OFF
       (NOJOY)
+      AHIUNIT=1
 
    ToolType ujęty w nawiasy jest NIEAKTYWNY (ignorowany przez grę) —
    to wygodny sposób przechowywania opcji w ikonie bez jej włączania.

@@ -86,6 +86,11 @@ Working:
   opens the driver under its exact filename (e.g.
   `MHIDRIVER=mhiArmedWarp.library` can resolve to
   `LIBS:MHI/mhiArmedWARP.library`)
+- **`AHIUNIT=0|1|2|3`** parameter — optional ahi.device unit selection
+  for the game's AHI sound output. It selects which ahi.device unit
+  Raptor uses for game audio / sound effects (default: unit 0). Valid
+  units: 0, 1, 2, 3. It does not select an MHI decoder and does not
+  change `MUSIC=MHI` (CLI: `-ahiunit=1`; icon ToolType: `AHIUNIT=1`)
 - **`MOUSE=ON|OFF`** / **`NOMOUSE`** and **`JOYSTICK=ON|OFF`** / **`NOJOY`**
   parameters — enable/disable the mouse and joystick input devices (CLI:
   `-mouse=off`, `-nomouse`, `-joystick=off`, `-nojoy`; icon ToolTypes:
@@ -95,7 +100,8 @@ Working:
   the window registers no mouse events at all, and with the joystick off
   the game port is never polled.
 - Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/MUSIC/
-  JOYSTICK/MOUSE) via the official WBStartup + icon.library mechanism
+  AHIUNIT/JOYSTICK/MOUSE) via the official WBStartup + icon.library
+  mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
   launches no console window is opened at all (nothing is left behind
   when the game exits)

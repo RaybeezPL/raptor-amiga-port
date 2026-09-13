@@ -464,6 +464,65 @@ RAP_ParseMHIDriver(
 }
 
 /*
+ * RAP_ParseAHIUnit() - handles the optional AHIUNIT=<number> keyword
+ * (CLI "-ahiunit=<n>" / icon ToolType "AHIUNIT=<n>"): selects the
+ * ahi.device unit used by the game's AHI sound output. Valid values:
+ * 0..3 (decimal digits only) - the normal ahi.device units exposed
+ * by AHI. Any invalid value is rejected - the unit is reset to 0
+ * (the default - exactly the pre-option behavior) and a diagnostic
+ * is printed. Returns 1 when the argument was recognized.
+ */
+static int
+RAP_ParseAHIUnit(
+    const char *arg
+)
+{
+    extern ULONG AmigaAhiUnit;
+    const char *value;
+    ULONG unit = 0;
+    const char *p;
+
+    if (RAP_StrCaseStartsWith(arg, "-ahiunit="))
+        value = arg + 9;
+    else if (RAP_StrCaseStartsWith(arg, "ahiunit="))
+        value = arg + 8;
+    else
+        return 0;
+
+    /* Strict decimal digits only. */
+    p = value;
+    if (*p >= '0' && *p <= '9')
+    {
+        while (*p >= '0' && *p <= '9')
+        {
+            unit = (ULONG)(unit * 10) + (ULONG)(*p - '0');
+            if (unit > 3) /* Early reject. */
+                unit = 3;
+            p++;
+        }
+    }
+
+    if (*p == 0 && unit <= 3)
+    {
+        AmigaAhiUnit = unit;
+        printf("AHIUNIT=%lu: ahi.device unit selected\n",
+               (unsigned long)AmigaAhiUnit);
+        AmigaLog("[AUDIO] AHIUNIT parsed '%s' -> unit=%lu",
+                 value, (unsigned long)AmigaAhiUnit);
+    }
+    else
+    {
+        AmigaAhiUnit = 0;
+        printf("Invalid AHIUNIT '%s' - valid values: 0..3 "
+               "(using default 0)\n", value);
+        AmigaLog("[AUDIO] AHIUNIT parsed '%s' -> INVALID, using default 0",
+                 value);
+    }
+
+    return 1;
+}
+
+/*
  * RAP_ParseJoystick() - handles the JOYSTICK=<on|off> keyword from the
  * CLI ("-joystick=off") and Workbench icon ToolTypes ("JOYSTICK=OFF").
  * An explicit =value always wins over the legacy NOJOY flag regardless
@@ -720,6 +779,24 @@ RAP_ParseWorkbenchToolTypes(
             }
             buf[6 + i] = 0;
             RAP_ParseMusic(buf);
+        }
+
+        /* AHIUNIT=<number> - ahi.device unit selection (0..3; see
+         * RAP_ParseAHIUnit above). */
+        s = FindToolType((CONST_STRPTR *)tt, "AHIUNIT");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "ahiunit=");
+            while (s[i] && i < (int)sizeof(buf) - 9)
+            {
+                buf[8 + i] = s[i];
+                i++;
+            }
+            buf[8 + i] = 0;
+            RAP_ParseAHIUnit(buf);
         }
 
         /* MHIDRIVER=<name> - optional MHI decoder driver override (only
@@ -2043,6 +2120,12 @@ main(
          * auto-detection (only relevant with MUSIC=MHI). See
          * RAP_ParseMHIDriver() above. */
         else if (RAP_ParseMHIDriver(argv[loop]))
+        {
+        }
+        /* -ahiunit=<number> selects the ahi.device unit used by the
+         * game's AHI sound output (0..3). See RAP_ParseAHIUnit()
+         * above. */
+        else if (RAP_ParseAHIUnit(argv[loop]))
         {
         }
 #endif

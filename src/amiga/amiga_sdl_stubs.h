@@ -77,6 +77,13 @@ AMIGA_STUBS_DECL int AmigaJoyDisabled AMIGA_STUBS_INIT(0);
  * registered or processed at all. */
 AMIGA_STUBS_DECL int AmigaMouseDisabled AMIGA_STUBS_INIT(0);
 
+/* ahi.device unit used by the game's AHI sound output, selected with the
+ * AHIUNIT keyword (CLI "-ahiunit=<n>" / icon ToolType "AHIUNIT=<n>",
+ * parsed by RAP_ParseAHIUnit() in rap.cpp). Valid range: 0..254; default 0.
+ * Kept separate from g_AmigaAudio because that structure is memset() to
+ * zero during audio initialization (SDL_CloseAudio). */
+AMIGA_STUBS_DECL ULONG AmigaAhiUnit AMIGA_STUBS_INIT(0);
+
 /* Shared joystick state polled in SDL_PumpEvents and read by controller APIs. */
 AMIGA_STUBS_DECL ULONG AmigaJoyState AMIGA_STUBS_INIT(0);
 
@@ -2183,7 +2190,11 @@ static inline void AmigaAudio_TaskEntry(void)
     }
 
     {
-        BYTE odErr = OpenDevice((CONST_STRPTR)AHINAME, AHI_DEFAULT_UNIT,
+        BYTE odErr;
+
+        AmigaLog("AHI: opening ahi.device unit %lu",
+                 (unsigned long)AmigaAhiUnit);
+        odErr = OpenDevice((CONST_STRPTR)AHINAME, (ULONG)AmigaAhiUnit,
                                 (struct IORequest *)g_AmigaAudio.req[0], 0);
         if (odErr != 0)
         {

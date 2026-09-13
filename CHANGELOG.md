@@ -8,6 +8,9 @@ Test-branch work (`test/mhi-warp-4buf`); newer than and unreleased since
 0.9.9-rc.2.
 
 ### Added
+- Optional `AHIUNIT=0|1|2|3` ToolType / CLI parameter (`-ahiunit=N`)
+  selects the ahi.device unit used for the game's AHI sound output.
+  The default remains AHI unit 0; invalid values fall back to unit 0.
 - MNT ZZ9000 / ZZ9000AX MHI driver recognition via
   `LIBS:MHI/mhizz9000.library`, contributed by @midwan (PR #3). The
   opened driver is classified and reported as "MNT ZZ9000" in the

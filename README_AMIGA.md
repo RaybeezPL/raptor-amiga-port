@@ -468,6 +468,19 @@ accepted. Parameters may be combined in any order.
                 "-mhidriver=mhiprisma.library" or
                 "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
+    -ahiunit=N   Selects the ahi.device unit used by Raptor's sound
+                effects output (default is Unit 0, which preserves
+                all previous Raptor behavior). N may be 0, 1, 2 or 3
+                - the normal ahi.device units exposed by AHI. Users
+                with multiple AHI unit configurations or audio
+                hardware can select another configured AHI unit,
+                e.g. "raptor -ahiunit=1". Only the ahi.device output
+                used by Raptor is affected; MHI, CAMD and the music
+                backend selection are independent. Invalid values
+                (empty, non-numeric or out of range, e.g. AHIUNIT=4)
+                fall back to Unit 0. The dashless form "AHIUNIT=1"
+                also works.
+
     -mouse=ON|OFF
                 Enables or disables the mouse input device. OFF (or
                 the legacy -nomouse) disables all mouse handling:
@@ -576,6 +589,7 @@ Workbench. Parameters are passed via icon ToolTypes:
       (NOMOUSE)
       JOYSTICK=OFF
       (NOJOY)
+      AHIUNIT=1
 
    A ToolType enclosed in parentheses is INACTIVE (ignored by the
    game) - this is a convenient way to keep an option in the icon
