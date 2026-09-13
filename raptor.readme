@@ -1,0 +1,102 @@
+Short:        Raptor: Call of the Shadows
+Author:       Marcin Bednarczyk "Raybeez"
+Uploader:     Marcin Bednarczyk <cichy cichy com pl>
+Type:         game/shoot
+Version:      0.9.9-rc.2
+Requires:     ahi.device, RTG (Picasso96 or CyberGraphX) or AGA
+Architecture: m68k-amigaos >= 3.1
+Distribution: Aminet
+Replaces:     game/shoot/raptor-0.9.9-rc.1.lha
+
+AmigaOS 3.x port of Raptor: Call of the Shadows, a classic 2D vertical
+scrolling shooter. This port is based on the open-source reverse-engineered
+codebase by skynettx/raptor and targets 68030/68060-class Amiga systems
+with RTG graphics (Picasso96 / CyberGraphX) or native AGA.
+
+This release replaces 0.9.9-rc.1. The archive is now distributed as
+raptor.lha so future Aminet updates can replace the same archive name.
+
+What's new in 0.9.9-rc.2:
+
+- AGA: VIDEO=NTSC is now honored by the native display path, allowing the
+  game to use the native NTSC mode where requested.
+- MHI: restored 8 x 32 KB streaming buffers (256 KB total) for improved
+  compatibility and playback stability.
+- MHI: improved shutdown safety so stream buffers are not freed while the
+  feeder task is still running.
+- MHI: the 4-second playback watchdog now applies only to non-looping songs,
+  preventing looping tracks from being stopped on drivers that do not
+  generate regular traffic signals.
+- MHI: real IoErr() values are preserved when opening MP3 files fails,
+  improving diagnostics.
+- MHI: ID3v2.3, ID3v2.4 and trailing ID3v1 metadata are skipped before MP3
+  data is sent to the hardware decoder.
+- MHI: expanded driver discovery with an explicit mhiamiblaster.library
+  candidate and clearer classification/logging of the driver actually opened.
+  Prisma MegaMix has been verified on real hardware; other MHI driver
+  families still require hardware-specific validation.
+- Startup: Raptor now requests a minimum 65536-byte main-process stack via
+  the native libnix startup mechanism before main(). CLI users no longer
+  need to enter "Stack 65536" manually. Larger Shell/Workbench stacks are
+  preserved unchanged.
+
+The game renders in a fixed 320x200, 8-bit paletted mode on a dedicated
+screen. Four native m68k binaries are provided:
+
+- raptor         : 68060 with FPU (recommended)
+- raptor_nofpu   : 68060/68EC060/68LC060 soft-float
+- raptor_030_fpu : 68030 with external 68881/68882 FPU
+- raptor_030     : 68030 soft-float
+
+Sound effects are played through AHI (ahi.device) at the native 11025 Hz
+16-bit stereo rate. Music can be played via several backends:
+
+- ADLIB  : lightweight OPL3 emulation (mixed into the AHI stream)
+- CAMD   : General MIDI via camd.library (external synth / software synth)
+- MHI    : MP3 music via hardware decoder
+- WAVE   : pre-decoded WAV files mixed into the AHI stream
+
+For MHI, Raptor first tries its explicit driver candidates (including Prisma
+MegaMix, Amiblaster, Prelude/MPEG-it!, MAS Player, ArmedWarp and the
+mpeg.device bridge), while preserving the MHIDRIVER= override and fallback
+scan of LIBS:MHI/#?.library.
+
+No music backend is enabled by default; enable explicitly with MUSIC=ADLIB,
+MUSIC=CAMD, MUSIC=MHI or MUSIC=WAVE.
+
+Graphics can be selected with GFX=AUTO|RTG|AGA. The RTG path uses either
+Picasso96 or CyberGraphX, trying P96 first, then CGX, then a fallback
+320x240x8 mode with letterbox on cards lacking 320x200. The AGA path uses
+a custom chunky-to-planar converter. VIDEO=NTSC can be used with the native
+AGA path to request the NTSC display mode.
+
+Keyboard, mouse and joystick/CD32 pad input work simultaneously. Workbench
+icon ToolTypes are supported (GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, etc.).
+Persistent audio volumes are stored in amiga.cfg in the game directory.
+
+This is release candidate 0.9.9-rc.2. The current RC2 build has been tested
+on real Amiga hardware with Prisma MegaMix MHI playback, including intro,
+menu, attract demo, gameplay, level changes and song changes. The automatic
+65536-byte stack path was also verified on real hardware, and a pre-existing
+131072-byte Shell stack was preserved unchanged.
+
+Full gameplay has also been tested on real hardware including A2000 with
+CyberVision 64/3D, A1200 with PiStorm/Emu68 and A4000 with Picasso IV, as
+well as in WinUAE.
+
+This project is an AI collaboration: development and documentation were
+assisted by AI tools, with final decisions, testing and integration done
+by the author.
+
+Original game data files (full v1.2) are required and not included.
+See README_AMIGA.md inside the archive for detailed setup, controls,
+parameters and troubleshooting.
+
+Project homepage and sources:
+https://github.com/RaybeezPL/raptor-amiga-port
+
+Upstream project (reverse-engineered Raptor engine):
+https://github.com/skynettx/raptor
+
+License (GPL v2):
+https://github.com/RaybeezPL/raptor-amiga-port/blob/main/LICENSE
