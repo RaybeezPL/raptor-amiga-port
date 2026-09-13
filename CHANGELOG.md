@@ -3,13 +3,57 @@
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
 ## [Unreleased]
+
+Test-branch work (`test/mhi-warp-4buf`); newer than and unreleased since
+0.9.9-rc.2.
+
 ### Added
-- MHI driver auto-detection now includes an explicit
-  `LIBS:MHI/mhizz9000.library` candidate (MNT ZZ9000 with the ZZ9000AX
-  hardware MP3 decoder daughterboard, after mhimdev.library in the
-  candidate order). The opened driver is classified and reported as
-  "MNT ZZ9000" in the startup log. The `MHIDRIVER=` override is
-  preserved.
+- MNT ZZ9000 / ZZ9000AX MHI driver recognition via
+  `LIBS:MHI/mhizz9000.library`, contributed by @midwan (PR #3). The
+  opened driver is classified and reported as "MNT ZZ9000" in the
+  startup log; it is supported/recognized by the code but has not yet
+  been verified on real hardware.
+
+### Changed
+- Case-insensitive MHI driver resolution for drivers located in
+  `LIBS:MHI/`, for both the `MHIDRIVER=` override and the automatic
+  default driver list. The requested path is first tried exactly as
+  supplied; if `OpenLibrary()` fails and the driver is expected in
+  `LIBS:MHI/`, the game scans `LIBS:MHI/#?.library`, compares the
+  requested basename with the real filename returned by AmigaDOS
+  case-insensitively, and retries `OpenLibrary()` using that exact
+  filename. The successfully resolved real path is retained as the
+  opened driver path (e.g. `MHIDRIVER=mhiArmedWarp.library` resolves
+  to `LIBS:MHI/mhiArmedWARP.library`).
+- MHI MP3 streaming buffers changed to 4 x 32 KB (128 KB total, ~8 s
+  at 128 kbit/s); the preload/refill architecture is otherwise
+  unchanged.
+- AHI callback buffer policy: 1024 frames (~93 ms at 11025 Hz) for
+  MUSIC=ADLIB and MUSIC=MHI, and 512 frames (~46 ms) for MUSIC=CAMD,
+  MUSIC=WAVE, MUSIC=OFF and -nomusic. The larger buffer provides
+  additional scheduling/underrun headroom; for MUSIC=ADLIB it also
+  covers OPL3 rendering inside the AHI callback. The 1024-frame policy
+  was verified successfully with Prisma Megamix on real hardware. This
+  changes callback/buffer granularity only, not the number of audio
+  frames processed per second.
+
+### Fixed
+- Clearer MHI initialization diagnostics with distinct negative
+  stages: -1 = MHI driver signal allocation failed, -2 = command
+  signal allocation failed, -3 = no MHI driver library could be
+  opened, -4 = an MHI library opened but `MHIAllocDecoder()` failed.
+  The old ambiguous stage -3 reporting has been removed.
+
+### Testing / status
+- MUSIC=WAVE: retested successfully in WinUAE after the buffer-policy
+  change; WAVE remains at 512 frames.
+- MUSIC=MHI with Prisma Megamix: retested successfully on real
+  hardware with the new 1024-frame AHI/SFX buffer.
+- Armed WARP MHI driver: MHI initialization and MP3 playback confirmed
+  on real hardware.
+- The new 1024-frame AHI/SFX buffer policy has not yet been retested on
+  every MHI card; other MHI hardware still benefits from further
+  real-hardware verification.
 
 
 ## [0.9.9-rc.2] - 2026-09-09

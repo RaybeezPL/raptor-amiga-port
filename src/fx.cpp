@@ -181,11 +181,12 @@ int SND_InitSound(void)
     spec.format = AUDIO_S16SYS;
     spec.channels = 2;
     /* Buffer runway per AHI buffer at 11025 Hz: 512 frames ~= 46 ms,
-     * 1024 frames ~= 93 ms. ADLIB/OPL3 music keeps the audio task busy
-     * with dbopl rendering, so give it the larger buffer as underrun
-     * headroom. CAMD MIDI and -nomusic keep 512: no OPL rendering there,
-     * and SFX latency stays lower. */
-    spec.samples = (g_music_mode == MUSIC_MODE_ADLIB && !g_nomusic) ? 1024 : 512;
+     * 1024 frames ~= 93 ms. ADLIB and MHI use 1024 frames for extra
+     * scheduling/underrun headroom. Other modes use 512 frames. */
+    spec.samples =
+        ((g_music_mode == MUSIC_MODE_ADLIB || g_music_mode == MUSIC_MODE_MHI) && !g_nomusic)
+            ? 1024
+            : 512;
     spec.callback = FX_Fill;
     spec.userdata = NULL;
 

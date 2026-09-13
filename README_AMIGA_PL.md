@@ -168,14 +168,28 @@ Dźwięk (AHI + CAMD + MHI)
 Efekty dźwiękowe i muzyka korzystają z dwóch niezależnych, natywnych
 podsystemów Amigi:
 
-   Efekty dźwiękowe: AHI (ahi.device), 11025 Hz, 16-bit stereo —
-                    natywna częstotliwość próbkowania sampli gry —
-                    odtwarzane przez standardowy, podwójnie buforowany
-                    interfejs device przez dedykowany audio task. AHI v4+
-                    musi być zainstalowane (pakiet AHI user, dostępny
-                    bezpłatnie w Aminet). Działa każda karta dźwiękowa
-                    zgodna z AHI, podobnie jak wbudowany Paula przez
-                    tryb audio AHI.
+    Efekty dźwiękowe: AHI (ahi.device), 11025 Hz, 16-bit stereo —
+                     natywna częstotliwość próbkowania sampli gry —
+                     odtwarzane przez standardowy, podwójnie buforowany
+                     interfejs device przez dedykowany audio task.
+                     Rozmiar bufora callbacku AHI zależy od wybranego
+                     backendu muzyki: MUSIC=ADLIB oraz MUSIC=MHI używają
+                     1024 ramek (~93 ms przy 11025 Hz); MUSIC=CAMD,
+                     MUSIC=WAVE, MUSIC=OFF oraz -nomusic używają
+                     512 ramek (~46 ms). Większy bufor zapewnia
+                     dodatkowy zapas na scheduling/underrun; dla
+                     MUSIC=ADLIB obejmuje to obciążenie callbacku
+                     renderowaniem OPL3, a przy MUSIC=MHI bufor
+                     1024 ramek wybrano jako dodatkowy zapas na
+                     scheduling/underrun i zweryfikowano go pomyślnie
+                     z Prisma Megamix na prawdziwym sprzęcie.
+                     Zmienia to wyłącznie
+                     granularność callbacku/bufora — liczba ramek audio
+                     przetwarzanych na sekundę pozostaje bez zmian.
+                     AHI v4+ musi być zainstalowane (pakiet AHI user,
+                     dostępny bezpłatnie w Aminet). Działa każda karta
+                     dźwiękowa zgodna z AHI, podobnie jak wbudowany
+                     Paula przez tryb audio AHI.
 
    Muzyka:          Domyślnie żaden backend muzyki nie jest włączony.
                     Jeżeli nie podano opcji MUSIC=, Raptor używa MUSIC=OFF
@@ -234,20 +248,27 @@ podsystemów Amigi:
                     (mhimpegit.library), MAS Player
                     (mhimaspro/mhimasstd.library), ArmedWarp
                     (mhiArmedWarp.library), hardware mpeg.device, np.
-                    Delfina (mhimdev.library) albo MNT ZZ9000 z modułem
-                    ZZ9000AX dekodującym MP3 (mhizz9000.library). Driver
-                    sam dekoduje i wysyła
-                    MP3, dlatego nie ingeruje w strumień AHI używany przez
-                    efekty. Pliki MP3 są strumieniowane przez 8 buforów
-                    po 32 KB (łącznie 256 KB, ~16 s przy 128 kbit/s);
-                    metadane ID3v2.3/ID3v2.4 na początku pliku (w tym
-                    opcjonalny footer ID3v2.4) oraz końcowy blok ID3v1
-                    "TAG" są usuwane przed przekazaniem danych MPEG-audio
-                    do dekodera. Sam plik MP3 nie jest modyfikowany.
-                    Prisma MegaMix to konfiguracja zweryfikowana na
-                    prawdziwym sprzęcie; pozostałe rodziny driverów są
-                    rozpoznawane przez auto-detekcję, ale nie były
-                    fizycznie testowane w tym wydaniu.
+                     Delfina (mhimdev.library) albo MNT ZZ9000 z modułem
+                     ZZ9000AX dekodującym MP3 (mhizz9000.library). Driver
+                     sam dekoduje i wysyła
+                     MP3, dlatego nie ingeruje w strumień AHI używany przez
+                     efekty. Pliki MP3 są strumieniowane przez 4 bufory
+                     po 32 KB (łącznie 128 KB, ~8 s przy 128 kbit/s);
+                     metadane ID3v2.3/ID3v2.4 na początku pliku (w tym
+                     opcjonalny footer ID3v2.4) oraz końcowy blok ID3v1
+                     "TAG" są usuwane przed przekazaniem danych MPEG-audio
+                     do dekodera. Sam plik MP3 nie jest modyfikowany.
+                     Konfiguracje zweryfikowane na prawdziwym sprzęcie:
+                     Prisma MegaMix (mhiprisma.library, w tym nowy bufor
+                     AHI/SFX 1024 ramki) oraz Armed WARP
+                     (mhiArmedWARP.library — potwierdzona inicjalizacja
+                     MHI i odtwarzanie MP3). MNT ZZ9000 / ZZ9000AX jest
+                     rozpoznawany przez kod i raportowany jako "MNT
+                     ZZ9000", ale nie został jeszcze zweryfikowany na
+                     prawdziwym sprzęcie; pozostałe rodziny driverów są
+                     rozpoznawane wyłącznie przez auto-detekcję, a
+                     dalsze testy na dodatkowym sprzęcie MHI są nadal
+                     przydatne.
 
                     Wewnątrz katalogu gry utwórz drawer o nazwie "MP3" i
                     skopiuj do niego pliki MP3 ze ścieżki dźwiękowej. Każdy
@@ -297,15 +318,31 @@ podsystemów Amigi:
                     (fragment tytułu -> utwór w grze) opisano w
                     src/mpumhi.cpp (mhi_song_map).
 
-                    Gra automatycznie wybiera driver: próbuje kolejno
-                    mhiprisma.library, mhiamiblaster.library,
-                    mhimpegit.library, mhimaspro.library,
-                    mhimasstd.library, mhiArmedWarp.library,
-                    mhimdev.library, mhizz9000.library, a następnie
-                    skanuje LIBS:MHI/
-                    w poszukiwaniu innych zainstalowanych driverów.
-                    Parametr MHIDRIVER= (np. -mhidriver=mhimaspro.library)
-                    wymusza użycie konkretnego drivera. Otwarty driver jest
+                     Gra automatycznie wybiera driver: próbuje kolejno
+                     mhiprisma.library, mhiamiblaster.library,
+                     mhimpegit.library, mhimaspro.library,
+                     mhimasstd.library, mhiArmedWARP.library,
+                     mhimdev.library, mhizz9000.library, a następnie
+                     skanuje LIBS:MHI/
+                     w poszukiwaniu innych zainstalowanych driverów.
+                     Parametr MHIDRIVER= (np. -mhidriver=mhimaspro.library)
+                     wymusza użycie konkretnego drivera. Rozpoznawanie
+                     driverów jest case-insensitive dla driverów
+                     znajdujących się w LIBS:MHI/ — zarówno dla
+                     nadpisania MHIDRIVER=, jak i dla automatycznej
+                     domyślnej listy driverów. Żądana ścieżka jest
+                     najpierw sprawdzana dokładnie w podanej postaci;
+                     jeżeli OpenLibrary() zawiedzie, a driver jest
+                     oczekiwany w LIBS:MHI/, gra skanuje
+                     LIBS:MHI/#?.library, porównuje żądaną nazwę bazową
+                     z rzeczywistą nazwą pliku zwróconą przez AmigaDOS
+                     bez uwzględniania wielkości liter i ponawia
+                     OpenLibrary() z użyciem dokładnej nazwy zwróconej
+                     przez AmigaDOS. Pomyślnie rozpoznana rzeczywista
+                     ścieżka jest zachowywana jako ścieżka otwartego
+                     drivera. Przykład: MHIDRIVER=mhiArmedWarp.library
+                     może zostać rozpoznany jako
+                     LIBS:MHI/mhiArmedWARP.library. Otwarty driver jest
                     klasyfikowany na podstawie ścieżki biblioteki
                     (dopasowanie podciągu bez uwzględniania wielkości
                     liter) i raportowany w logu startowym, np. "MHI:
@@ -318,9 +355,19 @@ podsystemów Amigi:
                     przełącza się automatycznie na inny backend muzyki.
                     W razie potrzeby wybierz jawnie MUSIC=ADLIB,
                     MUSIC=CAMD, MUSIC=WAVE lub MUSIC=OFF. Uwaga: dla
-                    klasycznych komputerów 68k nie istnieje software-only
-                    MHI decoder — MUSIC=MHI wymaga jednego z opisanych
-                    wyżej hardware decoders.
+                     klasycznych komputerów 68k nie istnieje software-only
+                     MHI decoder — MUSIC=MHI wymaga jednego z opisanych
+                     wyżej hardware decoders.
+
+                     Jeżeli inicjalizacja MHI zawiedzie, log startowy
+                     raportuje wyraźny ujemny etap inicjalizacji:
+                     etap -1 = nie udała się alokacja sygnału drivera MHI;
+                     etap -2 = nie udała się alokacja sygnału poleceń;
+                     etap -3 = nie udało się otworzyć żadnej biblioteki
+                     drivera MHI;
+                     etap -4 = biblioteka MHI została otwarta, ale
+                     MHIAllocDecoder() zawiodło. Dawna niejednoznaczność
+                     etapu -3 została usunięta.
 
     Muzyka (WAVE):   Parametr MUSIC=WAVE odtwarza soundtrack jako
                      predekodowane pliki WAV z drawera o nazwie "WAVE"
@@ -715,10 +762,14 @@ Znane ograniczenia
   komputerów 68k nie ma software-only MHI decodera; jeśli MHI driver
   nie może zostać otwarty, muzyka przechodzi na MUSIC=OFF (efekty
   dźwiękowe pozostają aktywne). Utwory, których pliku MP3 brakuje
-  w drawerze MP3/, pozostają celowo ciche. Prisma MegaMix to
-  konfiguracja zweryfikowana na prawdziwym sprzęcie; pozostałe rodziny
-  driverów są rozpoznawane przez auto-detekcję, ale nie były fizycznie
-  testowane w tym wydaniu.
+  w drawerze MP3/, pozostają celowo ciche. Prisma MegaMix oraz
+  Armed WARP to konfiguracje zweryfikowane na prawdziwym sprzęcie
+  (inicjalizacja MHI i odtwarzanie MP3); MNT ZZ9000 / ZZ9000AX
+  (mhizz9000.library, raportowany jako "MNT ZZ9000") jest rozpoznawany
+  przez kod, ale nie został jeszcze zweryfikowany na prawdziwym
+  sprzęcie, a pozostałe rodziny driverów są rozpoznawane wyłącznie
+  przez auto-detekcję. Dalsze testy na dodatkowym sprzęcie MHI są
+  nadal przydatne.
 - Głośność muzyki i efektów zmieniana w menu opcji jest zapisywana do
   amiga.cfg w katalogu gry (pliku tworzonego przy pierwszym uruchomieniu)
   i przywracana przy kolejnym starcie. Każdy backend muzyki ma własny
@@ -746,8 +797,15 @@ Testowane konfiguracje
   przetestowana pomyślnie na tym komputerze, a istniejący stos
   Shella 131072 bajtów został zachowany; testowano przez intro ->
   menu -> attract demo -> gameplay -> zmiany poziomów/utworów.
-  Prisma MHI pokazała 8 buforów w kolejce/wstępnie załadowanych
-  i działała normalnie.
+  MUSIC=MHI z Prisma Megamix zostało pomyślnie przetestowane ponownie
+  na tym komputerze z nowym buforem AHI/SFX 1024 ramki (wcześniejsza
+  obserwacja „8 buforów w kolejce” pochodzi sprzed obecnej
+  konfiguracji strumieniowania MHI 4 x 32 KB).
+- MHI driver Armed WARP (mhiArmedWARP.library): potwierdzona
+  inicjalizacja drivera MHI oraz odtwarzanie MP3 na prawdziwym
+  sprzęcie.
+- MUSIC=WAVE przetestowano pomyślnie ponownie w WinUAE po zmianie
+  polityki buforów AHI (WAVE pozostaje przy 512 ramkach).
 - Amiga 4000 z 68060 50 MHz, Picasso IV i AGA — przetestowano
   WAVE, MIDI/CAMD oraz MHI.
 - WinUAE z konfiguracjami 68030 i 68060, z FPU i bez FPU,
@@ -772,6 +830,9 @@ Autorzy i kontakt
 
    Szczególne podziękowania dla wszystkich użytkowników Amigi,
    którzy podtrzymują scenę przy życiu.
+
+   Podziękowanie dla współtwórcy: @midwan — rozpoznanie MHI drivera
+   MNT ZZ9000 / ZZ9000AX (LIBS:MHI/mhizz9000.library), GitHub PR #3.
 
 
 Licencja i podziękowania

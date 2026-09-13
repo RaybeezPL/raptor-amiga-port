@@ -165,8 +165,21 @@ Sound effects and music use two separate, native Amiga subsystems:
    Sound effects:  AHI (ahi.device), 11025 Hz 16-bit stereo - the
                    native rate of the game's samples - played through
                    the standard double-buffered device interface by a
-                   dedicated audio task. AHI v4+ must be installed
-                   (AHI user package, freely available on Aminet). Any
+                   dedicated audio task. The AHI callback buffer size
+                   depends on the selected music backend:
+                   MUSIC=ADLIB and MUSIC=MHI use 1024 frames
+                   (~93 ms at 11025 Hz); MUSIC=CAMD, MUSIC=WAVE,
+                   MUSIC=OFF and -nomusic use 512 frames (~46 ms).
+                   The larger buffer provides additional
+                   scheduling/underrun headroom; for MUSIC=ADLIB it
+                   also covers the OPL3 rendering workload inside the
+                   callback, and with MUSIC=MHI the 1024-frame buffer
+                   was verified successfully with Prisma Megamix on
+                   real hardware. This changes callback/buffer
+                   granularity only - the number of audio frames
+                   processed per second is unchanged. AHI v4+ must be
+                   installed (AHI user package, freely available on
+                   Aminet). Any
                    AHI-capable sound card works, as does the built-in
                    Paula through an AHI audio mode.
 
@@ -227,19 +240,26 @@ Sound effects and music use two separate, native Amiga subsystems:
                    (mhiArmedWarp.library), mpeg.device hardware
                    like the Delfina (mhimdev.library) or the MNT ZZ9000
                    with the ZZ9000AX MP3 decoder daughterboard
-                   (mhizz9000.library). The driver
-                   decodes and outputs the MP3 by itself, so it does
-                   not touch the AHI stream used by the sound effects.
-                   MP3 files are streamed through 8 x 32 KB buffers
-                   (256 KB total, ~16 s at 128 kbit/s); ID3v2.3/ID3v2.4
-                   metadata at the start of a file (including an
-                   optional ID3v2.4 footer) and a trailing ID3v1 "TAG"
-                   block are stripped before the MPEG-audio data is
-                   queued to the decoder. The MP3 file itself is not
-                   modified. Prisma MegaMix is the real-hardware
-                   verified configuration; the other driver families
-                   are recognized by the auto-detection but were not
-                   physically tested for this release.
+                    (mhizz9000.library). The driver
+                    decodes and outputs the MP3 by itself, so it does
+                    not touch the AHI stream used by the sound effects.
+                    MP3 files are streamed through 4 x 32 KB buffers
+                    (128 KB total, ~8 s at 128 kbit/s); ID3v2.3/ID3v2.4
+                    metadata at the start of a file (including an
+                    optional ID3v2.4 footer) and a trailing ID3v1 "TAG"
+                    block are stripped before the MPEG-audio data is
+                    queued to the decoder. The MP3 file itself is not
+                    modified. Real-hardware verified configurations:
+                    Prisma MegaMix (mhiprisma.library, including the
+                    new 1024-frame AHI/SFX buffer) and Armed WARP
+                    (mhiArmedWARP.library - MHI initialization and MP3
+                    playback confirmed). MNT ZZ9000 / ZZ9000AX is
+                    recognized by the code and reported as "MNT
+                    ZZ9000" but has not been verified on real
+                    hardware; the remaining driver families are
+                    recognized by the auto-detection only, and further
+                    real-hardware testing on additional MHI hardware
+                    is still useful.
 
                    Create a drawer named "MP3" inside the game
                    directory and copy the MP3 soundtrack files into
@@ -287,15 +307,28 @@ Sound effects and music use two separate, native Amiga subsystems:
                    fragment -> in-game song) is documented in
                    src/mpumhi.cpp (mhi_song_map).
 
-                   The game picks the driver automatically: it tries
-                   mhiprisma.library, mhiamiblaster.library,
-                   mhimpegit.library, mhimaspro.library,
-                   mhimasstd.library, mhiArmedWarp.library,
-                   mhimdev.library, mhizz9000.library, then scans
-                   LIBS:MHI/ for any other
-                   installed driver. The MHIDRIVER= parameter (e.g.
-                   -mhidriver=mhimaspro.library) forces a specific
-                   driver. The opened driver is classified by its
+                    The game picks the driver automatically: it tries
+                    mhiprisma.library, mhiamiblaster.library,
+                    mhimpegit.library, mhimaspro.library,
+                    mhimasstd.library, mhiArmedWARP.library,
+                    mhimdev.library, mhizz9000.library, then scans
+                    LIBS:MHI/ for any other
+                    installed driver. The MHIDRIVER= parameter (e.g.
+                    -mhidriver=mhimaspro.library) forces a specific
+                    driver. Driver resolution is case-insensitive for
+                    drivers located in LIBS:MHI/ - both for the
+                    MHIDRIVER= override and for the automatic/default
+                    driver list. The requested path is first tried
+                    exactly as supplied; if OpenLibrary() fails and
+                    the driver is expected in LIBS:MHI/, the game
+                    scans LIBS:MHI/#?.library, compares the requested
+                    basename with the real filename returned by
+                    AmigaDOS case-insensitively, and retries
+                    OpenLibrary() using that exact filename. The
+                    successfully resolved real path is retained as the
+                    opened driver path. Example:
+                    MHIDRIVER=mhiArmedWarp.library can resolve to
+                    LIBS:MHI/mhiArmedWARP.library. The opened driver is classified by its
                    library path (case-insensitive substring match) and
                    reported in the startup log, e.g. "MHI: decoder
                    driver '...' (LIBS:MHI/mhiprisma.library) [Prisma
@@ -306,9 +339,18 @@ Sound effects and music use two separate, native Amiga subsystems:
                    continue normally. Raptor does not automatically
                    switch to another music backend. Select MUSIC=ADLIB,
                    MUSIC=CAMD, MUSIC=WAVE or MUSIC=OFF explicitly if
-                   required. Note: there is no software-only MHI
-                   decoder for classic 68k machines - MUSIC=MHI needs
-                   one of the hardware decoders above.
+                    required. Note: there is no software-only MHI
+                    decoder for classic 68k machines - MUSIC=MHI needs
+                    one of the hardware decoders above.
+
+                    If MHI initialization fails, the startup log
+                    reports a distinct negative init stage:
+                    stage -1 = MHI driver signal allocation failed;
+                    stage -2 = command signal allocation failed;
+                    stage -3 = no MHI driver library could be opened;
+                    stage -4 = an MHI library opened, but
+                    MHIAllocDecoder() failed. The old ambiguous
+                    stage -3 reporting has been removed.
 
     Music (WAVE):  The MUSIC=WAVE parameter plays the soundtrack as
                     pre-decoded WAV files from a drawer named "WAVE"
@@ -713,10 +755,13 @@ Known Limitations
   software-only MHI decoder for classic 68k machines; if the MHI
   driver cannot be opened, music switches to MUSIC=OFF (sound
   effects stay enabled). Songs whose MP3 file is missing from the
-  MP3/ drawer stay silent by design. Prisma MegaMix is the
-  real-hardware verified configuration; the other driver families
-  are recognized by the auto-detection but were not physically
-  tested for this release.
+  MP3/ drawer stay silent by design. Prisma MegaMix and Armed WARP
+  are the real-hardware verified configurations (MHI initialization
+  and MP3 playback); MNT ZZ9000 / ZZ9000AX (mhizz9000.library,
+  reported as "MNT ZZ9000") is recognized by the code but not yet
+  verified on real hardware, and the other driver families are
+  recognized by the auto-detection only. Further real-hardware
+  testing on additional MHI hardware is still useful.
 - Music and sound-effect volumes changed in the in-game options menu
   are saved to amiga.cfg in the game directory (created on first run)
   and restored on the next start. Each music backend has its own
@@ -743,8 +788,15 @@ Tested configurations
   and Prisma MegaMix. The automatic 65536-byte main-process stack
   path was tested successfully on this machine, and an existing
   131072-byte Shell stack was preserved; tested through intro ->
-  menu -> attract demo -> gameplay -> level/song changes. Prisma
-  MHI showed 8 buffers queued/preloaded and operated normally.
+  menu -> attract demo -> gameplay -> level/song changes. MUSIC=MHI
+  with Prisma Megamix was retested successfully on this machine
+  with the new 1024-frame AHI/SFX buffer (the earlier "8 buffers
+  queued" observation predates the current 4 x 32 KB MHI streaming
+  configuration).
+- Armed WARP MHI driver (mhiArmedWARP.library): MHI driver
+  initialization and MP3 playback confirmed on real hardware.
+- MUSIC=WAVE retested successfully in WinUAE after the AHI
+  buffer-policy change (WAVE remains at 512 frames).
 - Amiga 4000 with 68060 at 50 MHz, Picasso IV and AGA; WAVE
   music, MIDI/CAMD and MHI tested.
 - WinUAE with 68030 and 68060 configurations, with and without
@@ -768,6 +820,9 @@ Credits & Contact
    GitHub Repository:  https://github.com/RaybeezPL/raptor-amiga-port
 
    Special thanks to all Amiga users keeping the scene alive.
+
+   Contributor credit: @midwan - MNT ZZ9000 / ZZ9000AX MHI driver
+   recognition (LIBS:MHI/mhizz9000.library), GitHub PR #3.
 
 
 

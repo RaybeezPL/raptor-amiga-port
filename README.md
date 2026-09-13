@@ -73,11 +73,19 @@ Working:
   MHI or WAVE music backend — enable music explicitly with
   `MUSIC=ADLIB`, `MUSIC=MHI`, `MUSIC=CAMD` or `MUSIC=WAVE` (CLI:
   `-music=CAMD`; icon ToolType: `MUSIC=CAMD`). MHI streams MP3 files
-  through 8 x 32 KB buffers (256 KB total), strips ID3v2/ID3v1
+  through 4 x 32 KB buffers (128 KB total), strips ID3v2/ID3v1
   metadata before decoding, and recognizes the Prisma MegaMix,
   Amiblaster, Prelude/MPEGit, MAS Player, ArmedWarp, mpeg.device and
-  MNT ZZ9000 driver families (Prisma MegaMix is the real-hardware
-  verified configuration)
+  MNT ZZ9000 driver families. Prisma MegaMix and Armed WARP are
+  real-hardware verified configurations (MHI initialization and MP3
+  playback); MNT ZZ9000 / ZZ9000AX is recognized via
+  `LIBS:MHI/mhizz9000.library` and reported as "MNT ZZ9000".
+  `MHIDRIVER=` and driver auto-detection are case-insensitive for
+  drivers in `LIBS:MHI/`: the requested path is tried first, then the
+  `LIBS:MHI/#?.library` scan matches basenames case-insensitively and
+  opens the driver under its exact filename (e.g.
+  `MHIDRIVER=mhiArmedWarp.library` can resolve to
+  `LIBS:MHI/mhiArmedWARP.library`)
 - **`MOUSE=ON|OFF`** / **`NOMOUSE`** and **`JOYSTICK=ON|OFF`** / **`NOJOY`**
   parameters — enable/disable the mouse and joystick input devices (CLI:
   `-mouse=off`, `-nomouse`, `-joystick=off`, `-nojoy`; icon ToolTypes:
@@ -99,7 +107,12 @@ Working:
   but unavailable (no silent fallback to AGA)
 - **Sound effects through AHI** (ahi.device): 11025 Hz 16-bit stereo -
   the native rate of the game's samples - streamed by a dedicated audio
-  task using the canonical double-buffered CMD_WRITE scheme
+  task using the canonical double-buffered CMD_WRITE scheme. The AHI
+  callback buffer is 1024 frames (~93 ms at 11025 Hz) with
+  `MUSIC=ADLIB` or `MUSIC=MHI` for additional scheduling/underrun
+  headroom, and 512 frames (~46 ms) with `MUSIC=CAMD`, `MUSIC=WAVE`,
+  `MUSIC=OFF` or `-nomusic`. This changes callback/buffer granularity
+  only, not the number of audio frames processed per second
 - **Music: no backend enabled by default** — without a `MUSIC=` option
   Raptor uses `MUSIC=OFF` and initializes no music backend; enable
   music explicitly with `MUSIC=ADLIB` (lightweight DOSBox dbopl OPL3
