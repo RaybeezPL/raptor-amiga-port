@@ -564,8 +564,10 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
                 : NULL;
 #if defined(__mc68030__)
         Amiga_C2P_InitLut();
-#endif
+        AmigaLog("[VIDEO] blit path: custom 68030 LUT C2P -> bitplanes");
+#else
         AmigaLog("[VIDEO] blit path: custom AGA C2P -> bitplanes");
+#endif
         return AmigaGameScreen;
     }
 
