@@ -15,11 +15,11 @@ from the matching release tag in this repository:
 
 https://github.com/RaybeezPL/raptor-amiga-port
 
-For release 0.9.9-rc.2:
+For release 0.9.9-rc.3:
 
-https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.2
+https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.3
 
-Exact source revision for 0.9.9-rc.2:
+Exact source revision for 0.9.9-rc.3:
 
 The exact source revision is the commit referenced by the matching
 release tag.

@@ -59,6 +59,24 @@ Test-branch work (`test/mhi-warp-4buf`); newer than and unreleased since
   real-hardware verification.
 
 
+## [0.9.9-rc.3] - 2026-09-13
+
+### Fixed
+- Amiga: fixed invalid SDL renderer lifetime handling. `SDL_CreateRenderer()`
+  returns a static renderer object, so `SDL_DestroyRenderer()` must not
+  `free()` it.
+- Amiga: the normal shutdown now uses the C runtime `exit()` path after
+  `ShutDown()`, allowing the libnix runtime teardown / swap-stack cleanup
+  to run. This resolved the observed "Process N ending" CLI shutdown hang
+  in repeated Caffeine/PiStorm testing.
+
+### Known issues
+- Caffeine/PiStorm: when Raptor is launched from a Workbench icon, the
+  Workbench menu bar may stop responding to mouse clicks after Raptor
+  exits. Right Amiga + E still works. This has not reproduced on the
+  tested real A2000 / AmigaOS 3.2.3 setup or in WinUAE. Investigation
+  is ongoing.
+
 ## [0.9.9-rc.2] - 2026-09-09
 
 ### Fixed
