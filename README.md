@@ -75,9 +75,9 @@ Working:
   `-music=CAMD`; icon ToolType: `MUSIC=CAMD`). MHI streams MP3 files
   through 8 x 32 KB buffers (256 KB total), strips ID3v2/ID3v1
   metadata before decoding, and recognizes the Prisma MegaMix,
-  Amiblaster, Prelude/MPEGit, MAS Player, ArmedWarp and mpeg.device
-  driver families (Prisma MegaMix is the real-hardware verified
-  configuration)
+  Amiblaster, Prelude/MPEGit, MAS Player, ArmedWarp, mpeg.device and
+  MNT ZZ9000 driver families (Prisma MegaMix is the real-hardware
+  verified configuration)
 - **`MOUSE=ON|OFF`** / **`NOMOUSE`** and **`JOYSTICK=ON|OFF`** / **`NOJOY`**
   parameters — enable/disable the mouse and joystick input devices (CLI:
   `-mouse=off`, `-nomouse`, `-joystick=off`, `-nojoy`; icon ToolTypes:

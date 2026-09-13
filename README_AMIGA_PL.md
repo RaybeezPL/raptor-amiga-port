@@ -233,8 +233,10 @@ podsystemów Amigi:
                     (mhiamiblaster.library), Prelude MPEGit
                     (mhimpegit.library), MAS Player
                     (mhimaspro/mhimasstd.library), ArmedWarp
-                    (mhiArmedWarp.library) albo hardware mpeg.device, np.
-                    Delfina (mhimdev.library). Driver sam dekoduje i wysyła
+                    (mhiArmedWarp.library), hardware mpeg.device, np.
+                    Delfina (mhimdev.library) albo MNT ZZ9000 z modułem
+                    ZZ9000AX dekodującym MP3 (mhizz9000.library). Driver
+                    sam dekoduje i wysyła
                     MP3, dlatego nie ingeruje w strumień AHI używany przez
                     efekty. Pliki MP3 są strumieniowane przez 8 buforów
                     po 32 KB (łącznie 256 KB, ~16 s przy 128 kbit/s);
@@ -299,7 +301,8 @@ podsystemów Amigi:
                     mhiprisma.library, mhiamiblaster.library,
                     mhimpegit.library, mhimaspro.library,
                     mhimasstd.library, mhiArmedWarp.library,
-                    mhimdev.library, a następnie skanuje LIBS:MHI/
+                    mhimdev.library, mhizz9000.library, a następnie
+                    skanuje LIBS:MHI/
                     w poszukiwaniu innych zainstalowanych driverów.
                     Parametr MHIDRIVER= (np. -mhidriver=mhimaspro.library)
                     wymusza użycie konkretnego drivera. Otwarty driver jest

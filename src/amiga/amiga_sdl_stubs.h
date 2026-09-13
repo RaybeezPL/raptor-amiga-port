@@ -121,7 +121,7 @@ AMIGA_STUBS_DECL int AmigaRTGLetterbox AMIGA_STUBS_INIT(0);
  *   AMIGA_BLIT_WCP     - graphics.library WriteChunkyPixels (generic fallback)
  *   AMIGA_BLIT_P96     - p96WritePixelArray(RGBFB_CLUT)    (Picasso96 fast path)
  *   AMIGA_BLIT_CGX     - CGX WritePixelArray(RECTFMT_LUT8) (CyberGraphX fast path)
- *   AMIGA_BLIT_AGA_C2P - custom 68060 chunky->planar C2P into the screen bitmap
+ *   AMIGA_BLIT_AGA_C2P - custom AGA chunky->planar C2P into the screen bitmap
  */
 #define AMIGA_BLIT_WCP      0
 #define AMIGA_BLIT_P96      1
@@ -174,6 +174,11 @@ AMIGA_STUBS_DECL struct Window *AmigaGameWindow AMIGA_STUBS_INIT(NULL);
  * Amiga_BlitScreen skip the per-frame AmigaGameScreen->RastPort.BitMap
  * dereference + Depth==8 check. RTG (P96/CGX) paths never set or read it. */
 AMIGA_STUBS_DECL struct BitMap *AmigaAGABitmap AMIGA_STUBS_INIT(NULL);
+
+#if defined(__mc68030__)
+/* 68030-only nibble-spread C2P lookup table. */
+AMIGA_STUBS_DECL uint32_t AmigaC2PLut[256];
+#endif
 
 /* Pending chunky blit buffer set by SDL_LowerBlit and consumed by SDL_RenderPresent. */
 AMIGA_STUBS_DECL const uint8_t *AmigaPendingChunky AMIGA_STUBS_INIT(NULL);
@@ -427,6 +432,22 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
                                                          int diagnosticBlitMode);
 static inline void Amiga_CloseGameScreen(void);
 
+#if defined(__mc68030__)
+static inline void Amiga_C2P_InitLut(void)
+{
+    int i, b;
+
+    for (i = 0; i < 256; i++) {
+        uint32_t v = 0;
+
+        for (b = 0; b < 8; b++)
+            v |= ((uint32_t)((i >> b) & 1)) << (4 * b);
+
+        AmigaC2PLut[i] = v;
+    }
+}
+#endif
+
 /* Opens the game screen (logical 320x200, 8-bit).
  *
  * GFX mode:
@@ -541,7 +562,12 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
              AmigaGameScreen->RastPort.BitMap->Depth == AMIGA_GAME_DEPTH)
                 ? AmigaGameScreen->RastPort.BitMap
                 : NULL;
-        AmigaLog("[VIDEO] blit path: custom 68060 C2P -> bitplanes");
+#if defined(__mc68030__)
+        Amiga_C2P_InitLut();
+        AmigaLog("[VIDEO] blit path: custom 68030 LUT C2P -> bitplanes");
+#else
+        AmigaLog("[VIDEO] blit path: custom AGA C2P -> bitplanes");
+#endif
         return AmigaGameScreen;
     }
 
@@ -730,6 +756,94 @@ static inline void Amiga_CloseGameScreen(void)
     }
 }
 
+#if defined(__mc68030__)
+static inline void Amiga_C2P_Block32_030(const uint8_t *chunky, uint32_t **planes, int longofs)
+{
+    uint32_t w[8];
+    int i;
+
+    for (i = 0; i < 8; i++) {
+        const uint8_t *p = chunky + (7 - i) * 4;
+
+        w[i] = (AmigaC2PLut[p[0]] << 3)
+             | (AmigaC2PLut[p[1]] << 2)
+             | (AmigaC2PLut[p[2]] << 1)
+             |  AmigaC2PLut[p[3]];
+    }
+
+    /* First stage transpose: swap i0 <-> b0 */
+    {
+        uint32_t t;
+        t = ((w[0] >> 4) ^ w[1]) & 0x0F0F0F0Fu;
+        w[0] ^= t << 4;
+        w[1] ^= t;
+        t = ((w[2] >> 4) ^ w[3]) & 0x0F0F0F0Fu;
+        w[2] ^= t << 4;
+        w[3] ^= t;
+        t = ((w[4] >> 4) ^ w[5]) & 0x0F0F0F0Fu;
+        w[4] ^= t << 4;
+        w[5] ^= t;
+        t = ((w[6] >> 4) ^ w[7]) & 0x0F0F0F0Fu;
+        w[6] ^= t << 4;
+        w[7] ^= t;
+    }
+
+    /* Second stage transpose: swap i1 <-> b1 */
+    {
+        uint32_t t;
+        t = ((w[0] >> 8) ^ w[2]) & 0x00FF00FFu;
+        w[0] ^= t << 8;
+        w[2] ^= t;
+    }
+    {
+        uint32_t t;
+        t = ((w[1] >> 8) ^ w[3]) & 0x00FF00FFu;
+        w[1] ^= t << 8;
+        w[3] ^= t;
+    }
+    {
+        uint32_t t;
+        t = ((w[4] >> 8) ^ w[6]) & 0x00FF00FFu;
+        w[4] ^= t << 8;
+        w[6] ^= t;
+    }
+    {
+        uint32_t t;
+        t = ((w[5] >> 8) ^ w[7]) & 0x00FF00FFu;
+        w[5] ^= t << 8;
+        w[7] ^= t;
+    }
+
+    /* Third stage transpose: swap i2 <-> b2 */
+    {
+        uint32_t t;
+        t = ((w[0] >> 16) ^ w[4]) & 0x0000FFFFu;
+        w[0] ^= t << 16;
+        w[4] ^= t;
+    }
+    {
+        uint32_t t;
+        t = ((w[1] >> 16) ^ w[5]) & 0x0000FFFFu;
+        w[1] ^= t << 16;
+        w[5] ^= t;
+    }
+    {
+        uint32_t t;
+        t = ((w[2] >> 16) ^ w[6]) & 0x0000FFFFu;
+        w[2] ^= t << 16;
+        w[6] ^= t;
+    }
+    {
+        uint32_t t;
+        t = ((w[3] >> 16) ^ w[7]) & 0x0000FFFFu;
+        w[3] ^= t << 16;
+        w[7] ^= t;
+    }
+    for (i = 0; i < 8; i++)
+        planes[i][longofs] = w[i];
+}
+#endif
+
 /* Converts 32 chunky pixels into 8 plane longwords using three 64-bit delta
  * swaps (Hacker's Delight 8x8 bit-matrix transpose per 8-pixel group, with
  * the four group results combined into one longword store per plane).
@@ -815,8 +929,13 @@ static inline void Amiga_C2P_BlitScreen(struct BitMap *bm, const uint8_t *chunky
         pl[6] = (uint32_t *)p6;
         pl[7] = (uint32_t *)p7;
 
+#if defined(__mc68030__)
+        for (blk = 0; blk < AMIGA_GAME_WIDTH / 32; blk++)
+            Amiga_C2P_Block32_030(row + blk * 32, pl, blk);
+#else
         for (blk = 0; blk < AMIGA_GAME_WIDTH / 32; blk++)
             Amiga_C2P_Block32(row + blk * 32, pl, blk);
+#endif
 
         p0 += bm->BytesPerRow;
         p1 += bm->BytesPerRow;
@@ -859,7 +978,7 @@ static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
         return;
     }
 
-    /* Native AGA path: custom 68060 C2P directly into the screen bitplanes. */
+    /* Native AGA path: custom C2P directly into the screen bitplanes. */
     if (AmigaBlitMode == AMIGA_BLIT_AGA_C2P && AmigaAGABitmap) {
         Amiga_C2P_BlitScreen(AmigaAGABitmap, chunky);
         return;

@@ -3,6 +3,14 @@
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
 ## [Unreleased]
+### Added
+- MHI driver auto-detection now includes an explicit
+  `LIBS:MHI/mhizz9000.library` candidate (MNT ZZ9000 with the ZZ9000AX
+  hardware MP3 decoder daughterboard, after mhimdev.library in the
+  candidate order). The opened driver is classified and reported as
+  "MNT ZZ9000" in the startup log. The `MHIDRIVER=` override is
+  preserved.
+
 
 ## [0.9.9-rc.2] - 2026-09-09
 

@@ -137,7 +137,8 @@ game's normal `i_video.cpp` flow:
   a MIDI driver/synth is attached; fallback to MUSIC=OFF (silent).
 - Music, opt-in `MUSIC=MHI`: MP3 files from the `MP3/` drawer through an MHI
   decoder driver (`mpumhi.cpp`; Prisma Megamix, Amiblaster, Prelude MPEGit,
-  MAS Player, ArmedWarp, Delfina/mpeg.device, or any driver in `LIBS:MHI/`);
+  MAS Player, ArmedWarp, Delfina/mpeg.device, MNT ZZ9000, or any driver in
+  `LIBS:MHI/`);
   `MHIDRIVER=` overrides driver auto-detection; fallback to MUSIC=OFF
   (silent). Streaming uses 8 x 32 KB buffers (256 KB total) with the
   preload/refill architecture; ID3v2.3/ID3v2.4 metadata (including an
