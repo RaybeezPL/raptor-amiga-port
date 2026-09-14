@@ -909,8 +909,14 @@ static inline void Amiga_C2P_Block32_030(const uint8_t *chunky, uint32_t **plane
         w[3] ^= t << 16;
         w[7] ^= t;
     }
-    for (i = 0; i < 8; i++)
-        planes[i][longofs] = w[i];
+    planes[0][longofs] = w[0];
+    planes[1][longofs] = w[1];
+    planes[2][longofs] = w[2];
+    planes[3][longofs] = w[3];
+    planes[4][longofs] = w[4];
+    planes[5][longofs] = w[5];
+    planes[6][longofs] = w[6];
+    planes[7][longofs] = w[7];
 }
 #endif
 
