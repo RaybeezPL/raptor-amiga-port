@@ -598,10 +598,11 @@ MHI_ResolveDriverPath(
  ***************************************************************************/
 
 /******************************************************************************************
- * MHI_FeederStop() - stop playback, reclaim ALL stream buffers from the
- * driver, close the file.  A buffer still owned by the driver must never
- * be refilled/requeued for the next song (double ownership corrupts the
- * driver state), so the stop waits until the queued count reaches zero.
+ * MHI_FeederStop() - stop playback and close the file.  MHIStop() flushes
+ * the queued stream buffers and resets the stream transport, so once the
+ * decoder reports MHIF_STOPPED no post-STOP MHIGetEmpty() reclaim pass is
+ * needed and the player's local queued count is simply reset (late buffer
+ * returns are dropped: MHI_Service() refills only while a song plays).
  ******************************************************************************************/
 static void
 MHI_FeederStop(
@@ -629,31 +630,26 @@ MHI_FeederStop(
 
                 Delay(1);
             }
-        }
 
-        /* Reclaim every buffer the driver hands back after the stop; the
-         * last ones may arrive with a delay, so poll the queued count
-         * instead of stopping at the first NULL. */
-        for (i = 0; i < 100 && g_mhi.queued > 0; i++)
-        {
-            while (MHIGetEmpty(g_mhi.decoder) != NULL)
+            if (MHIGetStatus(g_mhi.decoder) != MHIF_STOPPED)
             {
-                if (g_mhi.queued > 0)
-                    g_mhi.queued--;
+                /* STOP timed out: the driver may still own stream buffers,
+                 * so do not reset the queue; stop_incomplete makes the next
+                 * PLAY refuse to start (logged from the main task). */
+                g_mhi.stop_incomplete = (g_mhi.queued > 0) ? g_mhi.queued : 1;
             }
-
-            if (g_mhi.queued > 0)
-                Delay(1);
+            else
+            {
+                /* STOPPED: the queue is flushed - no MHIGetEmpty() reclaim
+                 * pass is required after MHIStop(). */
+                g_mhi.queued = 0;
+                g_mhi.stop_incomplete = 0;
+            }
         }
-
-        if (g_mhi.queued > 0)
+        else
         {
-            /* The driver never returned all buffers (logged from the main
-             * task on the next PLAY).  Resync: stale buffers may still come
-             * back later but are dropped (not refilled) because
-             * MHI_Service() only refills while state == MHISTATE_PLAYING. */
-            g_mhi.stop_incomplete = g_mhi.queued;
             g_mhi.queued = 0;
+            g_mhi.stop_incomplete = 0;
         }
     }
 
@@ -965,6 +961,14 @@ MHI_HandleCommand(
             g_mhi.debug_cmd_seen = 1;   /* diagnostic: PLAY received */
 
             MHI_FeederStop();
+
+            if (g_mhi.stop_incomplete)
+            {
+                /* Previous STOP timed out: never reuse buffers the driver
+                 * may still own (main task logs the diagnostic). */
+                g_mhi.state = MHISTATE_IDLE;
+                break;
+            }
 
             g_mhi.open_error = 0;
             g_mhi.loop = g_mhi.cmd_loop ? 1 : 0;
@@ -1655,6 +1659,9 @@ MHI_PlaySongItem(
     {
         if (g_mhi.stop_incomplete)
         {
+            MHI_LOG("MHI: STOP timeout - PLAY refused (%ld buffer(s) still "
+                    "owned by driver)",
+                    (long)g_mhi.stop_incomplete);
             g_mhi.stop_incomplete = 0;
         }
 
