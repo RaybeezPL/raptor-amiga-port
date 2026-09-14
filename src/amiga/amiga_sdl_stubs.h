@@ -484,6 +484,13 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
                                                          int diagnosticBlitMode);
 static inline void Amiga_CloseGameScreen(void);
 
+#ifdef AMIGA_C2P_BENCHMARK
+/* Temporary AGA C2P benchmark (diagnostic only, see block after
+ * Amiga_C2P_BlitScreen below). */
+static inline void Amiga_C2P_BenchInit(void);
+static inline void Amiga_C2P_BenchShutdown(void);
+#endif
+
 #if defined(__mc68030__)
 static inline void Amiga_C2P_InitLut(void)
 {
@@ -637,6 +644,12 @@ static inline struct Screen* Amiga_OpenGameScreen(int gw, int gh, int gdepth)
         AmigaLog("[VIDEO] blit path: custom 68030 LUT C2P -> bitplanes");
 #else
         AmigaLog("[VIDEO] blit path: custom AGA C2P -> bitplanes");
+#endif
+#ifdef AMIGA_C2P_BENCHMARK
+        /* Temporary diagnostic benchmark: open timer.device UNIT_ECLOCK
+         * once for the native AGA C2P path. Never fatal. */
+        if (AmigaAGABitmap)
+            Amiga_C2P_BenchInit();
 #endif
         return AmigaGameScreen;
     }
@@ -816,6 +829,12 @@ static inline struct Screen* Amiga_OpenRTGScreenByModeid(ULONG modeid, int wantL
 
 static inline void Amiga_CloseGameScreen(void)
 {
+#ifdef AMIGA_C2P_BENCHMARK
+    /* Temporary diagnostic benchmark: release timer resources and print a
+     * PARTIAL summary if the 2048-frame window was not completed. */
+    Amiga_C2P_BenchShutdown();
+#endif
+
     /* Invalidate the cached bitmap BEFORE CloseScreen frees it, so no stale
      * pointer ever survives the close. Harmless in RTG mode (already NULL). */
     AmigaAGABitmap = NULL;
@@ -1024,6 +1043,158 @@ static inline void Amiga_C2P_BlitScreen(struct BitMap *bm, const uint8_t *chunky
     }
 }
 
+/*--- Temporary 68030 AGA C2P benchmark instrumentation -----------------------*/
+/* Diagnostic-only, compile-time switch AMIGA_C2P_BENCHMARK. Measures ONLY
+ * Amiga_C2P_BlitScreen() inside the native AGA C2P branch of
+ * Amiga_BlitScreen() using timer.device ReadEClock(). Normal builds without
+ * the define contain none of this code. Never fatal: if timer init fails the
+ * benchmark disables itself and the game continues normally. */
+#ifdef AMIGA_C2P_BENCHMARK
+#include <devices/timer.h>
+#include <proto/timer.h>
+
+#define AMIGA_C2P_BENCH_WARMUP 128
+#define AMIGA_C2P_BENCH_FRAMES 2048
+
+/* Benchmark state (single instance via the AMIGA_STUBS_OWNER pattern).
+ * ReadEClock() returns the E-clock FREQUENCY in Hz; it is stored once at
+ * init and used for the one-time tick->microsecond conversion at report
+ * time. No hard-coded PAL/NTSC frequencies. */
+AMIGA_STUBS_DECL ULONG AmigaC2PBenchFrequency    AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaC2PBenchTotalTicks   AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaC2PBenchMinTicks     AMIGA_STUBS_INIT(0xFFFFFFFFUL);
+AMIGA_STUBS_DECL ULONG AmigaC2PBenchMaxTicks     AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaC2PBenchFrames       AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaC2PBenchWarmupFrames AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int   AmigaC2PBenchEnabled      AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int   AmigaC2PBenchFinished     AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL struct MsgPort     *AmigaC2PBenchMsgPort AMIGA_STUBS_INIT(NULL);
+AMIGA_STUBS_DECL struct timerequest *AmigaC2PBenchIOReq   AMIGA_STUBS_INIT(NULL);
+
+/* ReadEClock() inline (proto/timer.h) dereferences TimerBase; define it with
+ * the same owner pattern as the other library bases in this header. */
+AMIGA_STUBS_DECL struct Device *TimerBase AMIGA_STUBS_INIT(NULL);
+
+/* One-time report (also used for the PARTIAL shutdown summary). 64-bit
+ * intermediates are acceptable ONLY here - once per run, integer-only, so
+ * the 030 soft-float target never touches floating point. */
+static inline void Amiga_C2P_BenchReport(int partial)
+{
+    unsigned long long avgUs, minUs, maxUs;
+
+    if (AmigaC2PBenchFrames == 0 || AmigaC2PBenchFrequency == 0)
+        return;
+
+    avgUs = ((unsigned long long)AmigaC2PBenchTotalTicks * 1000000ULL) /
+            AmigaC2PBenchFrequency / AmigaC2PBenchFrames;
+    minUs = ((unsigned long long)AmigaC2PBenchMinTicks * 1000000ULL) /
+            AmigaC2PBenchFrequency;
+    maxUs = ((unsigned long long)AmigaC2PBenchMaxTicks * 1000000ULL) /
+            AmigaC2PBenchFrequency;
+
+    AmigaLog("[C2P BENCH]%s frames=%lu eclock=%lu total_ticks=%lu "
+             "avg_us=%lu min_us=%lu max_us=%lu",
+             partial ? " PARTIAL" : "",
+             (ULONG)AmigaC2PBenchFrames, AmigaC2PBenchFrequency,
+             AmigaC2PBenchTotalTicks,
+             (ULONG)avgUs, (ULONG)minUs, (ULONG)maxUs);
+}
+
+/* Releases all timer resources. Idempotent. */
+static inline void Amiga_C2P_BenchShutdown(void)
+{
+    if (AmigaC2PBenchEnabled && !AmigaC2PBenchFinished &&
+        AmigaC2PBenchFrames > 0)
+        Amiga_C2P_BenchReport(1);   /* PARTIAL summary at shutdown */
+
+    if (AmigaC2PBenchIOReq) {
+        if (TimerBase == (struct Device *)AmigaC2PBenchIOReq->tr_node.io_Device)
+            TimerBase = NULL;
+        CloseDevice((struct IORequest *)AmigaC2PBenchIOReq);
+        DeleteIORequest(AmigaC2PBenchIOReq);
+        AmigaC2PBenchIOReq = NULL;
+    }
+    if (AmigaC2PBenchMsgPort) {
+        DeleteMsgPort(AmigaC2PBenchMsgPort);
+        AmigaC2PBenchMsgPort = NULL;
+    }
+    AmigaC2PBenchEnabled = 0;
+}
+
+/* Opens timer.device UNIT_ECLOCK and stores the actual E-clock frequency
+ * returned by ReadEClock(). Runs once, from the main task, in the AGA
+ * screen-open path. */
+static inline void Amiga_C2P_BenchInit(void)
+{
+    struct EClockVal ec;
+
+    if (AmigaC2PBenchEnabled || AmigaC2PBenchMsgPort)
+        return;
+
+    AmigaC2PBenchMsgPort = CreateMsgPort();
+    AmigaC2PBenchIOReq = AmigaC2PBenchMsgPort
+        ? (struct timerequest *)CreateIORequest(AmigaC2PBenchMsgPort,
+                                                sizeof(struct timerequest))
+        : NULL;
+
+    if (!AmigaC2PBenchMsgPort || !AmigaC2PBenchIOReq ||
+        OpenDevice((STRPTR)TIMERNAME, UNIT_ECLOCK,
+                   (struct IORequest *)AmigaC2PBenchIOReq, 0) != 0) {
+        Amiga_C2P_BenchShutdown();  /* release whatever was created */
+        AmigaLog("[C2P BENCH] timer init failed - benchmark disabled "
+                 "(game continues normally)");
+        return;
+    }
+
+    TimerBase = (struct Device *)AmigaC2PBenchIOReq->tr_node.io_Device;
+    AmigaC2PBenchFrequency = ReadEClock(&ec);
+    AmigaC2PBenchEnabled = 1;
+    AmigaLog("[C2P BENCH] init: timer.device UNIT_ECLOCK OK, eclock=%lu Hz, "
+             "warmup=%d frames, measure=%d frames",
+             AmigaC2PBenchFrequency,
+             (int)AMIGA_C2P_BENCH_WARMUP, (int)AMIGA_C2P_BENCH_FRAMES);
+}
+
+/* Per-frame wrapper around Amiga_C2P_BlitScreen(). Hot path is minimal:
+ * two ReadEClock calls, one ULONG subtraction, one ULONG accumulate,
+ * min/max compares and a frame counter. No division, no printf, no 64-bit
+ * math per frame. */
+static inline void Amiga_C2P_BenchMeasure(struct BitMap *bm, const uint8_t *chunky)
+{
+    struct EClockVal start, end;
+    ULONG delta;
+
+    if (!AmigaC2PBenchEnabled || AmigaC2PBenchFinished) {
+        Amiga_C2P_BlitScreen(bm, chunky);
+        return;
+    }
+
+    ReadEClock(&start);
+    Amiga_C2P_BlitScreen(bm, chunky);
+    ReadEClock(&end);
+
+    /* Unsigned subtraction handles ev_lo wrap for frame-scale deltas. */
+    delta = end.ev_lo - start.ev_lo;
+
+    if (AmigaC2PBenchWarmupFrames < AMIGA_C2P_BENCH_WARMUP) {
+        AmigaC2PBenchWarmupFrames++;
+        return;
+    }
+
+    AmigaC2PBenchTotalTicks += delta;
+    if (delta < AmigaC2PBenchMinTicks)
+        AmigaC2PBenchMinTicks = delta;
+    if (delta > AmigaC2PBenchMaxTicks)
+        AmigaC2PBenchMaxTicks = delta;
+    AmigaC2PBenchFrames++;
+
+    if (AmigaC2PBenchFrames >= AMIGA_C2P_BENCH_FRAMES) {
+        AmigaC2PBenchFinished = 1;
+        Amiga_C2P_BenchReport(0);   /* one result line, then stop */
+    }
+}
+#endif /* AMIGA_C2P_BENCHMARK */
+
 /* Blits the game's logical 320x200 frame to the physical screen 1:1.
  * 'chunky' is the game's 8-bit chunky buffer (320 bytes/row).
  * The blit path was selected once in Amiga_OpenGameScreen (AmigaBlitMode). */
@@ -1056,7 +1227,11 @@ static inline void Amiga_BlitScreen(struct Window *win, const uint8_t *chunky)
 
     /* Native AGA path: custom C2P directly into the screen bitplanes. */
     if (AmigaBlitMode == AMIGA_BLIT_AGA_C2P && AmigaAGABitmap) {
+#ifdef AMIGA_C2P_BENCHMARK
+        Amiga_C2P_BenchMeasure(AmigaAGABitmap, chunky);
+#else
         Amiga_C2P_BlitScreen(AmigaAGABitmap, chunky);
+#endif
         return;
     }
 
