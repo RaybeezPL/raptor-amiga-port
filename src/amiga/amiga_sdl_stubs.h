@@ -877,18 +877,13 @@ static inline void Amiga_C2P_Block32_030(const uint8_t *chunky, uint32_t **plane
         w[7] ^= t;
     }
 
-    /* Second stage transpose: swap i1 <-> b1 */
+    /* Second stage transpose: swap i1 <-> b1.
+     * Scheduling: all four stage-2 swaps first (candidate order). */
     {
         uint32_t t;
         t = ((w[0] >> 8) ^ w[2]) & 0x00FF00FFu;
         w[0] ^= t << 8;
         w[2] ^= t;
-    }
-    {
-        uint32_t t;
-        t = ((w[1] >> 8) ^ w[3]) & 0x00FF00FFu;
-        w[1] ^= t << 8;
-        w[3] ^= t;
     }
     {
         uint32_t t;
@@ -898,44 +893,46 @@ static inline void Amiga_C2P_Block32_030(const uint8_t *chunky, uint32_t **plane
     }
     {
         uint32_t t;
+        t = ((w[1] >> 8) ^ w[3]) & 0x00FF00FFu;
+        w[1] ^= t << 8;
+        w[3] ^= t;
+    }
+    {
+        uint32_t t;
         t = ((w[5] >> 8) ^ w[7]) & 0x00FF00FFu;
         w[5] ^= t << 8;
         w[7] ^= t;
     }
 
-    /* Third stage transpose: swap i2 <-> b2 */
+    /* Third stage transpose: swap i2 <-> b2.
+     * Scheduling: consume stage-2 results immediately; store each plane
+     * longword as soon as it is final (shortens live ranges, spill-free). */
     {
         uint32_t t;
         t = ((w[0] >> 16) ^ w[4]) & 0x0000FFFFu;
         w[0] ^= t << 16;
         w[4] ^= t;
-    }
-    {
-        uint32_t t;
-        t = ((w[1] >> 16) ^ w[5]) & 0x0000FFFFu;
-        w[1] ^= t << 16;
-        w[5] ^= t;
-    }
-    {
-        uint32_t t;
+        planes[0][longofs] = w[0];
+        planes[4][longofs] = w[4];
+
         t = ((w[2] >> 16) ^ w[6]) & 0x0000FFFFu;
         w[2] ^= t << 16;
         w[6] ^= t;
-    }
-    {
-        uint32_t t;
+        planes[2][longofs] = w[2];
+        planes[6][longofs] = w[6];
+
+        t = ((w[1] >> 16) ^ w[5]) & 0x0000FFFFu;
+        w[1] ^= t << 16;
+        w[5] ^= t;
+        planes[1][longofs] = w[1];
+        planes[5][longofs] = w[5];
+
         t = ((w[3] >> 16) ^ w[7]) & 0x0000FFFFu;
         w[3] ^= t << 16;
         w[7] ^= t;
+        planes[3][longofs] = w[3];
+        planes[7][longofs] = w[7];
     }
-    planes[0][longofs] = w[0];
-    planes[1][longofs] = w[1];
-    planes[2][longofs] = w[2];
-    planes[3][longofs] = w[3];
-    planes[4][longofs] = w[4];
-    planes[5][longofs] = w[5];
-    planes[6][longofs] = w[6];
-    planes[7][longofs] = w[7];
 }
 #endif
 
