@@ -878,7 +878,9 @@ static inline void Amiga_C2P_Block32_030(const uint8_t *chunky, uint32_t **plane
     }
 
     /* Second stage transpose: swap i1 <-> b1.
-     * Scheduling: all four stage-2 swaps first (candidate order). */
+     * Scheduling: the four stage-2 swap pairs are mutually independent, so
+     * all four are issued before stage 3, which consumes each result
+     * immediately and stores each plane as soon as it is final. */
     {
         uint32_t t;
         t = ((w[0] >> 8) ^ w[2]) & 0x00FF00FFu;
