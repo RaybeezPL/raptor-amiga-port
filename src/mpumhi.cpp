@@ -983,10 +983,14 @@ MHI_HandleCommand(
                 g_mhi.traffic_ticks = SDL_GetTicks();
                 if (g_mhi.vol_supported)
                 {
+                    /* DIAGNOSTIC EXPERIMENT: the pre-PLAY MHIP_VOLUME write
+                     * is suppressed to test whether it causes the crack/pop
+                     * on WARP MHI.  debug_vol_issued stays 0; the main task
+                     * logs the skip.  Runtime volume changes (MHICMD_VOLUME)
+                     * are unaffected. */
                     ULONG scaled_volume = MHI_ScaleVolume(g_mhi.volume);
                     g_mhi.debug_vol_scaled = (LONG)scaled_volume;
-                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, scaled_volume);
-                    g_mhi.debug_vol_issued = 1;
+                    /* MHISetParam(g_mhi.decoder, MHIP_VOLUME, scaled_volume); */
                 }
 
                 MHIPlay(g_mhi.decoder);
@@ -1663,6 +1667,11 @@ MHI_PlaySongItem(
                     "owned by driver)",
                     (long)g_mhi.stop_incomplete);
             g_mhi.stop_incomplete = 0;
+        }
+
+        if (g_mhi.vol_supported && !g_mhi.debug_vol_issued)
+        {
+            MHI_LOG("MHI: diagnostic - skipped redundant pre-PLAY volume write");
         }
 
         /* Diagnostic (main task, after the feeder consumed the command):
