@@ -1,39 +1,40 @@
-# Raptor: Call of the Shadows — Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD/WAVE)
+# Raptor: Call of the Shadows — Amiga Port
 
 This repository contains an AmigaOS 3.x port of **Raptor: Call of the Shadows**, based on the open-source reverse-engineered codebase by [skynettx/raptor](https://github.com/skynettx/raptor).
 
-The port targets **68060-class Amiga systems** — both full **68060 with FPU** and FPU-less **68EC060 / 68LC060** (dedicated soft-float binary) — as well as **68030 systems**, covered by two separate dedicated binaries: **68030 with an external 68881/68882 FPU** (`raptor_030_fpu`) and **68030 without an FPU** (`raptor_030`, soft-float) — plus faster 68k hardware, with **RTG graphics (Picasso96 / CyberGraphX)** or the **native AGA chipset** (`GFX=AGA`), with primary testing and optimization aimed at:
+The port ships four dedicated m68k binaries for 68030 and 68060 systems, with and without an FPU. Graphics are rendered either through **RTG (Picasso96 or CyberGraphX)** or through a separate **native AGA** path. The game always renders a fixed logical **320x200, 8-bit paletted** image on its own screen.
 
-- **Any Amiga system with a compatible RTG graphics card** — for example **CyberVision 64/3D**, **Picasso IV**, or similar — using **Picasso96** or **CyberGraphX**
-- **Amiga A500 / A600 / A1200 / A2000 / A3000 / A4000 with PiStorm / Emu68** — RTG or native AGA, according to the configured environment
-- **Amiga A1200 / A4000** — native AGA rendering (`GFX=AGA`); in **WinUAE** and compatible PiStorm/Emu68 setups either RTG or AGA can be selected when AGA is available
-- **AmigaOS 3.2**
-- **AHI audio for sound effects**
-- **MHI audio for MP3 music**
-- **CAMD MIDI music**
-- **WAVE audio for WAV music**
-
-AmigaOS 3.1.4, 3.2, 3.2.2, 3.2.3 and 3.9 are tested and known to work.
-Other AmigaOS versions may also work, but have not been fully verified.
-
-This fork is focused on making the game run natively on classic Amiga hardware without unnecessary abstraction layers. The game renders in a fixed **320x200, 8-bit paletted mode** on a dedicated screen, with Amiga-specific SDL replacement stubs and driver-native frame presentation on every display path.
+| Binary | Target |
+| --- | --- |
+| `raptor` | 68060 with FPU |
+| `raptor_nofpu` | 68060 without FPU (68EC060/68LC060 or a broken FPU), soft-float |
+| `raptor_030_fpu` | 68030 with an external 68881/68882 FPU |
+| `raptor_030` | 68030 without an FPU, soft-float |
 
 ## Download
 
-Ready-to-run binaries are on the [Releases page](https://github.com/RaybeezPL/raptor-amiga-port/releases):
+Download the ready-to-run Amiga port:
 
-- **`raptor`** — 68060 **with FPU** (recommended)
-- **`raptor_nofpu`** — soft-float build for **68060 without FPU** (68EC060/68LC060 or a broken FPU)
-- **`raptor_030_fpu`** — **68030 with an external 68881/68882 FPU**
-- **`raptor_030`** — soft-float build for **68030 without an FPU**
+- **[raptor.lha on Aminet](https://aminet.net/game/shoot/raptor.lha)**
+- [GitHub Releases](https://github.com/RaybeezPL/raptor-amiga-port/releases)
 
-You also need the original game data files (`FILE0000.GLB` ... `FILE0004.GLB`, full version 1.2) — see **README_AMIGA.md** for installation.
+The Amiga archive does not include the copyrighted original game data. To run the port, you must separately provide `FILE0000.GLB` through `FILE0004.GLB` from the full PC/DOS version 1.2, as explained in the next section.
+
+## Required original game data
+
+This Amiga port requires the original PC/DOS game data from the full version of **Raptor: Call of the Shadows, version 1.2**. The required game data is not included with this port, and the port will not run without it.
+
+Copy `FILE0000.GLB` through `FILE0004.GLB` from your legally owned copy of the game. Detailed installation instructions are available in [README_AMIGA.md](README_AMIGA.md).
+
+The original game is still available to purchase on Steam as [Raptor: Call of the Shadows (1994 Classic Edition)](https://store.steampowered.com/app/358360/Raptor_Call_of_the_Shadows_1994_Classic_Edition/).
+
+The Steam purchase provides the original PC game, not the Amiga port.
 
 ## Project goals
 
 The goals of this port are:
 
-- Bring **Raptor: Call of the Shadows** to classic Amiga systems with a **68030/68060-class CPU** (RTG or AGA graphics)
+- Bring **Raptor: Call of the Shadows** to classic Amiga systems with a **68030 or 68060 CPU** (RTG or AGA graphics)
 - Replace SDL-dependent parts of the engine with **native AmigaOS implementations**
 - Keep the rendering path efficient for Amiga RTG hardware, avoiding unnecessary format conversion and slow per-pixel drawing paths
 - Make the codebase practical for testing on both **WinUAE** and **real hardware**
@@ -49,31 +50,30 @@ Working:
   `raptor_nofpu` (soft-float, for FPU-less 68EC060/68LC060 or a broken
   FPU), `raptor_030_fpu` (68030 + external 68881/68882 FPU) and
   `raptor_030` (soft-float 68030)
-- Full gameplay on real hardware — tested on A2000 with CyberVision 64/3D, A1200 + PiStorm/Emu68 (display output verified via both RTG and AGA), and WinUAE; expected to work on any Amiga model (A500/A600/A1200/A2000/A3000/A4000) with PiStorm/Emu68 + RTG
+- Full gameplay on real hardware — tested on A2000 with CyberVision 64/3D, A1200 + PiStorm/Emu68 (display output verified via both RTG and AGA), and WinUAE; expected to work on other Amiga models with PiStorm/Emu68 + RTG
 - Keyboard, mouse and joystick/CD32 pad input working simultaneously
 - RTG video path for **320x200x8-bit** output on a dedicated screen;
   tries P96 (Picasso96) first, falls back to CGX (CyberGraphX), then
-  falls back to 320x240x8 with letterbox on RTG cards that lack 320x200
+  falls back to a 320x240x8 screen with a black band at the bottom on
+  RTG cards that lack 320x200
 - **`GFX=AUTO|RTG|AGA`** parameter — controls the graphics driver path
   (CLI: `-gfx=RTG`; icon ToolType: `GFX=RTG`)
 - Accelerated frame presentation on every display path: Picasso96 uses
   the driver's own `p96WritePixelArray`, CyberGraphX uses CGX
   `WritePixelArray`, and the `GFX=AGA` chipset screen uses a custom
-  68060 chunky-to-planar converter — native AGA rendering has been
-  optimized by caching the converted AGA bitmap used for C2P blits,
-  reducing unnecessary conversion work when the game frame does not
-  change — all replacing the generic `WriteChunkyPixels` OS conversion
-  (kept as fallback)
-- **`MUSIC=ADLIB|CAMD|MHI|WAVE|OFF`** parameter — selects the music backend:
-  built-in AdLib/OPL3 emulation, General MIDI via CAMD, MP3 files from
-  the `MP3/` drawer via an MHI hardware decoder, pre-decoded WAV files
-  from the `WAVE/` drawer mixed into the AHI stream, or no music. No
-  music backend is enabled by default on Amiga: without a `MUSIC=`
-  option Raptor uses `MUSIC=OFF` and initializes no AdLib/OPL3, CAMD,
-  MHI or WAVE music backend — enable music explicitly with
-  `MUSIC=ADLIB`, `MUSIC=MHI`, `MUSIC=CAMD` or `MUSIC=WAVE` (CLI:
-  `-music=CAMD`; icon ToolType: `MUSIC=CAMD`). MHI streams MP3 files
-  through 4 x 32 KB buffers (128 KB total), strips ID3v2/ID3v1
+  chunky-to-planar converter — native AGA rendering has been optimized
+  by caching the converted AGA bitmap used for C2P blits, reducing
+  unnecessary conversion work when the game frame does not change — all
+  replacing the generic `WriteChunkyPixels` OS conversion (kept as
+  fallback)
+- **`MUSIC=ADLIB|CAMD|MHI|WAVE|OFF`** parameter — selects the music
+  backend: built-in AdLib/OPL3 emulation, General MIDI via CAMD, MP3
+  files from the `MP3/` drawer via an MHI hardware decoder, pre-decoded
+  WAV files from the `WAVE/` drawer mixed into the AHI stream, or no
+  music. No music backend is enabled by default: without a `MUSIC=`
+  option Raptor uses `MUSIC=OFF` and initializes no music backend
+  (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`). MHI streams MP3
+  files through 4 x 32 KB buffers (128 KB total), strips ID3v2/ID3v1
   metadata before decoding, and recognizes the Prisma MegaMix,
   Amiblaster, Prelude/MPEGit, MAS Player, ArmedWarp, mpeg.device and
   MNT ZZ9000 driver families. Prisma MegaMix and Armed WARP are
@@ -99,15 +99,15 @@ Working:
   input device is a performance/troubleshooting option: with the mouse off
   the window registers no mouse events at all, and with the joystick off
   the game port is never polled.
-- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/MUSIC/
-  AHIUNIT/JOYSTICK/MOUSE) via the official WBStartup + icon.library
+- Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/VIDEO/MUSIC/
+  AHIUNIT/MHIDRIVER/JOYSTICK/MOUSE) via the official WBStartup + icon.library
   mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
   launches no console window is opened at all (nothing is left behind
   when the game exits)
 - Phantom-input filtering hardened for PiStorm/Emu68 machines: the
   middle-mouse button is dropped on every display path (RTG and AGA) and
-  the gameport is polled at max 50 Hz with a clear-read unmask — fixes
+  the gameport is polled no more than approximately 50 times per second with a clear-read unmask — fixes
   intro/demo skipping and erratic steering
 - English requester with troubleshooting info when RTG mode is required
   but unavailable (no silent fallback to AGA)
@@ -119,21 +119,6 @@ Working:
   headroom, and 512 frames (~46 ms) with `MUSIC=CAMD`, `MUSIC=WAVE`,
   `MUSIC=OFF` or `-nomusic`. This changes callback/buffer granularity
   only, not the number of audio frames processed per second
-- **Music: no backend enabled by default** — without a `MUSIC=` option
-  Raptor uses `MUSIC=OFF` and initializes no music backend; enable
-  music explicitly with `MUSIC=ADLIB` (lightweight DOSBox dbopl OPL3
-  emulation core, only a few percent of a 68060, mixed into the AHI
-  stream), **General MIDI via CAMD** (camd.library) with `MUSIC=CAMD`
-  for external synths / CAMD software synths (cluster "out.0"; needs a
-  configured MIDI driver or synth), **MP3 music via MHI**
-  (`MUSIC=MHI`) for a Prisma Megamix / MAS / Delfina hardware decoder,
-  with files in the game's `MP3/` drawer, or **pre-decoded WAVE music**
-  (`MUSIC=WAVE`) with WAV files in the game's `WAVE/` drawer mixed
-  into the AHI stream. `MUSIC=ADLIB` is primarily intended for WinUAE
-  and PiStorm/PiMiga-based environments. For fast, smooth gameplay on
-  real Amiga hardware, use `MUSIC=WAVE` or MP3 playback through
-  `MUSIC=MHI` with the corresponding game parameter. This is a
-  performance recommendation; ADLIB remains available on real hardware.
 - **Persistent audio volumes** via `amiga.cfg` in the game directory
   (created on first run): separate startup volumes for AdLib/OPL3
   music, MHI/MP3 music, WAVE music and sound effects; the in-game
@@ -144,11 +129,9 @@ Working:
   need to execute `Stack 65536` manually; if Shell/Workbench already
   provides a larger stack, it is preserved
 
-
 Work still in progress / roadmap:
 
 - Fine-tuning and performance polish on real 68k hardware
-- Version **0.9.9-rc.3** — release candidate
 
 For detailed requirements, controls, parameters and troubleshooting see
 **README_AMIGA.md** - the main port documentation.
@@ -171,18 +154,23 @@ Recommended baseline target:
   graphics card (for example CyberVision 64/3D, Picasso IV, or
   similar) through Picasso96 (P96) or CyberGraphX (CGX /
   cybergraphics.library). Native AGA rendering (`GFX=AGA`) is a
-  separate full rendering path for Amiga 1200 and Amiga 4000; it can
-  also be selected in WinUAE and compatible PiStorm/Emu68 setups when
-  AGA is available. On WinUAE and PiStorm/Emu68, choose either RTG or
-  AGA according to the system configuration.
-- **Display mode:** 320x200, 8-bit paletted. In PAL mode, a black band may
-  be visible at the bottom of the screen because the game uses a 320x200
-  display area. To fill the screen vertically, select NTSC in Amiga Early
-  Startup before booting; the game will then open full-screen at 320x200.
+  separate full rendering path for AGA-capable hardware, primarily
+  Amiga 1200 and Amiga 4000; it can also be selected in WinUAE and
+  compatible PiStorm/Emu68 setups when AGA is available. On WinUAE and
+  PiStorm/Emu68, choose either RTG or AGA according to the system
+  configuration.
+- **Display mode:** the game renders a fixed logical 320x200, 8-bit
+  paletted image. On RTG the physical screen is 320x200 when the driver
+  offers it, otherwise 320x240 with the 320x200 image shown 1:1 from the
+  top-left corner and a black band at the bottom. In PAL mode, a black
+  band may be visible at the bottom of the screen because the game uses a
+  320x200 display area. To fill the screen vertically, select NTSC in
+  Amiga Early Startup before booting; the game will then open full-screen
+  at 320x200.
 - **RAM:** 4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
-  (the game itself uses ~3 MB of Fast RAM; on RTG the screen bitmap
-  lives in graphics card memory, so Chip RAM is only needed by the OS)
-
+  (the game itself uses roughly 3 MB of Fast RAM; on RTG the screen
+  bitmap lives in graphics card memory, so Chip RAM is only needed by
+  the OS)
 - **OS:** AmigaOS 3.2 (AmigaOS 3.1.4, 3.2, 3.2.2, 3.2.3 and 3.9 are
   tested and known to work; other versions may also work but have not
   been fully verified)
@@ -196,7 +184,7 @@ Current development and testing is mainly aimed at systems such as:
 
 - **CyberVision 64/3D**
 - **Picasso IV**
-- **Any Amiga with PiStorm/Emu68 + RTG** (A500, A600, A1200, A2000, A3000, A4000 — all tested or expected to work)
+- **Amiga with PiStorm/Emu68 + RTG** (A500, A600, A1200, A2000, A3000, A4000 — tested or expected to work)
 
 ### Tested configurations
 
@@ -215,8 +203,13 @@ Native AGA mode is selected with `GFX=AGA`.
 
 The game always renders a fixed logical **320×200** image from the top‑left corner of the screen. On a PAL‑configured Amiga, the remaining lower part of the native PAL display area may appear black. This is normal and intentional.
 
-`VIDEO=AUTO` (default) uses the system‑selected native AGA display mode.  
-`VIDEO=NTSC` requests NTSC as the default display mode. With `GFX=AGA` the screen is opened with `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (native NTSC low‑res), resulting in a **320×200×8** screen in the NTSC standard. With `GFX=RTG` this option is ignored and `AUTO` is used.
+`VIDEO=AUTO` (default) uses the system‑selected native AGA display mode.
+
+`VIDEO=NTSC` requests NTSC as the default display mode. With `GFX=AGA` the screen is opened with `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (native NTSC low‑res), resulting in a **320×200×8** screen in the NTSC standard.
+
+`VIDEO=PAL` is accepted but currently does not force a PAL ModeID; the default native AGA mode (AUTO) is used instead.
+
+`VIDEO=` has no effect on the RTG display path: with `GFX=RTG` (or `GFX=AUTO`) the option is ignored and the RTG mode is used.
 
 `VIDEO=NTSC` alone does **not** change a PAL‑configured Amiga to NTSC and does not modify anything under `DEVS:Monitors`. If you want the 320×200 image to fill the entire screen vertically in NTSC timing, the Amiga itself must be configured/booted in NTSC before starting the game.
 
@@ -230,7 +223,7 @@ As Workbench ToolTypes, set them on separate lines:
 
 ```text
 GFX=AGA
-VIDEO=AUTO
+VIDEO=NTSC
 ```
 
 ## Build environment
@@ -239,16 +232,14 @@ Primary development environment:
 
 - **Host OS:** Windows 11
 - **Build environment:** Ubuntu under WSL2
-- **Compiler:** `m68k-amigaos-gcc`
+- **Toolchain:** `m68k-amigaos-gcc` / `m68k-amigaos-g++`
 - **Main branch:** `main`
 
 The current porting workflow focuses on practical iteration speed, reproducible cross-builds, and fast emulator-to-real-hardware testing.
 
 ## Assets and legal note
 
-This repository does **not** include the original game data files.
-
-To use this port, you must provide your own legal copy of the original **Raptor: Call of the Shadows** data files (shareware or full version, compatible data set required).
+This repository and the Amiga release archive do **not** include the original game data files. You must provide your own legal copy of the original **Raptor: Call of the Shadows** data files; see [Required original game data](#required-original-game-data) above.
 
 ## License
 
@@ -261,13 +252,13 @@ This port is based on the open-source reverse-engineered codebase from
 copyright and license notices from upstream and bundled components are
 preserved.
 
-## Upstream base
+## Upstream project
 
 This Amiga port is based on the reverse-engineered open-source project:
 
 - [skynettx/raptor](https://github.com/skynettx/raptor)
 
-That upstream project reconstructs the original game engine in C/C++ and made this Amiga port possible.
+That upstream project reconstructs the original game engine in C/C++ and made this Amiga port possible. For the original multi-platform project documentation, installation notes, and upstream release information, refer to the upstream repository.
 
 ## Scope of this fork
 
@@ -275,19 +266,9 @@ This repository is **not** a generic multi-platform fork. Its main purpose is to
 
 Platform-specific notes for Windows, Linux, macOS, and Android from the original upstream project are not the focus of this fork and may differ from the current upstream README.
 
-## Upstream project reference
-
-This repository is a downstream Amiga-focused fork of:
-
-- [skynettx/raptor](https://github.com/skynettx/raptor)
-
-For the original multi-platform project documentation, installation notes, and upstream release information, refer to the upstream repository.
-
 ## Credits
 
-Special thanks to:
-
-- **nukeykt** and contributors involved in the reverse-engineered Raptor codebase
-- **skynettx** for the open-source C/C++ recreation used as the base for this port
+- **[nukeykt](https://github.com/nukeykt)** and contributors involved in the reverse-engineered Raptor codebase
+- **[skynettx](https://github.com/skynettx)** for the open-source C/C++ recreation used as the base for this port
 - The Amiga community, emulator authors, and RTG/AHI toolchain developers
-- The entire Amiga community and the testers from PPA.PL for their invaluable feedback and support during development.
+- The testers from PPA.PL for their invaluable feedback and support during development
