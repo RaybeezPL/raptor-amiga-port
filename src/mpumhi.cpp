@@ -154,6 +154,7 @@ static struct MHIState
     volatile LONG debug_vol_issued; /* PLAY: MHISetParam(volume) was issued   */
     volatile LONG debug_vol_scaled; /* PLAY: value passed to MHISetParam      */
     volatile LONG debug_play_called;/* PLAY: MHIPlay() was invoked            */
+    volatile LONG debug_stopfade_scaled; /* STOP: soft-stop fade target applied */
      char   driver_name[64];         /* MHIQ_DECODER_NAME copy */
      char   opened_path[256];        /* driver library path that opened */
      char   init_fail_path[256];     /* driver path whose MHIAllocDecoder failed */
@@ -613,6 +614,10 @@ MHI_FeederStop(
     g_mhi.eof = 1;
     g_mhi.loop = 0;
 
+    /* Clear stale diagnostic state so a STOP that performs no fade can
+     * never leave a previous fade target behind for the main task. */
+    g_mhi.debug_stopfade_scaled = 0;
+
     if (g_mhi.decoder)
     {
         int i;
@@ -621,6 +626,28 @@ MHI_FeederStop(
          * already stopped decoder is driver-dependent behaviour. */
         if (MHIGetStatus(g_mhi.decoder) != MHIF_STOPPED)
         {
+            /* Soft-stop: ramp the MHI output to zero before stopping the
+             * current stream.  Only the driver hardware volume is
+             * touched; g_mhi.volume keeps the user's requested level. */
+            if (g_mhi.vol_supported)
+            {
+                ULONG target = MHI_ScaleVolume(g_mhi.volume);
+
+                if (target > 0)
+                {
+                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, (target * 3) / 4);
+                    Delay(1);
+                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, target / 2);
+                    Delay(1);
+                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, target / 4);
+                    Delay(1);
+                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, 0);
+                    Delay(1);
+
+                    g_mhi.debug_stopfade_scaled = (LONG)target;
+                }
+            }
+
             MHIStop(g_mhi.decoder);
 
             for (i = 0; i < 50; i++)
@@ -981,20 +1008,46 @@ MHI_HandleCommand(
             if (MHI_FeederOpen((const char *)g_mhi.cmd_path))
             {
                 g_mhi.traffic_ticks = SDL_GetTicks();
+
+                /* Soft-start: start a new MHI stream muted and ramp the
+                 * volume up to the requested level.  Only new plays are
+                 * affected; the in-feeder loop restart (same-track looping)
+                 * is untouched and runtime volume changes (MHICMD_VOLUME)
+                 * remain immediate. */
                 if (g_mhi.vol_supported)
                 {
-                    /* DIAGNOSTIC EXPERIMENT: the pre-PLAY MHIP_VOLUME write
-                     * is suppressed to test whether it causes the crack/pop
-                     * on WARP MHI.  debug_vol_issued stays 0; the main task
-                     * logs the skip.  Runtime volume changes (MHICMD_VOLUME)
-                     * are unaffected. */
-                    ULONG scaled_volume = MHI_ScaleVolume(g_mhi.volume);
-                    g_mhi.debug_vol_scaled = (LONG)scaled_volume;
-                    /* MHISetParam(g_mhi.decoder, MHIP_VOLUME, scaled_volume); */
-                }
+                    ULONG target = MHI_ScaleVolume(g_mhi.volume);
+                    ULONG step1, step2, step3;
 
-                MHIPlay(g_mhi.decoder);
-                g_mhi.debug_play_called = 1;
+                    MHISetParam(g_mhi.decoder, MHIP_VOLUME, 0);
+
+                    MHIPlay(g_mhi.decoder);
+                    g_mhi.debug_play_called = 1;
+
+                    if (target > 0)
+                    {
+                        step1 = target / 4;
+                        step2 = target / 2;
+                        step3 = (target * 3) / 4;
+
+                        Delay(1);
+                        MHISetParam(g_mhi.decoder, MHIP_VOLUME, step1);
+                        Delay(1);
+                        MHISetParam(g_mhi.decoder, MHIP_VOLUME, step2);
+                        Delay(1);
+                        MHISetParam(g_mhi.decoder, MHIP_VOLUME, step3);
+                        Delay(1);
+                        MHISetParam(g_mhi.decoder, MHIP_VOLUME, target);
+                    }
+
+                    g_mhi.debug_vol_issued = 1;
+                    g_mhi.debug_vol_scaled = (LONG)target;
+                }
+                else
+                {
+                    MHIPlay(g_mhi.decoder);
+                    g_mhi.debug_play_called = 1;
+                }
 
                 g_mhi.state = MHISTATE_PLAYING;
             }
@@ -1400,6 +1453,7 @@ MHI_MusicInit(
     g_mhi.debug_vol_issued = 0;
     g_mhi.debug_vol_scaled = 0;
     g_mhi.debug_play_called = 0;
+    g_mhi.debug_stopfade_scaled = 0;
     g_mhi.opened_path[0] = 0;
     g_mhi.init_fail_path[0] = 0;
     g_mhi.driver_class = MHIDRV_OTHER;
@@ -1669,9 +1723,17 @@ MHI_PlaySongItem(
             g_mhi.stop_incomplete = 0;
         }
 
-        if (g_mhi.vol_supported && !g_mhi.debug_vol_issued)
+        if (g_mhi.vol_supported && g_mhi.debug_vol_scaled > 0)
         {
-            MHI_LOG("MHI: diagnostic - skipped redundant pre-PLAY volume write");
+            MHI_LOG("MHI: soft-start fade applied (target=%ld)",
+                    (long)g_mhi.debug_vol_scaled);
+        }
+
+        if (g_mhi.debug_stopfade_scaled > 0)
+        {
+            MHI_LOG("MHI: soft-stop fade applied (target=%ld)",
+                    (long)g_mhi.debug_stopfade_scaled);
+            g_mhi.debug_stopfade_scaled = 0;
         }
 
         /* Diagnostic (main task, after the feeder consumed the command):
@@ -1701,7 +1763,12 @@ MHI_StopSong(
     if (!MHI_IsActive())
         return;
 
-    MHI_SendCommand(MHICMD_STOP);
+    if (MHI_SendCommand(MHICMD_STOP) && g_mhi.debug_stopfade_scaled > 0)
+    {
+        MHI_LOG("MHI: soft-stop fade applied (target=%ld)",
+                (long)g_mhi.debug_stopfade_scaled);
+        g_mhi.debug_stopfade_scaled = 0;
+    }
 }
 
 /***************************************************************************
