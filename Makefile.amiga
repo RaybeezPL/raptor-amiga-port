@@ -148,6 +148,18 @@ ifeq ($(USE_SDL_STUBS),1)
 endif
 
 # -----------------------------------------------------------------------------
+# Diagnostic-only AGA C2P benchmark instrumentation (timer.device ReadEClock
+# around Amiga_C2P_BlitScreen in the native AGA path). Off by default; enable
+# explicitly with AMIGA_C2P_BENCHMARK=1. Normal builds are unaffected.
+# -----------------------------------------------------------------------------
+AMIGA_C2P_BENCHMARK ?= 0
+
+ifeq ($(AMIGA_C2P_BENCHMARK),1)
+  CXXFLAGS += -DAMIGA_C2P_BENCHMARK
+  CFLAGS   += -DAMIGA_C2P_BENCHMARK
+endif
+
+# -----------------------------------------------------------------------------
 # Linker flags
 # -----------------------------------------------------------------------------
 LDFLAGS   = $(LINK_FLAGS) \
@@ -305,6 +317,7 @@ info:
 	@echo "NOFPU:        $(NOFPU)"
 	@echo "SDL2 dir:     $(SDL2_AMIGA_DIR)"
 	@echo "Use stubs:    $(USE_SDL_STUBS)"
+	@echo "C2P bench:    $(AMIGA_C2P_BENCHMARK)"
 	@echo "Object files: $(words $(OBJS))"
 	@echo "Source files: $(words $(SRCS_CXX)) C++ + $(words $(SRCS_C)) C"
 
