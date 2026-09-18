@@ -851,30 +851,27 @@ static inline void Amiga_C2P_Block32_030(const uint8_t *chunky, uint32_t **plane
     uint32_t w[8];
     int i;
 
-    for (i = 0; i < 8; i++) {
-        const uint8_t *p = chunky + (7 - i) * 4;
+    /* LUT expansion fused with the first stage transpose (swap i0 <-> b0):
+     * each iteration builds one (w[2i], w[2i+1]) pair from the LUT using the
+     * same source-byte mapping and same LUT expression as before, then
+     * immediately applies the shift-4 delta swap. Fusing shortens live
+     * ranges so the pre-stage-1 values never all coexist (less stack
+     * traffic, spill-free). */
+    for (i = 0; i < 4; i++) {
+        const uint8_t *pa = chunky + (7 - (2 * i)) * 4;
+        const uint8_t *pb = chunky + (7 - (2 * i + 1)) * 4;
+        uint32_t a = (AmigaC2PLut[pa[0]] << 3)
+                   | (AmigaC2PLut[pa[1]] << 2)
+                   | (AmigaC2PLut[pa[2]] << 1)
+                   |  AmigaC2PLut[pa[3]];
+        uint32_t b = (AmigaC2PLut[pb[0]] << 3)
+                   | (AmigaC2PLut[pb[1]] << 2)
+                   | (AmigaC2PLut[pb[2]] << 1)
+                   |  AmigaC2PLut[pb[3]];
+        uint32_t t = ((a >> 4) ^ b) & 0x0F0F0F0Fu;
 
-        w[i] = (AmigaC2PLut[p[0]] << 3)
-             | (AmigaC2PLut[p[1]] << 2)
-             | (AmigaC2PLut[p[2]] << 1)
-             |  AmigaC2PLut[p[3]];
-    }
-
-    /* First stage transpose: swap i0 <-> b0 */
-    {
-        uint32_t t;
-        t = ((w[0] >> 4) ^ w[1]) & 0x0F0F0F0Fu;
-        w[0] ^= t << 4;
-        w[1] ^= t;
-        t = ((w[2] >> 4) ^ w[3]) & 0x0F0F0F0Fu;
-        w[2] ^= t << 4;
-        w[3] ^= t;
-        t = ((w[4] >> 4) ^ w[5]) & 0x0F0F0F0Fu;
-        w[4] ^= t << 4;
-        w[5] ^= t;
-        t = ((w[6] >> 4) ^ w[7]) & 0x0F0F0F0Fu;
-        w[6] ^= t << 4;
-        w[7] ^= t;
+        w[2 * i]     = a ^ (t << 4);
+        w[2 * i + 1] = b ^ t;
     }
 
     /* Second stage transpose: swap i1 <-> b1.
