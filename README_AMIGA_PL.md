@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Wersja: 0.9.9-rc.3 — wersja kandydująca do wydania.
+Wersja: 0.9.9-rc.4 — wersja kandydująca do wydania.
 
 =====================================================
 
@@ -252,9 +252,41 @@ podsystemów Amigi:
                      ZZ9000AX dekodującym MP3 (mhizz9000.library). Driver
                      sam dekoduje i wysyła
                      MP3, dlatego nie ingeruje w strumień AHI używany przez
-                     efekty. Pliki MP3 są strumieniowane przez 4 bufory
-                     po 32 KB (łącznie 128 KB, ~8 s przy 128 kbit/s);
-                     metadane ID3v2.3/ID3v2.4 na początku pliku (w tym
+                     efekty. Pliki MP3 są odczytywane z drawera MP3/
+                     wewnątrz katalogu gry. MP3PRELOAD=OFF jest ustawieniem
+                     domyślnym i zachowuje oryginalną ścieżkę strumieniowania
+                     MHI: plik MP3 jest strumieniowany podczas odtwarzania.
+                     MP3PRELOAD=ON wczytuje kompletny plik MP3 do pamięci
+                     przed odtwarzaniem; odtwarzanie korzysta następnie z
+                     danych MP3 znajdujących się w pamięci i nie wykonuje
+                     operacji dyskowych na pliku MP3. Preload działa
+                     niezależnie od wybranego drivera MHI.
+
+                     ToolTypes Workbench:
+
+                         MUSIC=MHI
+                         MP3PRELOAD=ON
+
+                     Shell/CLI:
+
+                         raptor -music=mhi -mp3preload=on
+
+                     Dla kart WARP MHI zalecane jest MP3PRELOAD=ON.
+                     Normalne strumieniowanie powodowało słyszalne kliknięcia
+                     podczas zmian utworów na testowej konfiguracji z Amiga
+                     IDE i WARP. Z MP3PRELOAD=ON testowa konfiguracja WARP
+                     odtwarza zmiany utworów bez tych kliknięć. Inne
+                     konfiguracje WARP mogą zachowywać się inaczej.
+                     Przy MP3PRELOAD=OFF ograniczenie ogólnych oczekiwań
+                     MHI stop/status i odzyskiwania buforów do maksymalnie
+                     2 ticków każde usunęło wcześniej obserwowane opóźnienie
+                     menu / zmiany utworów na testowanym sprzęcie WARP.
+
+                     Specjalne podziękowania dla użytkownika PPA Jacques za
+                     cierpliwość i szeroko zakrojone testy MHI na karcie
+                     WARP. Dzięki jego testom powstała opcja MP3PRELOAD.
+
+                     Metadane ID3v2.3/ID3v2.4 na początku pliku (w tym
                      opcjonalny footer ID3v2.4) oraz końcowy blok ID3v1
                      "TAG" są usuwane przed przekazaniem danych MPEG-audio
                      do dekodera. Sam plik MP3 nie jest modyfikowany.
@@ -487,6 +519,15 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                 "-mhidriver=mhiprisma.library" lub
                 "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
+    -mp3preload=ON|OFF
+                Wybiera sposób dostarczania danych MP3 dla MUSIC=MHI. OFF
+                jest ustawieniem domyślnym i używa oryginalnej ścieżki
+                strumieniowania MHI. ON wczytuje kompletny plik MP3 do
+                pamięci przed odtwarzaniem; odtwarzanie korzysta następnie
+                z danych MP3 w pamięci bez operacji dyskowych na pliku MP3.
+                Działa to z każdym wybranym driverem MHI. Forma ToolType
+                Workbench bez myślnika to "MP3PRELOAD=ON".
+
     -ahiunit=N   Wybiera jednostkę ahi.device używaną przez Raptora do
                 wyjścia efektów dźwiękowych (AHIUNIT=0|1|2|3). Domyślnie
                 Unit 0 — brak parametru AHIUNIT zachowuje dotychczasowe
@@ -594,8 +635,9 @@ Parametry są przekazywane za pomocą ToolTypes ikony:
 2. W oknie informacji o ikonie dodaj żądane ToolTypes, po jednym
    w każdym wierszu, np.:
 
-      NOSOUND
-      (MUSIC=CAMD)
+      (NOSOUND)
+      MUSIC=MHI
+      MP3PRELOAD=ON
       GFX=AGA
       MOUSE=OFF
       (NOMOUSE)
@@ -615,6 +657,8 @@ dźwiękowe). Muzyka jest domyślnie wyłączona (MUSIC=OFF). MUSIC=ADLIB
 wybiera wbudowaną emulację AdLib/OPL3, MUSIC=CAMD wybiera muzykę MIDI,
 MUSIC=MHI muzykę MP3 przez MHI driver, a MUSIC=WAVE predekodowaną
 muzykę WAV z drawera WAVE/.
+Dla pokazanego przykładu MHI równoważne opcje CLI to
+"-music=mhi -mp3preload=on".
 
 Uwaga: MOUSE=OFF / NOMOUSE wyłącza mysz, a JOYSTICK=OFF / NOJOY wyłącza
 joystick (obie opcje domyślnie ON). Jawna forma =wartość ma pierwszeństwo
@@ -783,7 +827,11 @@ Znane ograniczenia
   przez kod, ale nie został jeszcze zweryfikowany na prawdziwym
   sprzęcie, a pozostałe rodziny driverów są rozpoznawane wyłącznie
   przez auto-detekcję. Dalsze testy na dodatkowym sprzęcie MHI są
-  nadal przydatne.
+  nadal przydatne. Dla kart WARP MHI zalecane jest MP3PRELOAD=ON:
+  normalne strumieniowanie powodowało słyszalne kliknięcia podczas zmian
+  utworów na testowej konfiguracji z Amiga IDE i WARP, natomiast
+  MP3PRELOAD=ON wyeliminowało te kliknięcia w testach. Inne konfiguracje
+  WARP mogą zachowywać się inaczej.
 - Głośność muzyki i efektów zmieniana w menu opcji jest zapisywana do
   amiga.cfg w katalogu gry (pliku tworzonego przy pierwszym uruchomieniu)
   i przywracana przy kolejnym starcie. Każdy backend muzyki ma własny
@@ -815,9 +863,11 @@ Testowane konfiguracje
   na tym komputerze z nowym buforem AHI/SFX 1024 ramki (wcześniejsza
   obserwacja „8 buforów w kolejce” pochodzi sprzed obecnej
   konfiguracji strumieniowania MHI 4 x 32 KB).
-- MHI driver Armed WARP (mhiArmedWARP.library): potwierdzona
-  inicjalizacja drivera MHI oraz odtwarzanie MP3 na prawdziwym
-  sprzęcie.
+- MHI driver Armed WARP (mhiArmedWARP.library): potwierdzona inicjalizacja
+  drivera MHI oraz odtwarzanie MP3 na prawdziwym sprzęcie. Na testowej
+  konfiguracji z Amiga IDE i WARP normalne strumieniowanie powodowało
+  słyszalne kliknięcia podczas zmian utworów; MP3PRELOAD=ON wyeliminowało
+  te kliknięcia.
 - MUSIC=WAVE przetestowano pomyślnie ponownie w WinUAE po zmianie
   polityki buforów AHI (WAVE pozostaje przy 512 ramkach).
 - Amiga 4000 z 68060 50 MHz, Picasso IV i AGA — przetestowano
@@ -831,7 +881,7 @@ Plany / pozostałe prace
 -----------------------
 
 - Dostrajanie i szlifowanie wydajności na prawdziwym sprzęcie 68k.
-- Wersja 0.9.9-rc.3 jest wersją kandydującą do wydania.
+- Wersja 0.9.9-rc.4 jest wersją kandydującą do wydania.
 
 
 Autorzy i kontakt
@@ -844,6 +894,10 @@ Autorzy i kontakt
 
    Szczególne podziękowania dla wszystkich użytkowników Amigi,
    którzy podtrzymują scenę przy życiu.
+
+   Specjalne podziękowania dla użytkownika PPA Jacques za cierpliwość i
+   szeroko zakrojone testy MHI na karcie WARP. Dzięki jego testom powstała
+   opcja MP3PRELOAD.
 
    Podziękowanie dla współtwórcy: @midwan — rozpoznanie MHI drivera
    MNT ZZ9000 / ZZ9000AX (LIBS:MHI/mhizz9000.library), GitHub PR #3.

@@ -463,6 +463,42 @@ RAP_ParseMHIDriver(
     return 1;
 }
 
+/* Parse MP3PRELOAD=ON|OFF from the CLI or icon ToolTypes. */
+static int
+RAP_ParseMP3Preload(
+    const char *arg
+)
+{
+    const char *value;
+
+    if (RAP_StrCaseStartsWith(arg, "-mp3preload="))
+        value = arg + 12;
+    else if (RAP_StrCaseStartsWith(arg, "mp3preload="))
+        value = arg + 11;
+    else
+        return 0;
+
+    if (RAP_StrCaseEqual(value, "on"))
+    {
+        MHI_SetPreload(1);
+        printf("MP3PRELOAD=ON: preload MP3 files\n");
+    }
+    else if (RAP_StrCaseEqual(value, "off"))
+    {
+        MHI_SetPreload(0);
+        printf("MP3PRELOAD=OFF: use MHI streaming\n");
+    }
+    else
+    {
+        MHI_SetPreload(0);
+        printf("Unknown MP3PRELOAD '%s' - valid values: ON, OFF "
+               "(using default OFF)\n", value);
+    }
+
+    AmigaLog("[AUDIO] MP3PRELOAD parsed '%s'", value);
+    return 1;
+}
+
 /*
  * RAP_ParseAHIUnit() - handles the optional AHIUNIT=<number> keyword
  * (CLI "-ahiunit=<n>" / icon ToolType "AHIUNIT=<n>"): selects the
@@ -815,6 +851,23 @@ RAP_ParseWorkbenchToolTypes(
             }
             buf[10 + i] = 0;
             RAP_ParseMHIDriver(buf);
+        }
+
+        /* MP3PRELOAD=ON|OFF ToolType. */
+        s = FindToolType((CONST_STRPTR *)tt, "MP3PRELOAD");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "mp3preload=");
+            while (s[i] && i < (int)sizeof(buf) - 12)
+            {
+                buf[11 + i] = s[i];
+                i++;
+            }
+            buf[11 + i] = 0;
+            RAP_ParseMP3Preload(buf);
         }
     }
 
@@ -2120,6 +2173,10 @@ main(
          * auto-detection (only relevant with MUSIC=MHI). See
          * RAP_ParseMHIDriver() above. */
         else if (RAP_ParseMHIDriver(argv[loop]))
+        {
+        }
+        /* MP3PRELOAD=ON|OFF CLI option. */
+        else if (RAP_ParseMP3Preload(argv[loop]))
         {
         }
         /* -ahiunit=<number> selects the ahi.device unit used by the

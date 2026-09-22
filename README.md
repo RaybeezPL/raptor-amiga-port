@@ -42,7 +42,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.9-rc.3** — release candidate.
+Current version: **0.9.9-rc.4** — release candidate.
 
 Working:
 
@@ -66,19 +66,29 @@ Working:
   unnecessary conversion work when the game frame does not change — all
   replacing the generic `WriteChunkyPixels` OS conversion (kept as
   fallback)
-- **`MUSIC=ADLIB|CAMD|MHI|WAVE|OFF`** parameter — selects the music
+- **`MUSIC=OFF|ADLIB|CAMD|MHI|WAVE`** parameter — selects the music
   backend: built-in AdLib/OPL3 emulation, General MIDI via CAMD, MP3
-  files from the `MP3/` drawer via an MHI hardware decoder, pre-decoded
-  WAV files from the `WAVE/` drawer mixed into the AHI stream, or no
-  music. No music backend is enabled by default: without a `MUSIC=`
-  option Raptor uses `MUSIC=OFF` and initializes no music backend
-  (CLI: `-music=CAMD`; icon ToolType: `MUSIC=CAMD`). MHI streams MP3
-  files through 4 x 32 KB buffers (128 KB total), strips ID3v2/ID3v1
-  metadata before decoding, and recognizes the Prisma MegaMix,
+  files from the `MP3/` drawer in the game directory via an MHI hardware
+  decoder, pre-decoded WAV files from the `WAVE/` drawer mixed into the
+  AHI stream, or no music. No music backend is enabled by default:
+  without a `MUSIC=` option Raptor uses `MUSIC=OFF` and initializes no
+  music backend (CLI: `-music=mhi`; icon ToolType: `MUSIC=MHI`). For
+  `MUSIC=MHI`, optional `MHIDRIVER=<driver>` selects a specific decoder.
+  `MP3PRELOAD=OFF` is the default and uses the original MHI streaming
+  path, streaming the MP3 during playback. `MP3PRELOAD=ON` loads the
+  complete MP3 into memory before playback; playback then uses resident
+  MP3 data with no MP3 disk I/O during playback, independently of the
+  selected MHI driver (CLI: `-music=mhi -mp3preload=on`; Workbench
+  ToolTypes: `MUSIC=MHI` and `MP3PRELOAD=ON`). MHI strips ID3v2/ID3v1
+  metadata before decoding and recognizes the Prisma MegaMix,
   Amiblaster, Prelude/MPEGit, MAS Player, ArmedWarp, mpeg.device and
-  MNT ZZ9000 driver families. Prisma MegaMix and Armed WARP are
-  real-hardware verified configurations (MHI initialization and MP3
-  playback); MNT ZZ9000 / ZZ9000AX is recognized via
+  MNT ZZ9000 driver families. For WARP MHI cards, `MP3PRELOAD=ON` is
+  recommended: normal streaming produced audible clicks during track
+  changes on the tested Amiga IDE + WARP setup, while preload eliminated
+  those clicks in that setup. This observation does not imply identical
+  behavior on every WARP configuration. Prisma MegaMix and Armed WARP
+  are real-hardware verified configurations; MNT ZZ9000 / ZZ9000AX is
+  recognized via
   `LIBS:MHI/mhizz9000.library` and reported as "MNT ZZ9000".
   `MHIDRIVER=` and driver auto-detection are case-insensitive for
   drivers in `LIBS:MHI/`: the requested path is tried first, then the
@@ -100,7 +110,7 @@ Working:
   the window registers no mouse events at all, and with the joystick off
   the game port is never polled.
 - Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/VIDEO/MUSIC/
-  AHIUNIT/MHIDRIVER/JOYSTICK/MOUSE) via the official WBStartup + icon.library
+  AHIUNIT/MHIDRIVER/MP3PRELOAD/JOYSTICK/MOUSE) via the official WBStartup + icon.library
   mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
   launches no console window is opened at all (nothing is left behind

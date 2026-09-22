@@ -52,6 +52,7 @@
 #include "common.h"
 #include "fileids.h"
 #include "mpumhi.h"
+#include "mpumhi_warp.h"
 
 #include <libraries/mhi.h>
 #include <proto/mhi.h>
@@ -106,6 +107,9 @@ static struct MHIState
 {
     /* Written by the main task before MHI_MusicInit() (MHIDRIVER=). */
     char driver_override[256];
+
+    /* Written by the main task before MHI_MusicInit() (MP3PRELOAD=). */
+    int preload_enabled;
 
     /* Main-owned buffer memory (feeder only reads/writes the contents). */
     UBYTE *buffers[MHI_NUM_BUFS];
@@ -593,6 +597,158 @@ MHI_ResolveDriverPath(
 }
 
 /***************************************************************************
+ * MP3 preload driver probe. Opens and briefly allocates a decoder in the
+ * main task using SIGBREAKF_CTRL_F, records the selected driver details,
+ * then releases all probe resources. No playback or feeder state is used.
+ ***************************************************************************/
+struct MHI_ProbeResult
+{
+    int  found;                 /* 1 when a driver was selected */
+    int  driver_class;          /* MHIDRV_* of the actual opened path */
+    char path[256];             /* exact library path that opened */
+    char driver_name[64];       /* MHIQ_DECODER_NAME copy (while valid) */
+};
+
+/***************************************************************************
+ * MHI_ProbeTryDriver() - probe one driver candidate: open the library,
+ * allocate a decoder in the main task and release everything again.
+ * Uses local probe state only - the generic feeder state is not touched.
+ * Returns:
+ *   1  = driver selected (result recorded in *res)
+ *   0  = OpenLibrary failed
+ *  -1  = OpenLibrary succeeded but MHIAllocDecoder failed
+ ***************************************************************************/
+static int
+MHI_ProbeTryDriver(
+    const char *path,
+    struct MHI_ProbeResult *res
+)
+{
+    struct Library *base;
+    APTR decoder;
+    char resolved[300];
+
+    base = OpenLibrary((CONST_STRPTR)path, 0);
+
+    /* Same case-insensitive LIBS:MHI/ retry as the generic selection:
+     * the recorded probe path must be the ACTUAL opened path. */
+    if (!base && MHI_ResolveDriverPath(path, resolved, sizeof(resolved)))
+    {
+        base = OpenLibrary((CONST_STRPTR)resolved, 0);
+        if (base)
+            path = resolved;
+    }
+
+    if (!base)
+        return 0;
+
+    MHIBase = base;
+
+    decoder = MHIAllocDecoder(FindTask(NULL), SIGBREAKF_CTRL_F);
+    if (!decoder)
+    {
+        MHIBase = NULL;
+        CloseLibrary(base);
+        SetSignal(0, SIGBREAKF_CTRL_F);
+        return -1;
+    }
+
+    /* Selected: classify the actual opened path and copy the decoder
+     * name while the decoder and the library are still valid, then
+     * release the temporary probe resources immediately. */
+    res->found = 1;
+    res->driver_class = MHI_ClassifyDriver(path);
+
+    strncpy(res->path, path, sizeof(res->path) - 1);
+    res->path[sizeof(res->path) - 1] = 0;
+
+    {
+        /* MHIQuery(MHIQ_DECODER_NAME) returns a string pointer. */
+        const char *nm = (const char *)MHIQuery(MHIQ_DECODER_NAME);
+        if (nm)
+        {
+            strncpy(res->driver_name, nm, sizeof(res->driver_name) - 1);
+            res->driver_name[sizeof(res->driver_name) - 1] = 0;
+        }
+    }
+
+    MHIFreeDecoder(decoder);
+    MHIBase = NULL;
+    CloseLibrary(base);
+    SetSignal(0, SIGBREAKF_CTRL_F);
+
+    return 1;
+}
+
+/***************************************************************************
+ * MHI_ProbeSelectedDriver() - run the driver probe with the SAME driver
+ * selection semantics as the generic MHI initialization: the MHIDRIVER=
+ * override first (single attempt, no fallback), then the built-in
+ * candidate order, then a scan of LIBS:MHI/ for any other installed
+ * driver.  Returns 1 when a driver was selected (result in *res).
+ ***************************************************************************/
+static int
+MHI_ProbeSelectedDriver(
+    struct MHI_ProbeResult *res
+)
+{
+    int i;
+    struct AnchorPath *ap;
+
+    /* Explicit override: try as given, no fallbacks. */
+    if (g_mhi.driver_override[0])
+        return (MHI_ProbeTryDriver(g_mhi.driver_override, res) == 1);
+
+    for (i = 0; mhi_default_drivers[i]; i++)
+    {
+        if (MHI_ProbeTryDriver(mhi_default_drivers[i], res) == 1)
+            return 1;
+    }
+
+    /* Last resort: any other driver installed in LIBS:MHI/. */
+    ap = (struct AnchorPath *)AllocVec(sizeof(struct AnchorPath) + 512, MEMF_CLEAR);
+    if (!ap)
+        return 0;
+
+    ap->ap_Strlen = 512;
+
+    if (MatchFirst((CONST_STRPTR)"LIBS:MHI/#?.library", ap) == 0)
+    {
+        LONG rc = 0;
+
+        while (rc == 0 && !res->found)
+        {
+            char path[300];
+            const char *name = ap->ap_Info.fib_FileName;
+            int known = 0;
+
+            sprintf(path, "LIBS:MHI/%s", name);
+
+            /* Skip drivers already tried from the known list. */
+            for (i = 0; mhi_default_drivers[i]; i++)
+            {
+                if (MHI_EqualCI(path, mhi_default_drivers[i]))
+                {
+                    known = 1;
+                    break;
+                }
+            }
+
+            if (!known)
+                MHI_ProbeTryDriver(path, res);
+
+            if (!res->found)
+                rc = MatchNext(ap);
+        }
+    }
+
+    MatchEnd(ap);
+    FreeVec(ap);
+
+    return res->found;
+}
+
+/***************************************************************************
  * Feeder task side - all MHI driver calls and all MP3 file I/O live here
  * (never in the main task).  No STDIO in any of these functions.
  ***************************************************************************/
@@ -622,7 +778,7 @@ MHI_FeederStop(
         {
             MHIStop(g_mhi.decoder);
 
-            for (i = 0; i < 50; i++)
+            for (i = 0; i < 2; i++)
             {
                 if (MHIGetStatus(g_mhi.decoder) == MHIF_STOPPED)
                     break;
@@ -634,7 +790,7 @@ MHI_FeederStop(
         /* Reclaim every buffer the driver hands back after the stop; the
          * last ones may arrive with a delay, so poll the queued count
          * instead of stopping at the first NULL. */
-        for (i = 0; i < 100 && g_mhi.queued > 0; i++)
+        for (i = 0; i < 2 && g_mhi.queued > 0; i++)
         {
             while (MHIGetEmpty(g_mhi.decoder) != NULL)
             {
@@ -1361,7 +1517,29 @@ MHI_MusicInit(
     if (MHI_IsActive())
         return 1;
 
-    /* Reset the state (driver_override survives - set before init). */
+    /* Explicit MP3 preload selection: probe the selected MHI driver before
+     * any generic initialization (buffers, current-dir lock, feeder task,
+     * decoder), then activate the dedicated MP3 preload backend. */
+    if (g_mhi.preload_enabled)
+    {
+        struct MHI_ProbeResult probe;
+
+        memset(&probe, 0, sizeof(probe));
+
+        if (!MHI_ProbeSelectedDriver(&probe))
+        {
+            MHI_LOG("MHI: MP3 preload driver probe failed");
+            return 0;
+        }
+
+        MHI_LOG("MHI: MP3 preload driver: %s [%s]",
+                probe.path, MHI_DriverClassName(probe.driver_class));
+
+        return MHI_WarpMusicInit(probe.path, probe.driver_name, 127);
+    }
+
+    /* Reset runtime state (driver_override and preload_enabled survive -
+     * both are configuration set before init). */
     g_mhi.proc = NULL;
     g_mhi.task = NULL;
     g_mhi.ready = 0;
@@ -1545,6 +1723,12 @@ MHI_MusicDeInit(
 {
     int i;
 
+    if (MHI_WarpIsActive())
+    {
+        MHI_WarpMusicDeInit();
+        return;
+    }
+
     if (!g_mhi.proc && !g_mhi.running)
         return;
 
@@ -1602,6 +1786,9 @@ MHI_IsActive(
     void
 )
 {
+    if (MHI_WarpIsActive())
+        return 1;
+
     return g_mhi.running && g_mhi.ready == 1;
 }
 
@@ -1613,6 +1800,9 @@ MHI_DriverName(
     void
 )
 {
+    if (MHI_WarpIsActive())
+        return MHI_WarpDriverName();
+
     if (g_mhi.driver_name[0])
         return g_mhi.driver_name;
 
@@ -1640,6 +1830,12 @@ MHI_PlaySongItem(
     {
         MHI_LOG("MHI: no MP3 found for song item 0x%04x - silence", item);
         MHI_StopSong();
+        return;
+    }
+
+    if (MHI_WarpIsActive())
+    {
+        MHI_WarpPlayPath(path, loop);
         return;
     }
 
@@ -1682,6 +1878,12 @@ MHI_StopSong(
     void
 )
 {
+    if (MHI_WarpIsActive())
+    {
+        MHI_WarpStopSong();
+        return;
+    }
+
     if (!MHI_IsActive())
         return;
 
@@ -1696,6 +1898,9 @@ MHI_SongPlaying(
     void
 )
 {
+    if (MHI_WarpIsActive())
+        return MHI_WarpSongPlaying();
+
     if (!MHI_IsActive())
         return 0;
 
@@ -1741,6 +1946,12 @@ MHI_SetVolume(
 
     g_mhi.volume = volume;
 
+    if (MHI_WarpIsActive())
+    {
+        MHI_WarpSetVolume(volume);
+        return;
+    }
+
     if (!MHI_IsActive())
         return;
 
@@ -1762,6 +1973,15 @@ MHI_SetDriverOverride(
 
     strncpy(g_mhi.driver_override, name, sizeof(g_mhi.driver_override) - 1);
     g_mhi.driver_override[sizeof(g_mhi.driver_override) - 1] = 0;
+}
+
+/* Set MP3 preload mode before MHI_MusicInit(). */
+void
+MHI_SetPreload(
+    int enabled
+)
+{
+    g_mhi.preload_enabled = enabled ? 1 : 0;
 }
 
 #endif /* __AMIGA__ */

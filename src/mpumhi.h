@@ -47,4 +47,7 @@ void MHI_SetVolume(int volume);
  * or "LIBS:MHI/mhimaspro.library").  Call before MHI_MusicInit(). */
 void MHI_SetDriverOverride(const char *name);
 
+/* Select MP3 preload mode before MHI_MusicInit(); disabled by default. */
+void MHI_SetPreload(int enabled);
+
 #endif /* __AMIGA__ */
