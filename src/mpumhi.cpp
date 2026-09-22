@@ -52,6 +52,7 @@
 #include "common.h"
 #include "fileids.h"
 #include "mpumhi.h"
+#include "mpumhi_warp.h"
 
 #include <libraries/mhi.h>
 #include <proto/mhi.h>
@@ -1503,6 +1504,28 @@ MHI_MusicInit(
             MHI_DriverClassName((int)g_mhi.driver_class),
             g_mhi.vol_supported ? "yes" : "no");
 
+    if (g_mhi.driver_class == MHIDRV_ARMEDWARP)
+    {
+        char warp_path[sizeof(g_mhi.opened_path)];
+        char warp_name[sizeof(g_mhi.driver_name)];
+        int warp_volume = (int)g_mhi.volume;
+
+        strcpy(warp_path, g_mhi.opened_path);
+        strcpy(warp_name, g_mhi.driver_name);
+
+        /* No MP3 has been submitted yet.  Fully discard the generic
+         * decoder/task/buffers/current-dir lock before activating WARP. */
+        MHI_MusicDeInit();
+
+        if (g_mhi.running)
+        {
+            MHI_LOG("MHI: ArmedWARP init FAILED - generic feeder task did not stop");
+            return 0;
+        }
+
+        return MHI_WarpMusicInit(warp_path, warp_name, warp_volume);
+    }
+
     return 1;
 
 init_fail:
@@ -1544,6 +1567,12 @@ MHI_MusicDeInit(
 )
 {
     int i;
+
+    if (MHI_WarpIsActive())
+    {
+        MHI_WarpMusicDeInit();
+        return;
+    }
 
     if (!g_mhi.proc && !g_mhi.running)
         return;
@@ -1602,6 +1631,9 @@ MHI_IsActive(
     void
 )
 {
+    if (MHI_WarpIsActive())
+        return 1;
+
     return g_mhi.running && g_mhi.ready == 1;
 }
 
@@ -1613,6 +1645,9 @@ MHI_DriverName(
     void
 )
 {
+    if (MHI_WarpIsActive())
+        return MHI_WarpDriverName();
+
     if (g_mhi.driver_name[0])
         return g_mhi.driver_name;
 
@@ -1640,6 +1675,12 @@ MHI_PlaySongItem(
     {
         MHI_LOG("MHI: no MP3 found for song item 0x%04x - silence", item);
         MHI_StopSong();
+        return;
+    }
+
+    if (MHI_WarpIsActive())
+    {
+        MHI_WarpPlayPath(path, loop);
         return;
     }
 
@@ -1682,6 +1723,12 @@ MHI_StopSong(
     void
 )
 {
+    if (MHI_WarpIsActive())
+    {
+        MHI_WarpStopSong();
+        return;
+    }
+
     if (!MHI_IsActive())
         return;
 
@@ -1696,6 +1743,9 @@ MHI_SongPlaying(
     void
 )
 {
+    if (MHI_WarpIsActive())
+        return MHI_WarpSongPlaying();
+
     if (!MHI_IsActive())
         return 0;
 
@@ -1740,6 +1790,12 @@ MHI_SetVolume(
         volume = 127;
 
     g_mhi.volume = volume;
+
+    if (MHI_WarpIsActive())
+    {
+        MHI_WarpSetVolume(volume);
+        return;
+    }
 
     if (!MHI_IsActive())
         return;
