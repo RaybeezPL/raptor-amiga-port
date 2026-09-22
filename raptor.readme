@@ -1,8 +1,8 @@
 Short:        Raptor: Call of the Shadows
 Author:       Marcin Bednarczyk "Raybeez"
-Uploader:     Marcin Bednarczyk <cichy cichy com pl>
+Uploader: cichy@cichy.com.pl
 Type:         game/shoot
-Version:      0.9.9-rc.3
+Version:      0.9.9-rc.4
 Requires:     ahi.device, RTG (Picasso96 or CyberGraphX) or AGA
 Architecture: m68k-amigaos >= 3.1
 Distribution: Aminet
@@ -13,26 +13,18 @@ scrolling shooter. This port is based on the open-source reverse-engineered
 codebase by skynettx/raptor and targets 68030/68060-class Amiga systems
 with RTG graphics (Picasso96 / CyberGraphX) or native AGA.
 
-This release replaces 0.9.9-rc.2. The archive is distributed as
+This release replaces 0.9.9-rc.3. The archive is distributed as
 raptor.lha so future Aminet updates can replace the same archive name.
 
-What's new in 0.9.9-rc.3:
+What's new in 0.9.9-rc.4:
 
-- Fixed invalid SDL renderer lifetime handling on Amiga:
-  SDL_CreateRenderer() returns a static renderer object, so
-  SDL_DestroyRenderer() must not free() it.
-- Normal Amiga shutdown now uses the C runtime exit() path after
-  ShutDown(), allowing the libnix runtime teardown / swap-stack cleanup
-  to run. This resolved the observed "Process N ending" CLI shutdown
-  hang in repeated Caffeine/PiStorm testing.
-
-Known issue in 0.9.9-rc.3:
-
-- On Caffeine/PiStorm, when Raptor is launched from a Workbench icon,
-  the Workbench menu bar may stop responding to mouse clicks after
-  Raptor exits. Right Amiga + E still works. This has not reproduced
-  on the tested real A2000 / AmigaOS 3.2.3 setup or in WinUAE.
-  Investigation is ongoing.
+- Added MP3PRELOAD=ON|OFF for MUSIC=MHI. OFF is the default generic
+  streaming path; ON loads the complete selected MP3 into memory and
+  plays it from resident data with no MP3 file disk I/O during playback.
+- Preload works with any selected MHI driver. WARP is no longer routed
+  to preload automatically.
+- Reduced the generic MHI stop/status and buffer-reclaim maximum waits
+  to 2 ticks each; no other MHI timing loops changed.
 
 The game renders in a fixed 320x200, 8-bit paletted mode on a dedicated
 screen. Four native m68k binaries are provided:
@@ -49,14 +41,32 @@ Sound effects are played through AHI (ahi.device) at the native 11025 Hz
 - CAMD   : General MIDI via camd.library (external synth / software synth)
 - MHI    : MP3 music via hardware decoder
 - WAVE   : pre-decoded WAV files mixed into the AHI stream
+- OFF    : no music (the default)
 
-For MHI, Raptor first tries its explicit driver candidates (including Prisma
-MegaMix, Amiblaster, Prelude/MPEG-it!, MAS Player, ArmedWarp and the
-mpeg.device bridge), while preserving the MHIDRIVER= override and fallback
-scan of LIBS:MHI/#?.library.
+Select from CLI with -music=mhi or from a Workbench icon with the MUSIC=MHI
+ToolType. For MHI, MP3 files are read from MP3/. Raptor first tries its
+explicit driver candidates while preserving the optional MHIDRIVER=<driver>
+override and fallback scan of LIBS:MHI/#?.library.
 
-No music backend is enabled by default; enable explicitly with MUSIC=ADLIB,
-MUSIC=CAMD, MUSIC=MHI or MUSIC=WAVE.
+MP3PRELOAD=OFF is the default and keeps the original MHI path, streaming the
+MP3 during playback. MP3PRELOAD=ON loads the complete MP3 into memory before
+playback; playback then uses resident MP3 data with no MP3 disk I/O. This
+works independently of the selected MHI driver.
+
+Workbench example:
+MUSIC=MHI
+MP3PRELOAD=ON
+
+CLI example:
+-music=mhi -mp3preload=on
+
+For WARP MHI cards, MP3PRELOAD=ON is recommended. Normal streaming produced
+audible clicks during track changes on the tested Amiga IDE + WARP setup;
+MP3PRELOAD=ON eliminated those clicks in that setup. Other WARP setups may
+behave differently.
+
+No music backend is enabled by default; use MUSIC=OFF, MUSIC=ADLIB,
+MUSIC=CAMD, MUSIC=MHI or MUSIC=WAVE explicitly as required.
 
 Graphics can be selected with GFX=AUTO|RTG|AGA. The RTG path uses either
 Picasso96 or CyberGraphX, trying P96 first, then CGX, then a fallback
@@ -68,11 +78,11 @@ Keyboard, mouse and joystick/CD32 pad input work simultaneously. Workbench
 icon ToolTypes are supported (GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, etc.).
 Persistent audio volumes are stored in amiga.cfg in the game directory.
 
-This is release candidate 0.9.9-rc.3. The rc3 shutdown changes were
-verified in repeated Caffeine/PiStorm testing: the CLI shutdown hang
-is resolved. The rc2 real-hardware verification (Prisma MegaMix MHI
-playback and the automatic 65536-byte stack path) was performed with
-the 0.9.9-rc.2 build.
+This is release candidate 0.9.9-rc.4. MP3PRELOAD=ON was confirmed on
+real WARP hardware. On the tested Amiga IDE + WARP setup, preload
+eliminated the track-change clicks produced by normal streaming.
+MP3PRELOAD=OFF with the 2/2 wait limits removed the previously observed
+menu / track-change lag on the tested WARP hardware.
 
 Full gameplay has also been tested on real hardware including A2000 with
 CyberVision 64/3D, A1200 with PiStorm/Emu68 and A4000 with Picasso IV, as

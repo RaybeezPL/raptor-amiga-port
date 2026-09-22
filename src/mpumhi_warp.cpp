@@ -1,5 +1,5 @@
 /***************************************************************************
- * mpumhi_warp.cpp - dedicated resident-memory ArmedWARP MHI backend.
+ * mpumhi_warp.cpp - dedicated resident-memory MP3 preload MHI backend.
  ***************************************************************************/
 #ifdef __AMIGA__
 
@@ -33,7 +33,7 @@ static ULONG MHI_WarpScaleVolume(int volume)
 }
 
 /*
- * ArmedWARP per-track state. The playback task receives this object
+ * MP3 preload per-track state. The playback task receives this object
  * through NP_ExitData and operates on it exclusively; the parent API
  * reads and writes the same authoritative fields.
  */
@@ -59,7 +59,6 @@ struct MHIWarpTrack
     volatile LONG ended;
 };
 
-/* ArmedWARP backend/global owner state. */
 struct MHIWarpState
 {
     LONG active;
@@ -67,7 +66,6 @@ struct MHIWarpState
     volatile LONG volume;
     char library_path[256];
     char driver_name[64];
-    /* Current ArmedWARP per-track state handed to the playback task. */
     struct MHIWarpTrack track;
 };
 
@@ -161,7 +159,6 @@ static int MHI_WarpFindMPEG(UBYTE *allocation, ULONG allocation_size,
     return 0;
 }
 
-/* Queue one resident-memory block for this ArmedWARP track. */
 static int MHI_WarpQueueNext(APTR decoder, struct MHIWarpTrack *track)
 {
     ULONG size;
@@ -182,7 +179,6 @@ static int MHI_WarpQueueNext(APTR decoder, struct MHIWarpTrack *track)
     return 1;
 }
 
-/* Queue the two initial resident-memory blocks for this ArmedWARP track. */
 static int MHI_WarpQueueInitial(APTR decoder, struct MHIWarpTrack *track)
 {
     ULONG first, second;
@@ -210,7 +206,7 @@ static int MHI_WarpQueueInitial(APTR decoder, struct MHIWarpTrack *track)
 }
 
 /*
- * ArmedWARP playback task. All per-track state arrives through NP_ExitData;
+ * MP3 preload playback task. All per-track state arrives through NP_ExitData;
  * this task never touches the backend-global state.
  */
 __attribute__((optimize("O0")))
@@ -426,7 +422,7 @@ void MHI_WarpPlayPath(const char *path, int loop)
     track->running = 1;
     track->playback_process = CreateNewProcTags(
         NP_Entry,     (ULONG)MHI_WarpPlaybackEntry,
-        NP_Name,      (ULONG)"Raptor ArmedWARP Playback Task",
+        NP_Name,      (ULONG)"Raptor MP3 Preload Task",
         NP_Priority,  (LONG)5,
         NP_StackSize, (ULONG)16384,
         NP_ExitData,  (ULONG)track,

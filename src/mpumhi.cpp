@@ -108,6 +108,9 @@ static struct MHIState
     /* Written by the main task before MHI_MusicInit() (MHIDRIVER=). */
     char driver_override[256];
 
+    /* Written by the main task before MHI_MusicInit() (MP3PRELOAD=). */
+    int preload_enabled;
+
     /* Main-owned buffer memory (feeder only reads/writes the contents). */
     UBYTE *buffers[MHI_NUM_BUFS];
 
@@ -594,13 +597,9 @@ MHI_ResolveDriverPath(
 }
 
 /***************************************************************************
- * ArmedWARP driver probe - lightweight parent-side detection run before
- * the generic MHI initialization.  The probe opens a candidate driver
- * library, allocates and immediately frees a decoder in the main task
- * (signalled via SIGBREAKF_CTRL_F) and records the actual opened path,
- * the decoder name and the driver classification in a local result.
- * No playback, no streaming buffers and no feeder task are involved;
- * all temporary probe resources are released before returning.
+ * MP3 preload driver probe. Opens and briefly allocates a decoder in the
+ * main task using SIGBREAKF_CTRL_F, records the selected driver details,
+ * then releases all probe resources. No playback or feeder state is used.
  ***************************************************************************/
 struct MHI_ProbeResult
 {
@@ -779,7 +778,7 @@ MHI_FeederStop(
         {
             MHIStop(g_mhi.decoder);
 
-            for (i = 0; i < 50; i++)
+            for (i = 0; i < 2; i++)
             {
                 if (MHIGetStatus(g_mhi.decoder) == MHIF_STOPPED)
                     break;
@@ -791,7 +790,7 @@ MHI_FeederStop(
         /* Reclaim every buffer the driver hands back after the stop; the
          * last ones may arrive with a delay, so poll the queued count
          * instead of stopping at the first NULL. */
-        for (i = 0; i < 100 && g_mhi.queued > 0; i++)
+        for (i = 0; i < 2 && g_mhi.queued > 0; i++)
         {
             while (MHIGetEmpty(g_mhi.decoder) != NULL)
             {
@@ -1518,30 +1517,29 @@ MHI_MusicInit(
     if (MHI_IsActive())
         return 1;
 
-    /* ArmedWARP early interception: probe the selected MHI driver before
+    /* Explicit MP3 preload selection: probe the selected MHI driver before
      * any generic initialization (buffers, current-dir lock, feeder task,
-     * decoder).  When the ArmedWARP driver is selected, activate the
-     * dedicated MP3 preload backend immediately - the generic MHI backend
-     * is never started in that case. */
+     * decoder), then activate the dedicated MP3 preload backend. */
+    if (g_mhi.preload_enabled)
     {
         struct MHI_ProbeResult probe;
 
         memset(&probe, 0, sizeof(probe));
 
-        if (MHI_ProbeSelectedDriver(&probe) &&
-            probe.driver_class == MHIDRV_ARMEDWARP)
+        if (!MHI_ProbeSelectedDriver(&probe))
         {
-            MHI_LOG("MHI: ArmedWARP selected by driver probe (%s) [%s] - "
-                    "activating dedicated MP3 preload backend",
-                    probe.path, MHI_DriverClassName(probe.driver_class));
-
-            /* The generic initialization reset the volume to 127 before
-             * its ArmedWARP hand-over; keep that initial value. */
-            return MHI_WarpMusicInit(probe.path, probe.driver_name, 127);
+            MHI_LOG("MHI: MP3 preload driver probe failed");
+            return 0;
         }
+
+        MHI_LOG("MHI: MP3 preload driver: %s [%s]",
+                probe.path, MHI_DriverClassName(probe.driver_class));
+
+        return MHI_WarpMusicInit(probe.path, probe.driver_name, 127);
     }
 
-    /* Reset the state (driver_override survives - set before init). */
+    /* Reset runtime state (driver_override and preload_enabled survive -
+     * both are configuration set before init). */
     g_mhi.proc = NULL;
     g_mhi.task = NULL;
     g_mhi.ready = 0;
@@ -1975,6 +1973,15 @@ MHI_SetDriverOverride(
 
     strncpy(g_mhi.driver_override, name, sizeof(g_mhi.driver_override) - 1);
     g_mhi.driver_override[sizeof(g_mhi.driver_override) - 1] = 0;
+}
+
+/* Set MP3 preload mode before MHI_MusicInit(). */
+void
+MHI_SetPreload(
+    int enabled
+)
+{
+    g_mhi.preload_enabled = enabled ? 1 : 0;
 }
 
 #endif /* __AMIGA__ */

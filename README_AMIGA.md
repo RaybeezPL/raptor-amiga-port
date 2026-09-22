@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Version: 0.9.9-rc.3 - release candidate.
+Version: 0.9.9-rc.4 - release candidate.
 
 =====================================================
 
@@ -243,8 +243,40 @@ Sound effects and music use two separate, native Amiga subsystems:
                     (mhizz9000.library). The driver
                     decodes and outputs the MP3 by itself, so it does
                     not touch the AHI stream used by the sound effects.
-                    MP3 files are streamed through 4 x 32 KB buffers
-                    (128 KB total, ~8 s at 128 kbit/s); ID3v2.3/ID3v2.4
+                    MP3 files are read from the MP3/ drawer inside the
+                    game directory. MP3PRELOAD=OFF is the default and
+                    keeps the original MHI streaming path: the MP3 is
+                    streamed during playback. MP3PRELOAD=ON loads the
+                    complete MP3 into memory before playback; playback
+                    then uses the resident MP3 data and performs no MP3
+                    disk I/O. Preloading works independently of the
+                    selected MHI driver.
+
+                    Workbench ToolTypes:
+
+                       MUSIC=MHI
+                       MP3PRELOAD=ON
+
+                    Shell/CLI:
+
+                       raptor -music=mhi -mp3preload=on
+
+                    For WARP MHI cards, MP3PRELOAD=ON is recommended.
+                    Normal streaming produced audible clicks during
+                    track changes on the tested setup using Amiga IDE
+                    together with WARP. With MP3PRELOAD=ON, the tested
+                    WARP setup plays track changes without those clicks.
+                    Other WARP setups may behave differently.
+                    With MP3PRELOAD=OFF, reducing the generic MHI
+                    stop/status and buffer-reclaim waits to a maximum
+                    of 2 ticks each removed the previously observed
+                    menu / track-change lag on the tested WARP hardware.
+
+                    Special thanks to PPA user Jacques for his patience
+                    and extensive MHI testing on WARP hardware. His
+                    testing made MP3PRELOAD possible.
+
+                    ID3v2.3/ID3v2.4
                     metadata at the start of a file (including an
                     optional ID3v2.4 footer) and a trailing ID3v1 "TAG"
                     block are stripped before the MPEG-audio data is
@@ -468,6 +500,14 @@ accepted. Parameters may be combined in any order.
                 "-mhidriver=mhiprisma.library" or
                 "MHIDRIVER=LIBS:MHI/mhimaspro.library".
 
+    -mp3preload=ON|OFF
+                Selects how MP3 data is supplied for MUSIC=MHI. OFF is
+                the default and uses the original MHI streaming path.
+                ON loads the complete MP3 into memory before playback;
+                playback then uses resident MP3 data with no MP3 disk
+                I/O. This works with any selected MHI driver. The
+                dashless Workbench ToolType form is "MP3PRELOAD=ON".
+
     -ahiunit=N   Selects the ahi.device unit used by Raptor's sound
                 effects output (default is Unit 0, which preserves
                 all previous Raptor behavior). N may be 0, 1, 2 or 3
@@ -582,8 +622,9 @@ Workbench. Parameters are passed via icon ToolTypes:
 2. In the icon information window add the desired ToolTypes, one
    per line, e.g.:
 
-      NOSOUND
-      (MUSIC=CAMD)
+      (NOSOUND)
+      MUSIC=MHI
+      MP3PRELOAD=ON
       GFX=AGA
       MOUSE=OFF
       (NOMOUSE)
@@ -605,6 +646,8 @@ enabled). Music is disabled by default (MUSIC=OFF). MUSIC=ADLIB
 selects the built-in AdLib/OPL3 emulation, MUSIC=CAMD selects MIDI
 music, MUSIC=MHI selects MP3 music via an MHI driver, and
 MUSIC=WAVE selects pre-decoded WAV music from the WAVE/ drawer.
+For the shown MHI example, the equivalent CLI options are
+"-music=mhi -mp3preload=on".
 
 Note: MOUSE=OFF / NOMOUSE disables the mouse and JOYSTICK=OFF / NOJOY
 disables the joystick (both default to ON). An explicit =value wins
@@ -775,7 +818,11 @@ Known Limitations
   reported as "MNT ZZ9000") is recognized by the code but not yet
   verified on real hardware, and the other driver families are
   recognized by the auto-detection only. Further real-hardware
-  testing on additional MHI hardware is still useful.
+  testing on additional MHI hardware is still useful. MP3PRELOAD=ON is
+  recommended for WARP MHI cards: normal streaming produced audible
+  clicks during track changes on the tested Amiga IDE + WARP setup,
+  while MP3PRELOAD=ON eliminated those clicks in testing. Other WARP
+  setups may behave differently.
 - Music and sound-effect volumes changed in the in-game options menu
   are saved to amiga.cfg in the game directory (created on first run)
   and restored on the next start. Each music backend has its own
@@ -807,8 +854,10 @@ Tested configurations
   with the new 1024-frame AHI/SFX buffer (the earlier "8 buffers
   queued" observation predates the current 4 x 32 KB MHI streaming
   configuration).
-- Armed WARP MHI driver (mhiArmedWARP.library): MHI driver
-  initialization and MP3 playback confirmed on real hardware.
+- Armed WARP MHI driver (mhiArmedWARP.library): MHI initialization and
+  MP3 playback confirmed on real hardware. On the tested Amiga IDE +
+  WARP setup, normal streaming produced audible clicks during track
+  changes; MP3PRELOAD=ON eliminated those clicks.
 - MUSIC=WAVE retested successfully in WinUAE after the AHI
   buffer-policy change (WAVE remains at 512 frames).
 - Amiga 4000 with 68060 at 50 MHz, Picasso IV and AGA; WAVE
@@ -822,7 +871,7 @@ Roadmap / Remaining Work
 ------------------------
 
 - Fine-tuning and performance polish on real 68k hardware.
-- Version 0.9.9-rc.3 is a release candidate.
+- Version 0.9.9-rc.4 is a release candidate.
 
 
 Credits & Contact
@@ -834,6 +883,9 @@ Credits & Contact
    GitHub Repository:  https://github.com/RaybeezPL/raptor-amiga-port
 
    Special thanks to all Amiga users keeping the scene alive.
+
+   Special thanks to PPA user Jacques for his patience and extensive MHI
+   testing on WARP hardware. His testing made MP3PRELOAD possible.
 
    Contributor credit: @midwan - MNT ZZ9000 / ZZ9000AX MHI driver
    recognition (LIBS:MHI/mhizz9000.library), GitHub PR #3.

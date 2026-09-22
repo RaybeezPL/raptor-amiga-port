@@ -2,10 +2,7 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
-## [Unreleased]
-
-Test-branch work (`test/mhi-warp-4buf`); newer than and unreleased since
-0.9.9-rc.2.
+## [0.9.9-rc.4] - 2026-09-22
 
 ### Added
 - Optional `AHIUNIT=0|1|2|3` ToolType / CLI parameter (`-ahiunit=N`)
@@ -16,6 +13,10 @@ Test-branch work (`test/mhi-warp-4buf`); newer than and unreleased since
   opened driver is classified and reported as "MNT ZZ9000" in the
   startup log; it is supported/recognized by the code but has not yet
   been verified on real hardware.
+- `MP3PRELOAD=ON|OFF` for `MUSIC=MHI`. The default `OFF` keeps the
+  original MHI streaming path. `ON` loads the complete MP3 into memory
+  before playback and plays from resident MP3 data with no MP3 disk I/O
+  during playback. Preloading works with any selected MHI driver.
 
 ### Changed
 - Case-insensitive MHI driver resolution for drivers located in
@@ -28,9 +29,13 @@ Test-branch work (`test/mhi-warp-4buf`); newer than and unreleased since
   filename. The successfully resolved real path is retained as the
   opened driver path (e.g. `MHIDRIVER=mhiArmedWarp.library` resolves
   to `LIBS:MHI/mhiArmedWARP.library`).
-- MHI MP3 streaming buffers changed to 4 x 32 KB (128 KB total, ~8 s
-  at 128 kbit/s); the preload/refill architecture is otherwise
-  unchanged.
+- MHI preload backend selection is now explicit through `MP3PRELOAD`
+  rather than automatic for one specific MHI driver.
+- `MP3PRELOAD=OFF` keeps the original generic MHI streaming path for all
+  drivers.
+- The generic MHI stop/status maximum wait was reduced from 50 ticks to
+  2 ticks, and its buffer-reclaim maximum wait was reduced from 100 ticks
+  to 2 ticks. No other MHI timing loops were changed.
 - AHI callback buffer policy: 1024 frames (~93 ms at 11025 Hz) for
   MUSIC=ADLIB and MUSIC=MHI, and 512 frames (~46 ms) for MUSIC=CAMD,
   MUSIC=WAVE, MUSIC=OFF and -nomusic. The larger buffer provides
@@ -41,6 +46,8 @@ Test-branch work (`test/mhi-warp-4buf`); newer than and unreleased since
   frames processed per second.
 
 ### Fixed
+- WARP is no longer automatically routed to the preload backend; preload
+  selection is explicit through `MP3PRELOAD`.
 - Clearer MHI initialization diagnostics with distinct negative
   stages: -1 = MHI driver signal allocation failed, -2 = command
   signal allocation failed, -3 = no MHI driver library could be
@@ -52,8 +59,16 @@ Test-branch work (`test/mhi-warp-4buf`); newer than and unreleased since
   change; WAVE remains at 512 frames.
 - MUSIC=MHI with Prisma Megamix: retested successfully on real
   hardware with the new 1024-frame AHI/SFX buffer.
-- Armed WARP MHI driver: MHI initialization and MP3 playback confirmed
-  on real hardware.
+- WARP real-hardware testing was successful. Normal streaming produced
+  audible clicks during track changes on the tested Amiga IDE + WARP
+  setup; `MP3PRELOAD=ON` eliminated those clicks in testing. This result
+  describes the tested setup and does not imply identical behavior on
+  every WARP configuration.
+- `MP3PRELOAD=OFF` with the 2/2 stop/status and buffer-reclaim limits
+  removed the previously observed menu / track-change lag on the tested
+  WARP hardware.
+- Special thanks to PPA user Jacques for his patience and extensive MHI
+  testing on WARP hardware. His testing made `MP3PRELOAD` possible.
 - The new 1024-frame AHI/SFX buffer policy has not yet been retested on
   every MHI card; other MHI hardware still benefits from further
   real-hardware verification.
