@@ -282,5 +282,5 @@ Platform-specific notes for Windows, Linux, macOS, and Android from the original
 - **[skynettx](https://github.com/skynettx)** for the open-source C/C++ recreation used as the base for this port
 - The Amiga community, emulator authors, and RTG/AHI toolchain developers
 - The testers from PPA.PL for their invaluable feedback and support during development
-- Special thanks to PPA user Jacques for his patience and extensive MHI testing on WARP hardware. His testing made MP3PRELOAD possible.
-- Special thanks also to PPA users vojo, BULI, Mokry and AD99 for their testing, feedback and support during development.
+- Special thanks to PPA user [Jacques](https://www.ppa.pl/uzytkownicy/792) for his patience and extensive MHI testing on WARP hardware. His testing made MP3PRELOAD possible.
+- Special thanks also to PPA users [vojo](https://www.ppa.pl/uzytkownicy/5586), [BULI](https://www.ppa.pl/uzytkownicy/1916), [Mokry](https://www.ppa.pl/uzytkownicy/124) and [AD99](https://www.ppa.pl/uzytkownicy/7236) for their testing, feedback and support during development.
