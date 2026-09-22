@@ -111,6 +111,10 @@ static struct MHIState
     /* Written by the main task before MHI_MusicInit() (MP3PRELOAD=). */
     int preload_enabled;
 
+    /* Exact non-WARP driver selected by the MP3 preload probe.  Used only
+     * to pin the generic feeder to the driver that was probed. */
+    char preload_driver_path[256];
+
     /* Main-owned buffer memory (feeder only reads/writes the contents). */
     UBYTE *buffers[MHI_NUM_BUFS];
 
@@ -134,6 +138,8 @@ static struct MHIState
     struct Library *base;           /* opened MHI driver library (== MHIBase) */
     APTR   decoder;                 /* MHI decoder handle */
     BPTR   file;                    /* currently streamed MP3 file */
+    UBYTE *resident_mp3;            /* whole MP3 allocation in preload mode */
+    ULONG  resident_mp3_size;
     LONG   file_pos;                /* current read offset */
     LONG   file_start;              /* first byte after any ID3v2 tag */
     LONG   file_end;                /* effective end (ID3v1 trimmed) */
@@ -818,6 +824,13 @@ MHI_FeederStop(
         Close(g_mhi.file);
         g_mhi.file = 0;
     }
+
+    if (g_mhi.resident_mp3)
+    {
+        FreeMem(g_mhi.resident_mp3, g_mhi.resident_mp3_size);
+        g_mhi.resident_mp3 = NULL;
+        g_mhi.resident_mp3_size = 0;
+    }
 }
 
 /***************************************************************************
@@ -832,7 +845,7 @@ MHI_FillBuffer(
 {
     LONG room, got;
 
-    if (!g_mhi.file || g_mhi.eof)
+    if ((!g_mhi.file && !g_mhi.resident_mp3) || g_mhi.eof)
         return 0;
 
     room = g_mhi.file_end - g_mhi.file_pos;
@@ -846,7 +859,8 @@ MHI_FillBuffer(
         }
 
         /* Looping song: wrap to the first byte after the ID3v2 tag. */
-        Seek(g_mhi.file, g_mhi.file_start, OFFSET_BEGINNING);
+        if (g_mhi.file)
+            Seek(g_mhi.file, g_mhi.file_start, OFFSET_BEGINNING);
         g_mhi.file_pos = g_mhi.file_start;
         room = g_mhi.file_end - g_mhi.file_pos;
     }
@@ -854,7 +868,13 @@ MHI_FillBuffer(
     if (room > MHI_BUF_SIZE)
         room = MHI_BUF_SIZE;
 
-    got = Read(g_mhi.file, buf, room);
+    if (g_mhi.resident_mp3)
+    {
+        CopyMem(g_mhi.resident_mp3 + g_mhi.file_pos, buf, room);
+        got = room;
+    }
+    else
+        got = Read(g_mhi.file, buf, room);
 
     if (got <= 0)
     {
@@ -877,7 +897,8 @@ MHI_FillBuffer(
     {
         if (g_mhi.loop)
         {
-            Seek(g_mhi.file, g_mhi.file_start, OFFSET_BEGINNING);
+            if (g_mhi.file)
+                Seek(g_mhi.file, g_mhi.file_start, OFFSET_BEGINNING);
             g_mhi.file_pos = g_mhi.file_start;
         }
         else
@@ -980,7 +1001,7 @@ MHI_FeederOpen(
 )
 {
     BPTR f;
-    LONG start = 0, end, i;
+    LONG start = 0, end, file_size, got, i;
     g_mhi.debug_open = 0;
     g_mhi.debug_seek_end = 0;
     g_mhi.debug_seek_back = 0;
@@ -999,15 +1020,15 @@ MHI_FeederOpen(
     g_mhi.debug_open = 1;
 
     Seek(f, 0, OFFSET_END);
-    end = Seek(f, 0, OFFSET_CURRENT);
+    file_size = Seek(f, 0, OFFSET_CURRENT);
     Seek(f, 0, OFFSET_BEGINNING);
-    g_mhi.debug_seek_end = end;
+    g_mhi.debug_seek_end = file_size;
     g_mhi.debug_seek_back = IoErr();
 
     /* Strip ID3v2 (start) and ID3v1 (end) metadata: only the MPEG audio
      * stream goes to the decoder.  On any detection problem the helper
      * falls back to the full file range. */
-    MHI_StripID3Tags(f, end, &start, &end);
+    MHI_StripID3Tags(f, file_size, &start, &end);
 
     if (end <= start)
     {
@@ -1015,7 +1036,31 @@ MHI_FeederOpen(
         return 0;
     }
 
-    g_mhi.file = f;
+    if (g_mhi.preload_enabled)
+    {
+        g_mhi.resident_mp3 = (UBYTE *)AllocMem((ULONG)file_size, MEMF_PUBLIC);
+        if (!g_mhi.resident_mp3)
+        {
+            Close(f);
+            return 0;
+        }
+
+        g_mhi.resident_mp3_size = (ULONG)file_size;
+        Seek(f, 0, OFFSET_BEGINNING);
+        got = Read(f, g_mhi.resident_mp3, file_size);
+        Close(f);
+
+        if (got != file_size)
+        {
+            FreeMem(g_mhi.resident_mp3, g_mhi.resident_mp3_size);
+            g_mhi.resident_mp3 = NULL;
+            g_mhi.resident_mp3_size = 0;
+            return 0;
+        }
+    }
+    else
+        g_mhi.file = f;
+
     g_mhi.file_start = start;
     g_mhi.file_end = end;
     g_mhi.file_pos = start;
@@ -1024,7 +1069,8 @@ MHI_FeederOpen(
     g_mhi.debug_start = start;
     g_mhi.debug_end = end;
 
-    Seek(f, start, OFFSET_BEGINNING);
+    if (g_mhi.file)
+        Seek(f, start, OFFSET_BEGINNING);
 
     /* Preload: queue as many buffers as possible before starting. */
     for (i = 0; i < MHI_NUM_BUFS; i++)
@@ -1058,7 +1104,7 @@ MHI_Service(
     /* The current song may have been stopped and the file closed before
      * the driver returned all buffers. Never refill after Close().
      */
-    if (!g_mhi.file)
+    if (!g_mhi.file && !g_mhi.resident_mp3)
         return;
 
     /* Refill only while a song is actually playing: between STOP and the
@@ -1265,6 +1311,14 @@ MHI_FeederOpenDriver(
 {
     int i;
     int saw_decoder_fail = 0;
+
+    /* Generic preload was probed in the main task.  Open exactly the same
+     * non-WARP driver here rather than allowing a second selection pass. */
+    if (g_mhi.preload_driver_path[0])
+    {
+        int result = MHI_TryDriver(g_mhi.preload_driver_path, mhi_mask);
+        return result == 1 ? 1 : (result < 0 ? -4 : -3);
+    }
 
     /* Explicit override: try as given.  MHI_TryDriver() performs the
      * case-insensitive LIBS:MHI/ retry itself (and treats a bare name
@@ -1517,6 +1571,8 @@ MHI_MusicInit(
     if (MHI_IsActive())
         return 1;
 
+    g_mhi.preload_driver_path[0] = 0;
+
     /* Explicit MP3 preload selection: probe the selected MHI driver before
      * any generic initialization (buffers, current-dir lock, feeder task,
      * decoder), then activate the dedicated MP3 preload backend. */
@@ -1535,7 +1591,12 @@ MHI_MusicInit(
         MHI_LOG("MHI: MP3 preload driver: %s [%s]",
                 probe.path, MHI_DriverClassName(probe.driver_class));
 
-        return MHI_WarpMusicInit(probe.path, probe.driver_name, 127);
+        if (probe.driver_class == MHIDRV_ARMEDWARP)
+            return MHI_WarpMusicInit(probe.path, probe.driver_name, 127);
+
+        strncpy(g_mhi.preload_driver_path, probe.path,
+                sizeof(g_mhi.preload_driver_path) - 1);
+        g_mhi.preload_driver_path[sizeof(g_mhi.preload_driver_path) - 1] = 0;
     }
 
     /* Reset runtime state (driver_override and preload_enabled survive -
@@ -1549,6 +1610,8 @@ MHI_MusicInit(
     g_mhi.cmd_sigmask = 0;
     g_mhi.decoder = NULL;
     g_mhi.file = 0;
+    g_mhi.resident_mp3 = NULL;
+    g_mhi.resident_mp3_size = 0;
     g_mhi.eof = 0;
     g_mhi.loop = 0;
     g_mhi.queued = 0;
