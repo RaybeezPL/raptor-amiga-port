@@ -11,8 +11,9 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
 - MNT ZZ9000 / ZZ9000AX MHI driver recognition via
   `LIBS:MHI/mhizz9000.library`, contributed by @midwan (PR #3). The
   opened driver is classified and reported as "MNT ZZ9000" in the
-  startup log; it is supported/recognized by the code but has not yet
-  been verified on real hardware.
+  startup log. The driver has now been verified on real hardware, with
+  MHI initialization and MP3 playback confirmed on a real Amiga 4000 with
+  ZZ9000 + ZZ9000AX.
 - `MP3PRELOAD=ON|OFF` for `MUSIC=MHI`. The default `OFF` keeps the
   original MHI streaming path. `ON` loads the complete MP3 into memory
   before playback and plays from resident MP3 data with no MP3 disk I/O

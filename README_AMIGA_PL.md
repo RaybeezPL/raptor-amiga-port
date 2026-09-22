@@ -294,10 +294,10 @@ podsystemów Amigi:
                      Prisma MegaMix (mhiprisma.library, w tym nowy bufor
                      AHI/SFX 1024 ramki) oraz Armed WARP
                      (mhiArmedWARP.library — potwierdzona inicjalizacja
-                     MHI i odtwarzanie MP3). MNT ZZ9000 / ZZ9000AX jest
-                     rozpoznawany przez kod i raportowany jako "MNT
-                     ZZ9000", ale nie został jeszcze zweryfikowany na
-                     prawdziwym sprzęcie; pozostałe rodziny driverów są
+                     MHI i odtwarzanie MP3). MNT ZZ9000 / ZZ9000AX
+                     (mhizz9000.library — potwierdzona inicjalizacja
+                     MHI i odtwarzanie MP3 na prawdziwej Amidze 4000 z
+                     ZZ9000 + ZZ9000AX). Pozostałe rodziny driverów są
                      rozpoznawane wyłącznie przez auto-detekcję, a
                      dalsze testy na dodatkowym sprzęcie MHI są nadal
                      przydatne.
@@ -683,10 +683,12 @@ wysokości 40 wierszy na dole). Jeśli żaden z trybów nie jest dostępny,
 pojawi się angielski requester z prośbą o skonfigurowanie odpowiedniego
 trybu RTG albo uruchomienie gry z ekranem klasycznego chipsetu (GFX=AGA).
 
-Notatka o wyświetlaniu (PAL/NTSC): W trybie PAL na dole ekranu może być
-widoczny czarny pasek, ponieważ gra używa obszaru obrazu 320x200. Aby
-pionowo wypełnić ekran, przed uruchomieniem wybierz NTSC w Amiga Early
-Startup; gra otworzy się wtedy na pełnym ekranie w rozdzielczości 320x200.
+Notatka o wyświetlaniu (PAL/NTSC): W trybie AGA (`GFX=AGA`) na PAL dolny
+pasek ekranu może być czarny, ponieważ gra używa obszaru obrazu 320x200.
+Aby pionowo wypełnić ekran, wybierz `VIDEO=NTSC` z `GFX=AGA`; gra otwiera
+swój ekran AGA 320x200x8 bezpośrednio w trybie NTSC — nie wymaga restartu,
+nie trzeba zmieniać nic w `DEVS:Monitors`, ani korzystać z opcji Early
+Startup. Na RTG parametr `VIDEO=` nie ma żadnego efektu.
 
 Uwaga: środkowy przycisk myszy jest ignorowany. Na niektórych komputerach
 (w szczególności A1200 + PiStorm/Emu68, zarówno na ekranach RTG, jak i AGA)
@@ -704,21 +706,13 @@ Natywny tryb AGA wybierany jest za pomocą `GFX=AGA`.
 Gra zawsze renderuje stały obraz logiczny **320×200** od lewego górnego rogu ekranu. Na Amadze skonfigurowanej na PAL dolna część natywnego ekranu PAL może być czarna. Jest to zachowanie normalne i zamierzone.
 
 `VIDEO=AUTO` (wartość domyślna) używa trybu wyświetlania AGA wybranego w systemie.  
-`VIDEO=NTSC` żąda trybu NTSC jako domyślnego. Przy `GFX=AGA` ekran otwierany jest z `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (natywny NTSC low‑res), co daje ekran **320×200×8** w standardzie NTSC. Przy `GFX=RTG` opcja ta jest ignorowana i używane jest `AUTO`.
-
-Sam parametr `VIDEO=NTSC` **nie zmienia** Amigi skonfigurowanej na PAL w NTSC i nie modyfikuje niczego w `DEVS:Monitors`. Jeśli chcesz, aby obraz 320×200 wypełniał cały ekran pionowo w timingach NTSC, Amiga musi być skonfigurowana/uruchomiona w trybie NTSC przed uruchomieniem gry.
-
-Opcjonalnie: uruchamianie systemu AmigaOS 3.x w NTSC  
-1. Zresetuj lub włącz Amigę.  
-2. Przytrzymaj oba przyciski myszy, aby otworzyć Early Startup Control.  
-3. W Display Options wybierz **NTSC**.  
-4. Uruchom AmigaOS, a następnie Raptora z `GFX=AGA` (i opcjonalnie `VIDEO=NTSC`).
+`VIDEO=NTSC` wyraźnie wybiera natywny tryb wyświetlania NTSC w niskiej rozdzielczości używany przez grę. Przy `GFX=AGA` gra otwiera swój ekran AGA **320×200×8** bezpośrednio w timingach NTSC, przy użyciu `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (natywny NTSC low‑res), dzięki czemu obraz 320×200 wypełnia cały ekran pionowo. Nie wymaga to restartu, nie trzeba niczego zmieniać w `DEVS:Monitors`, ani korzystać z opcji Early Startup. Przy `GFX=RTG` opcja ta jest ignorowana i używane jest `AUTO`.
 
 Jako ToolTypes w Workbenchu ustaw w osobnych liniach:
 
 ```text
 GFX=AGA
-VIDEO=AUTO
+VIDEO=NTSC
 ```
 
 
@@ -820,12 +814,12 @@ Znane ograniczenia
   komputerów 68k nie ma software-only MHI decodera; jeśli MHI driver
   nie może zostać otwarty, muzyka przechodzi na MUSIC=OFF (efekty
   dźwiękowe pozostają aktywne). Utwory, których pliku MP3 brakuje
-  w drawerze MP3/, pozostają celowo ciche. Prisma MegaMix oraz
-  Armed WARP to konfiguracje zweryfikowane na prawdziwym sprzęcie
-  (inicjalizacja MHI i odtwarzanie MP3); MNT ZZ9000 / ZZ9000AX
-  (mhizz9000.library, raportowany jako "MNT ZZ9000") jest rozpoznawany
-  przez kod, ale nie został jeszcze zweryfikowany na prawdziwym
-  sprzęcie, a pozostałe rodziny driverów są rozpoznawane wyłącznie
+  w drawerze MP3/, pozostają celowo ciche. Prisma MegaMix, Armed WARP i
+  MNT ZZ9000 / ZZ9000AX to konfiguracje zweryfikowane na prawdziwym
+  sprzęcie (inicjalizacja MHI i odtwarzanie MP3). MNT ZZ9000 / ZZ9000AX
+  (mhizz9000.library, raportowany jako "MNT ZZ9000") — potwierdzona
+  inicjalizacja MHI i odtwarzanie MP3 na prawdziwej Amidze 4000 z ZZ9000
+  + ZZ9000AX. Pozostałe rodziny driverów są rozpoznawane wyłącznie
   przez auto-detekcję. Dalsze testy na dodatkowym sprzęcie MHI są
   nadal przydatne. Dla kart WARP MHI zalecane jest MP3PRELOAD=ON:
   normalne strumieniowanie powodowało słyszalne kliknięcia podczas zmian
@@ -872,6 +866,10 @@ Testowane konfiguracje
   polityki buforów AHI (WAVE pozostaje przy 512 ramkach).
 - Amiga 4000 z 68060 50 MHz, Picasso IV i AGA — przetestowano
   WAVE, MIDI/CAMD oraz MHI.
+- Amiga 4000 z ZZ9000 + ZZ9000AX; potwierdzone odtwarzanie MP3 przez MHI
+  z użyciem drivera MHI dla karty ZZ9000AX.
+- Amiga 1200 z Blizzard 1260 56 MHz, Mediatorem, Voodoo3 i AmigaOS
+  3.2.3; potwierdzone MUSIC=WAVE.
 - WinUAE z konfiguracjami 68030 i 68060, z FPU i bez FPU,
   przetestowano w trybach AGA oraz RTG.
 - Przetestowano na AmigaOS 3.1.4, 3.2 i 3.2.3.

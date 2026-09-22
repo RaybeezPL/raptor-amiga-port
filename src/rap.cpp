@@ -324,12 +324,16 @@ RAP_ParseGfx(
  * ("-video=pal") and Workbench icon ToolTypes ("VIDEO=PAL"). Values:
  * AUTO (default), PAL, NTSC. Returns 1 when the argument was recognized.
  *
- * VIDEO=PAL and VIDEO=NTSC are accepted but NOT implemented as forced mode
- * selection: on native AGA, forcing the standard requires SA_DisplayID, which
- * changes the viewport origin/physical geometry and was proven (on real AGA
- * hardware) to stretch/crop the verified 320x200 presentation.
- * Amiga_OpenGameScreen() (amiga_sdl_stubs.h) logs this and falls back to the
- * default native AGA mode (AUTO). On RTG, VIDEO is ignored.
+ * VIDEO only applies to native AGA (GFX=AGA); on RTG it has no effect.
+ *  - VIDEO=AUTO: system-selected native AGA mode (default).
+ *  - VIDEO=NTSC: explicit native NTSC low-resolution mode for GFX=AGA;
+ *    Amiga_OpenGameScreen() opens the screen via SA_DisplayID=
+ *    NTSC_MONITOR_ID|LORES_KEY.
+ *  - VIDEO=PAL: accepted but currently falls back to AUTO / the default
+ *    native AGA mode. Forcing PAL via SA_DisplayID was proven (on real AGA
+ *    hardware) to stretch/crop the verified 320x200 presentation, so it is
+ *    not enabled.
+ * On RTG (GFX=AUTO/RTG), VIDEO is ignored entirely.
  */
 static int
 RAP_ParseVideo(
@@ -780,9 +784,12 @@ RAP_ParseWorkbenchToolTypes(
             RAP_ParseGfx(buf);
         }
 
-        /* VIDEO=AUTO|PAL|NTSC - video standard for native AGA. Separate
-         * ToolType entry: FindToolType() matches one key per entry, so a
-         * combined "GFX=AGA VIDEO=PAL" line is intentionally not supported. */
+        /* VIDEO=AUTO|PAL|NTSC - video standard for native AGA (GFX=AGA only).
+         * NTSC is honored (opens an explicit NTSC low-resolution mode via
+         * SA_DisplayID); PAL is accepted but falls back to the default native
+         * AGA mode; has no effect on RTG. Separate ToolType entry:
+         * FindToolType() matches one key per entry, so a combined
+         * "GFX=AGA VIDEO=PAL" line is intentionally not supported. */
         s = FindToolType((CONST_STRPTR *)tt, "VIDEO");
         if (s && *s)
         {
@@ -2042,10 +2049,12 @@ main(
 #endif
 
     printf("--------------------------------------------------------\n");
-    printf(" Raptor: Call of the Shadows - Amiga Port - version 0.9.9-rc.3\n");
+    printf("           R A P T O R   A M I G A   P O R T\n");
+    printf("                    0.9.9-rc.4\n\n");
 
-    printf(" Port Author: RaybeezPL | AI Collaboration\n");
+    printf(" Port Author: Raybeez | AI Collaboration\n");
     printf(" Contact: cichy@cichy.com.pl\n");
+    printf(" Aminet: https://aminet.net/game/shoot/raptor.lha\n");
     printf(" GitHub: https://github.com/RaybeezPL/raptor-amiga-port\n");
     printf("--------------------------------------------------------\n\n");
 
@@ -2153,10 +2162,12 @@ main(
         else if (RAP_ParseGfx(argv[loop]))
         {
         }
-        /* -video=AUTO|PAL|NTSC selects the video standard for native AGA.
-         * Forced PAL/NTSC is not implemented (it would change the verified
-         * 320x200 presentation); AUTO uses the default native AGA mode.
-         * See RAP_ParseVideo() above. */
+        /* -video=AUTO|PAL|NTSC selects the video standard for native AGA
+         * (GFX=AGA only). NTSC is implemented (opens an explicit NTSC
+         * low-resolution mode via SA_DisplayID); PAL is accepted but falls
+         * back to the default native AGA mode (forcing PAL would change the
+         * verified 320x200 presentation); AUTO uses the default native AGA
+         * mode. Has no effect on RTG. See RAP_ParseVideo() above. */
         else if (RAP_ParseVideo(argv[loop]))
         {
         }

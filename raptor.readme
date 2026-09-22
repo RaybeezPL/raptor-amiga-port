@@ -71,8 +71,10 @@ MUSIC=CAMD, MUSIC=MHI or MUSIC=WAVE explicitly as required.
 Graphics can be selected with GFX=AUTO|RTG|AGA. The RTG path uses either
 Picasso96 or CyberGraphX, trying P96 first, then CGX, then a fallback
 320x240x8 mode with letterbox on cards lacking 320x200. The AGA path uses
-a custom chunky-to-planar converter. VIDEO=NTSC can be used with the native
-AGA path to request the NTSC display mode.
+a custom chunky-to-planar converter. VIDEO=NTSC can be used with the native AGA path (GFX=AGA) to directly
+request the native NTSC display mode used by Raptor. No NTSC selection in
+Early Startup is required, no reboot into NTSC is required, and nothing in
+DEVS:Monitors needs to be changed; VIDEO= has no effect on the RTG path.
 
 Keyboard, mouse and joystick/CD32 pad input work simultaneously. Workbench
 icon ToolTypes are supported (GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, etc.).
@@ -86,7 +88,10 @@ menu / track-change lag on the tested WARP hardware.
 
 Full gameplay has also been tested on real hardware including A2000 with
 CyberVision 64/3D, A1200 with PiStorm/Emu68 and A4000 with Picasso IV, as
-well as in WinUAE.
+well as in WinUAE. MHI MP3 playback was verified on an A4000 with ZZ9000
+and ZZ9000AX using the MHI driver for the ZZ9000AX card. MUSIC=WAVE was
+verified on an A1200 with Blizzard 1260 at 56 MHz, Mediator, Voodoo3 and
+AmigaOS 3.2.3.
 
 This project is an AI collaboration: development and documentation were
 assisted by AI tools, with final decisions, testing and integration done

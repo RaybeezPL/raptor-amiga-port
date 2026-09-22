@@ -283,13 +283,13 @@ Sound effects and music use two separate, native Amiga subsystems:
                     queued to the decoder. The MP3 file itself is not
                     modified. Real-hardware verified configurations:
                     Prisma MegaMix (mhiprisma.library, including the
-                    new 1024-frame AHI/SFX buffer) and Armed WARP
+                    new 1024-frame AHI/SFX buffer), Armed WARP
                     (mhiArmedWARP.library - MHI initialization and MP3
-                    playback confirmed). MNT ZZ9000 / ZZ9000AX is
-                    recognized by the code and reported as "MNT
-                    ZZ9000" but has not been verified on real
-                    hardware; the remaining driver families are
-                    recognized by the auto-detection only, and further
+                    playback confirmed) and MNT ZZ9000 / ZZ9000AX
+                    (mhizz9000.library - MHI MP3 playback confirmed
+                    on a real Amiga 4000 with ZZ9000 + ZZ9000AX).
+                    The remaining driver families are recognized
+                    by the auto-detection only, and further
                     real-hardware testing on additional MHI hardware
                     is still useful.
 
@@ -673,11 +673,12 @@ the bottom). If neither mode is available, an English requester
 appears asking you to either configure a suitable RTG mode or
 start the game with the classic chipset screen (GFX=AGA).
 
-Display note (PAL/NTSC): In PAL mode, a black band may be visible
-at the bottom of the screen because the game uses a 320x200
-display area. To fill the screen vertically, select NTSC in Amiga
-Early Startup before booting; the game will then open full-screen
-at 320x200.
+Display note (PAL/NTSC): On the native AGA path (`GFX=AGA`), in PAL
+mode a black band may be visible at the bottom of the screen because
+the game uses a 320x200 display area. To fill the screen vertically,
+select `VIDEO=NTSC` with `GFX=AGA`; the game opens its 320x200x8 AGA
+screen directly in NTSC mode, with no reboot or Early Startup changes
+required. On RTG, `VIDEO=` has no effect.
 
 Note: the middle mouse button is ignored. On some machines (notably
 A1200 + PiStorm/Emu68, on both RTG and AGA screens) it produces
@@ -695,21 +696,13 @@ Native AGA mode is selected with `GFX=AGA`.
 The game always renders a fixed logical **320×200** image from the top‑left corner of the screen. On a PAL‑configured Amiga, the remaining lower part of the native PAL display area may appear black. This is normal and intentional.
 
 `VIDEO=AUTO` (default) uses the system‑selected native AGA display mode.  
-`VIDEO=NTSC` requests NTSC as the default display mode. With `GFX=AGA` the screen is opened with `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (native NTSC low‑res), resulting in a **320×200×8** screen in the NTSC standard. With `GFX=RTG` this option is ignored and `AUTO` is used.
-
-`VIDEO=NTSC` alone does **not** change a PAL‑configured Amiga to NTSC and does not modify anything under `DEVS:Monitors`. If you want the 320×200 image to fill the entire screen vertically in NTSC timing, the Amiga itself must be configured/booted in NTSC before starting the game.
-
-Optional: booting an AmigaOS 3.x system in NTSC  
-1. Reset or power‑on the Amiga.  
-2. Hold both mouse buttons to open the Early Startup Control.  
-3. In Display Options, select **NTSC**.  
-4. Boot AmigaOS, then start Raptor with `GFX=AGA` (and optionally `VIDEO=NTSC`).
+`VIDEO=NTSC` explicitly requests the native NTSC low‑resolution display mode used by the game. With `GFX=AGA` the game opens its **320×200×8** AGA screen directly in NTSC timing, using `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (native NTSC low‑res), so the 320×200 image fills the entire screen vertically. No reboot is required, nothing needs to be changed in `DEVS:Monitors`, and no Early Startup Display Options are needed. With `GFX=RTG` this option is ignored and `AUTO` is used.
 
 As Workbench ToolTypes, set them on separate lines:
 
 ```text
 GFX=AGA
-VIDEO=AUTO
+VIDEO=NTSC
 ```
 
 
@@ -812,13 +805,14 @@ Known Limitations
   software-only MHI decoder for classic 68k machines; if the MHI
   driver cannot be opened, music switches to MUSIC=OFF (sound
   effects stay enabled). Songs whose MP3 file is missing from the
-  MP3/ drawer stay silent by design. Prisma MegaMix and Armed WARP
-  are the real-hardware verified configurations (MHI initialization
-  and MP3 playback); MNT ZZ9000 / ZZ9000AX (mhizz9000.library,
-  reported as "MNT ZZ9000") is recognized by the code but not yet
-  verified on real hardware, and the other driver families are
-  recognized by the auto-detection only. Further real-hardware
-  testing on additional MHI hardware is still useful. MP3PRELOAD=ON is
+  MP3/ drawer stay silent by design. Prisma MegaMix, Armed WARP, and
+  MNT ZZ9000 / ZZ9000AX are the real-hardware verified configurations
+  (MHI initialization and MP3 playback). For MNT ZZ9000 / ZZ9000AX,
+  mhizz9000.library (reported as "MNT ZZ9000") was used, and MHI
+  initialization and MP3 playback were confirmed on a real Amiga 4000
+  with ZZ9000 + ZZ9000AX. The other driver families are recognized by
+  the auto-detection only. Further real-hardware testing on additional
+  MHI hardware is still useful. MP3PRELOAD=ON is
   recommended for WARP MHI cards: normal streaming produced audible
   clicks during track changes on the tested Amiga IDE + WARP setup,
   while MP3PRELOAD=ON eliminated those clicks in testing. Other WARP
@@ -862,6 +856,10 @@ Tested configurations
   buffer-policy change (WAVE remains at 512 frames).
 - Amiga 4000 with 68060 at 50 MHz, Picasso IV and AGA; WAVE
   music, MIDI/CAMD and MHI tested.
+- Amiga 4000 with ZZ9000 + ZZ9000AX; MHI MP3 playback verified using
+  the MHI driver for the ZZ9000AX card.
+- Amiga 1200 with Blizzard 1260 at 56 MHz, Mediator, Voodoo3 and
+  AmigaOS 3.2.3; MUSIC=WAVE verified.
 - WinUAE with 68030 and 68060 configurations, with and without
   FPU, tested in AGA and RTG modes.
 - Tested on AmigaOS 3.1.4, 3.2 and 3.2.3.

@@ -86,10 +86,12 @@ Working:
   recommended: normal streaming produced audible clicks during track
   changes on the tested Amiga IDE + WARP setup, while preload eliminated
   those clicks in that setup. This observation does not imply identical
-  behavior on every WARP configuration. Prisma MegaMix and Armed WARP
-  are real-hardware verified configurations; MNT ZZ9000 / ZZ9000AX is
-  recognized via
-  `LIBS:MHI/mhizz9000.library` and reported as "MNT ZZ9000".
+  behavior on every WARP configuration. Prisma MegaMix, Armed WARP, and
+  MNT ZZ9000 / ZZ9000AX are all real-hardware verified configurations.
+  MNT ZZ9000 / ZZ9000AX is recognized via
+  `LIBS:MHI/mhizz9000.library` and reported as "MNT ZZ9000". MHI
+  initialization and MP3 playback were confirmed on a real Amiga 4000
+  with ZZ9000 + ZZ9000AX.
   `MHIDRIVER=` and driver auto-detection are case-insensitive for
   drivers in `LIBS:MHI/`: the requested path is tried first, then the
   `LIBS:MHI/#?.library` scan matches basenames case-insensitively and
@@ -172,11 +174,11 @@ Recommended baseline target:
 - **Display mode:** the game renders a fixed logical 320x200, 8-bit
   paletted image. On RTG the physical screen is 320x200 when the driver
   offers it, otherwise 320x240 with the 320x200 image shown 1:1 from the
-  top-left corner and a black band at the bottom. In PAL mode, a black
-  band may be visible at the bottom of the screen because the game uses a
-  320x200 display area. To fill the screen vertically, select NTSC in
-  Amiga Early Startup before booting; the game will then open full-screen
-  at 320x200.
+  top-left corner and a black band at the bottom. On the native AGA path
+  in PAL mode, a black band may be visible at the bottom of the screen
+  because the game uses a 320x200 display area; use `VIDEO=NTSC` with
+  `GFX=AGA` to open the screen directly in NTSC mode (see Native AGA
+  display notes below).
 - **RAM:** 4 MB Fast RAM minimum (8 MB recommended) + 2 MB Chip RAM
   (the game itself uses roughly 3 MB of Fast RAM; on RTG the screen
   bitmap lives in graphics card memory, so Chip RAM is only needed by
@@ -204,6 +206,8 @@ Current development and testing is mainly aimed at systems such as:
 - Amiga 1200 with Mediator, Blizzard 1260, Voodoo3 and Prelude audio on the clock port, including MHI playback.
 - Amiga 2000 with a TekMagic 68060 at 50 MHz, CyberVision 64/3D and Prisma MegaMix.
 - Amiga 4000 with a 68060 at 50 MHz, Picasso IV and AGA graphics; WAVE music, MIDI/CAMD and MHI were tested.
+- Amiga 4000 with ZZ9000 + ZZ9000AX; MHI MP3 playback verified using the MHI driver for the ZZ9000AX card.
+- Amiga 1200 with Blizzard 1260 at 56 MHz, Mediator, Voodoo3 and AmigaOS 3.2.3; MUSIC=WAVE verified.
 - WinUAE with 68030 and 68060 configurations, both with and without FPU, tested in AGA and RTG modes.
 - Tested on AmigaOS 3.1.4, 3.2, 3.2.2, 3.2.3 and 3.9.
 
@@ -215,19 +219,11 @@ The game always renders a fixed logical **320×200** image from the top‑left c
 
 `VIDEO=AUTO` (default) uses the system‑selected native AGA display mode.
 
-`VIDEO=NTSC` requests NTSC as the default display mode. With `GFX=AGA` the screen is opened with `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (native NTSC low‑res), resulting in a **320×200×8** screen in the NTSC standard.
+`VIDEO=NTSC` explicitly requests the native NTSC low‑resolution display mode used by the game. With `GFX=AGA` the game opens its **320×200×8** AGA screen directly in NTSC timing, using `SA_DisplayID=NTSC_MONITOR_ID|LORES_KEY` (native NTSC low‑res), so the 320×200 image fills the entire screen vertically. No reboot is required, nothing needs to be changed in `DEVS:Monitors`, and no Early Startup Display Options are needed.
 
 `VIDEO=PAL` is accepted but currently does not force a PAL ModeID; the default native AGA mode (AUTO) is used instead.
 
-`VIDEO=` has no effect on the RTG display path: with `GFX=RTG` (or `GFX=AUTO`) the option is ignored and the RTG mode is used.
-
-`VIDEO=NTSC` alone does **not** change a PAL‑configured Amiga to NTSC and does not modify anything under `DEVS:Monitors`. If you want the 320×200 image to fill the entire screen vertically in NTSC timing, the Amiga itself must be configured/booted in NTSC before starting the game.
-
-Optional: booting an AmigaOS 3.x system in NTSC  
-1. Reset or power‑on the Amiga.  
-2. Hold both mouse buttons to open the Early Startup Control.  
-3. In Display Options, select **NTSC**.  
-4. Boot AmigaOS, then start Raptor with `GFX=AGA` (and optionally `VIDEO=NTSC`).
+`VIDEO=` has no effect on the RTG display path: with `GFX=RTG` (or `GFX=AUTO`) the option is ignored and the RTG mode is used. `VIDEO=NTSC` affects only the native AGA path.
 
 As Workbench ToolTypes, set them on separate lines:
 
