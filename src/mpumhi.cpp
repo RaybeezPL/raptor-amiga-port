@@ -594,6 +594,162 @@ MHI_ResolveDriverPath(
 }
 
 /***************************************************************************
+ * ArmedWARP driver probe - lightweight parent-side detection run before
+ * the generic MHI initialization.  The probe opens a candidate driver
+ * library, allocates and immediately frees a decoder in the main task
+ * (signalled via SIGBREAKF_CTRL_F) and records the actual opened path,
+ * the decoder name and the driver classification in a local result.
+ * No playback, no streaming buffers and no feeder task are involved;
+ * all temporary probe resources are released before returning.
+ ***************************************************************************/
+struct MHI_ProbeResult
+{
+    int  found;                 /* 1 when a driver was selected */
+    int  driver_class;          /* MHIDRV_* of the actual opened path */
+    char path[256];             /* exact library path that opened */
+    char driver_name[64];       /* MHIQ_DECODER_NAME copy (while valid) */
+};
+
+/***************************************************************************
+ * MHI_ProbeTryDriver() - probe one driver candidate: open the library,
+ * allocate a decoder in the main task and release everything again.
+ * Uses local probe state only - the generic feeder state is not touched.
+ * Returns:
+ *   1  = driver selected (result recorded in *res)
+ *   0  = OpenLibrary failed
+ *  -1  = OpenLibrary succeeded but MHIAllocDecoder failed
+ ***************************************************************************/
+static int
+MHI_ProbeTryDriver(
+    const char *path,
+    struct MHI_ProbeResult *res
+)
+{
+    struct Library *base;
+    APTR decoder;
+    char resolved[300];
+
+    base = OpenLibrary((CONST_STRPTR)path, 0);
+
+    /* Same case-insensitive LIBS:MHI/ retry as the generic selection:
+     * the recorded probe path must be the ACTUAL opened path. */
+    if (!base && MHI_ResolveDriverPath(path, resolved, sizeof(resolved)))
+    {
+        base = OpenLibrary((CONST_STRPTR)resolved, 0);
+        if (base)
+            path = resolved;
+    }
+
+    if (!base)
+        return 0;
+
+    MHIBase = base;
+
+    decoder = MHIAllocDecoder(FindTask(NULL), SIGBREAKF_CTRL_F);
+    if (!decoder)
+    {
+        MHIBase = NULL;
+        CloseLibrary(base);
+        SetSignal(0, SIGBREAKF_CTRL_F);
+        return -1;
+    }
+
+    /* Selected: classify the actual opened path and copy the decoder
+     * name while the decoder and the library are still valid, then
+     * release the temporary probe resources immediately. */
+    res->found = 1;
+    res->driver_class = MHI_ClassifyDriver(path);
+
+    strncpy(res->path, path, sizeof(res->path) - 1);
+    res->path[sizeof(res->path) - 1] = 0;
+
+    {
+        /* MHIQuery(MHIQ_DECODER_NAME) returns a string pointer. */
+        const char *nm = (const char *)MHIQuery(MHIQ_DECODER_NAME);
+        if (nm)
+        {
+            strncpy(res->driver_name, nm, sizeof(res->driver_name) - 1);
+            res->driver_name[sizeof(res->driver_name) - 1] = 0;
+        }
+    }
+
+    MHIFreeDecoder(decoder);
+    MHIBase = NULL;
+    CloseLibrary(base);
+    SetSignal(0, SIGBREAKF_CTRL_F);
+
+    return 1;
+}
+
+/***************************************************************************
+ * MHI_ProbeSelectedDriver() - run the driver probe with the SAME driver
+ * selection semantics as the generic MHI initialization: the MHIDRIVER=
+ * override first (single attempt, no fallback), then the built-in
+ * candidate order, then a scan of LIBS:MHI/ for any other installed
+ * driver.  Returns 1 when a driver was selected (result in *res).
+ ***************************************************************************/
+static int
+MHI_ProbeSelectedDriver(
+    struct MHI_ProbeResult *res
+)
+{
+    int i;
+    struct AnchorPath *ap;
+
+    /* Explicit override: try as given, no fallbacks. */
+    if (g_mhi.driver_override[0])
+        return (MHI_ProbeTryDriver(g_mhi.driver_override, res) == 1);
+
+    for (i = 0; mhi_default_drivers[i]; i++)
+    {
+        if (MHI_ProbeTryDriver(mhi_default_drivers[i], res) == 1)
+            return 1;
+    }
+
+    /* Last resort: any other driver installed in LIBS:MHI/. */
+    ap = (struct AnchorPath *)AllocVec(sizeof(struct AnchorPath) + 512, MEMF_CLEAR);
+    if (!ap)
+        return 0;
+
+    ap->ap_Strlen = 512;
+
+    if (MatchFirst((CONST_STRPTR)"LIBS:MHI/#?.library", ap) == 0)
+    {
+        LONG rc = 0;
+
+        while (rc == 0 && !res->found)
+        {
+            char path[300];
+            const char *name = ap->ap_Info.fib_FileName;
+            int known = 0;
+
+            sprintf(path, "LIBS:MHI/%s", name);
+
+            /* Skip drivers already tried from the known list. */
+            for (i = 0; mhi_default_drivers[i]; i++)
+            {
+                if (MHI_EqualCI(path, mhi_default_drivers[i]))
+                {
+                    known = 1;
+                    break;
+                }
+            }
+
+            if (!known)
+                MHI_ProbeTryDriver(path, res);
+
+            if (!res->found)
+                rc = MatchNext(ap);
+        }
+    }
+
+    MatchEnd(ap);
+    FreeVec(ap);
+
+    return res->found;
+}
+
+/***************************************************************************
  * Feeder task side - all MHI driver calls and all MP3 file I/O live here
  * (never in the main task).  No STDIO in any of these functions.
  ***************************************************************************/
@@ -1362,6 +1518,29 @@ MHI_MusicInit(
     if (MHI_IsActive())
         return 1;
 
+    /* ArmedWARP early interception: probe the selected MHI driver before
+     * any generic initialization (buffers, current-dir lock, feeder task,
+     * decoder).  When the ArmedWARP driver is selected, activate the
+     * dedicated MP3 preload backend immediately - the generic MHI backend
+     * is never started in that case. */
+    {
+        struct MHI_ProbeResult probe;
+
+        memset(&probe, 0, sizeof(probe));
+
+        if (MHI_ProbeSelectedDriver(&probe) &&
+            probe.driver_class == MHIDRV_ARMEDWARP)
+        {
+            MHI_LOG("MHI: ArmedWARP selected by driver probe (%s) [%s] - "
+                    "activating dedicated MP3 preload backend",
+                    probe.path, MHI_DriverClassName(probe.driver_class));
+
+            /* The generic initialization reset the volume to 127 before
+             * its ArmedWARP hand-over; keep that initial value. */
+            return MHI_WarpMusicInit(probe.path, probe.driver_name, 127);
+        }
+    }
+
     /* Reset the state (driver_override survives - set before init). */
     g_mhi.proc = NULL;
     g_mhi.task = NULL;
@@ -1503,28 +1682,6 @@ MHI_MusicInit(
             g_mhi.opened_path,
             MHI_DriverClassName((int)g_mhi.driver_class),
             g_mhi.vol_supported ? "yes" : "no");
-
-    if (g_mhi.driver_class == MHIDRV_ARMEDWARP)
-    {
-        char warp_path[sizeof(g_mhi.opened_path)];
-        char warp_name[sizeof(g_mhi.driver_name)];
-        int warp_volume = (int)g_mhi.volume;
-
-        strcpy(warp_path, g_mhi.opened_path);
-        strcpy(warp_name, g_mhi.driver_name);
-
-        /* No MP3 has been submitted yet.  Fully discard the generic
-         * decoder/task/buffers/current-dir lock before activating WARP. */
-        MHI_MusicDeInit();
-
-        if (g_mhi.running)
-        {
-            MHI_LOG("MHI: ArmedWARP init FAILED - generic feeder task did not stop");
-            return 0;
-        }
-
-        return MHI_WarpMusicInit(warp_path, warp_name, warp_volume);
-    }
 
     return 1;
 
