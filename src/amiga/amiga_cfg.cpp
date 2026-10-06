@@ -85,6 +85,14 @@ AmigaCfg_Load(void)
 {
     FILE *f;
     char line[160];
+    static int loaded = 0;
+
+    /* Load once per session: the first call happens in SDL_Init() before
+     * the gameport mode is chosen (cd32 key); the later SND_InitSound()
+     * call for the volume keys then reuses the values already in memory. */
+    if (loaded)
+        return;
+    loaded = 1;
 
     f = fopen("amiga.cfg", "r");
     if (!f)

@@ -471,6 +471,11 @@ WIN_Pause(
     GFX_DisplayUpdate();
     
     SND_Patch(FX_SWEP, 127);
+
+#ifdef __AMIGA__
+    /* The PAUSE press which opened this modal must not acknowledge it. */
+    Amiga_CD32BlockHeld();
+#endif
     
     while (!IMS_CheckAck())                                      
     {
@@ -579,6 +584,11 @@ WIN_AskBool(
 
     rval = 0;
     dchold = g_drawcursor;
+
+#ifdef __AMIGA__
+    /* A held CD32 action is not a command for the confirmation dialog. */
+    Amiga_CD32BlockHeld();
+#endif
     
     KBD_Clear();
     ask_window = SWD_InitWindow(FILE135_ASK_SWD);

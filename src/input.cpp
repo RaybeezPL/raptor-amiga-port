@@ -93,14 +93,28 @@ IPT_GetButtons(
         buttons[3] = 1;
 
 #ifdef __AMIGA__
-    /* Amiga: joystick buttons work in parallel with the keyboard.
+    /* Amiga: classic joystick buttons work in parallel with the keyboard.
      * A = RED (fire button 1), B = BLUE/PLAY (fire button 2 on 2-button
      * joysticks and CD32 pads).  Mapping follows j_lookup ([JoyStick]
      * section of setup.ini): A -> Fire, B -> Fire Special by default. */
-    if (AButton)
-        buttons[j_lookup[0]] = 1;
-    if (BButton)
-        buttons[j_lookup[1]] = 1;
+    if (!Amiga_CD32IsActive())
+    {
+        if (AButton)
+            buttons[j_lookup[0]] = 1;
+        if (BButton)
+            buttons[j_lookup[1]] = 1;
+    }
+    else
+    {
+        /* CD32 assignments already name logical game actions. They must
+         * OR into buttons[] directly, not pass through j_lookup again. */
+        if (AmigaCD32ActionState & AMIGA_CD32_ACTION_FIRE)
+            buttons[0] = 1;
+        if (AmigaCD32ActionState & AMIGA_CD32_ACTION_SPECIAL_SELECT)
+            buttons[1] = 1;
+        if (AmigaCD32ActionState & AMIGA_CD32_ACTION_MEGA_BOMB)
+            buttons[2] = 1;
+    }
     
     /* Amiga: mouse buttons are always active in-game too, regardless of
      * the selected control device (m_lookup = [Mouse] in setup.ini):
@@ -127,6 +141,13 @@ IPT_GetJoyStick(
 )
 {
     //Get Button
+
+#ifdef __AMIGA__
+    /* CD32 actions are collected by IPT_GetButtons(). Directions reach this
+     * function through StickX/StickY only; A/B and d-pad aliases are off. */
+    if (Amiga_CD32IsActive())
+        goto analog_stick;
+#endif
     
     if (AButton)
     {
@@ -231,6 +252,7 @@ IPT_GetJoyStick(
             g_addy /= 2;
     }
 
+analog_stick:
     //Move Player Analog Stick
 
     if (StickX != 0)
@@ -428,6 +450,9 @@ IPT_Start(
     void
 )
 {
+#ifdef __AMIGA__
+    Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_GAME);
+#endif
     PTR_DrawCursor(0);
     PTR_Pause(1);
     ipt_start = 1;
@@ -442,6 +467,9 @@ IPT_End(
     void
 )
 {
+#ifdef __AMIGA__
+    Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_MENU);
+#endif
     ipt_start = 0;
     // TSM_PauseService(ipt_tsm);
     PTR_Pause(0);

@@ -20,7 +20,9 @@
  *                   per pad button, one of the AMIGA_CFG_CD32_* ids below.
  *                   Unknown values keep the built-in safe defaults.
  *
- * AmigaCfg_Load() is called at startup (SND_InitSound) - file wins over
+ * AmigaCfg_Load() is called once at startup (SDL_Init, before the gameport
+ * mode is chosen; SND_InitSound calls it again harmlessly for the volume
+ * keys) - file wins over
  * the built-in defaults.  AmigaCfg_Save() is called when the in-game
  * Options sliders are exited and always writes BOTH blocks, so manual
  * edits, slider changes and CD32 assignments all stick. */
@@ -55,7 +57,8 @@ extern int amiga_cfg_cd32_forward;
 extern int amiga_cfg_cd32_play;
 
 /* Loads amiga.cfg from the current directory.  Missing file = built-in
- * defaults (127 / 127 / 127).  Idempotent in memory (re-reads file). */
+ * defaults (127 / 127 / 127).  Loads once per session; later calls are
+ * no-ops. */
 void AmigaCfg_Load(void);
 
 /* Writes the current amiga_cfg_* values back to amiga.cfg. */

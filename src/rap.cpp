@@ -1644,14 +1644,25 @@ Do_Game(
             b3_flag = 0;
         }
         
-        if (KBD_IsKey(SC_P) || JOY_IsKeyInGameStart(Start))                                                                  
+        if (KBD_IsKey(SC_P) || JOY_IsKeyInGameStart(Start)
+#ifdef __AMIGA__
+            || Amiga_CD32TakePauseEdge()
+#endif
+           )
         {
             while (IMS_IsAck())
             {
             }
             SWD_SetClearFlag(0);
             RAP_ClearSides();
+#ifdef __AMIGA__
+            /* A held PAUSE must not acknowledge the pause window. */
+            Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_MENU);
+#endif
             WIN_Pause();
+#ifdef __AMIGA__
+            Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_GAME);
+#endif
             g_oldsuper = -1;
             g_oldshield = -1;
             RAP_ClearSides();

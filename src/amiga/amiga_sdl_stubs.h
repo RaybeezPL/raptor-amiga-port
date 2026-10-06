@@ -48,6 +48,8 @@ static inline void AmigaLog(const char *fmt, ...)
 #include <libraries/lowlevel.h>
 #include <proto/Picasso96.h>   /* Official P96 SDK prototypes+inline stubs (installed via /opt/amiga toolchain p96.sdk). */
 
+#include "amiga_cfg.h"         /* amiga_cfg_cd32 gameport-mode preference */
+
 /*
  * Global storage pattern: AMIGA_STUBS_OWNER defines actual instance,
  * others use extern to guarantee a single instance.
@@ -69,6 +71,15 @@ AMIGA_STUBS_DECL struct Library       *LowLevelBase  AMIGA_STUBS_INIT(NULL);
  * joystick polling. Handy for tracking down phantom input on real
  * hardware without recompiling anything. */
 AMIGA_STUBS_DECL int AmigaJoyDisabled AMIGA_STUBS_INIT(0);
+
+/* Gameport mode actually running this session: 0 = port not configured by
+ * us, otherwise the SJA_TYPE_* value that SetJoyPortAttrs() accepted
+ * (SJA_TYPE_JOYSTK or SJA_TYPE_GAMECTLR).  Kept separate from the
+ * amiga.cfg "cd32" preference: a failed GAMECTLR request falls back to
+ * JOYSTK for the session but never rewrites the saved configuration.
+ * Nonzero also means SDL_Quit() must restore the port with
+ * SJA_Reinitialize before closing lowlevel.library. */
+AMIGA_STUBS_DECL ULONG AmigaJoyPortMode AMIGA_STUBS_INIT(0);
 
 /* Set by the -nomouse command line switch (rap.cpp) to hard-disable all
  * mouse handling (IDCMP mouse events, cursor, in-game mouse steering).
@@ -1556,37 +1567,82 @@ extern "C" {
 #endif
 
 /* Init and Quit */
+#ifdef __AMIGA__
+/* Configures gameport 1 once, honoring the amiga.cfg "cd32" key:
+ * cd32=OFF -> plain joystick mode, cd32=ON -> CD32 game controller mode.
+ * The result of every SetJoyPortAttrs() call is checked; a failed game
+ * controller request falls back to plain joystick mode for this session
+ * (AmigaJoyPortMode records the mode actually running - the saved cd32
+ * preference is never rewritten), and if both fail the joystick is
+ * disabled for this session so no dead port is ever polled.
+ *
+ * The port must be pinned to an explicit mode one way or the other. The
+ * first attempt at this passed SJA_TYPE_GAMECTLR as the tag itself - that
+ * value is 1, which utility/tagitem.h defines as TAG_IGNORE, so the
+ * request was silently dropped and the unterminated tag list made the
+ * library parse random stack garbage as attributes.
+ *
+ * Leaving autosense in charge didn't work either: until the first real
+ * wiggle it can't decide what's plugged in, and on real hardware (A2000,
+ * A1200/piStorm) the port reports junk in the meantime - phantom buttons
+ * that skipped the intro logos and froze the menu until the joystick was
+ * touched. WinUAE never showed any of this because its emulated port
+ * politely returns 0.
+ *
+ * Joystick mode is the safe default every classic Amiga game uses:
+ * directions and fire are plain digital lines, no serial shift register
+ * involved. A CD32 pad still works as a normal 2-button stick in that
+ * mode. */
+static inline void Amiga_ConfigureJoyPort(void)
+{
+    ULONG want = amiga_cfg_cd32 ? SJA_TYPE_GAMECTLR : SJA_TYPE_JOYSTK;
+
+    if (SetJoyPortAttrs(1, SJA_Type, want, TAG_DONE))
+    {
+        AmigaJoyPortMode = want;
+        return;
+    }
+
+    if (want == SJA_TYPE_GAMECTLR)
+    {
+        AmigaLog("[INPUT] gameport 1: game controller mode failed - falling back to plain joystick mode");
+        if (SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_JOYSTK, TAG_DONE))
+        {
+            AmigaJoyPortMode = SJA_TYPE_JOYSTK;
+            return;
+        }
+    }
+
+    AmigaLog("[INPUT] gameport 1: configuration failed - joystick disabled for this session");
+    AmigaJoyDisabled = 1;
+}
+#endif
+
 static inline int SDL_Init(uint32_t flags)
 {
     (void)flags;
 
 #ifdef __AMIGA__
 
-    if (!LowLevelBase)
+    /* Startup order: CLI/ToolTypes (rap.cpp main) -> SDL_Init ->
+     * SND_InitSound. Load amiga.cfg once here so the cd32 preference is
+     * known before the gameport mode is chosen; the SND_InitSound() call
+     * then only reuses the in-memory values. NOJOY / JOYSTICK=OFF (parsed
+     * before any SDL_Init call) takes precedence over the cfg block: the
+     * library is not opened and the port is never touched. */
+    if (!LowLevelBase && !AmigaJoyDisabled)
     {
+        AmigaCfg_Load();
+
         LowLevelBase = OpenLibrary((CONST_STRPTR)"lowlevel.library", 40);
-        if (LowLevelBase)
+        if (!LowLevelBase)
         {
-            /* Pin the port to plain joystick mode. The first attempt at
-             * this passed SJA_TYPE_GAMECTLR as the tag itself - that value
-             * is 1, which utility/tagitem.h defines as TAG_IGNORE, so the
-             * request was silently dropped and the unterminated tag list
-             * made the library parse random stack garbage as attributes.
-             *
-             * Leaving autosense in charge didn't work either: until the
-             * first real wiggle it can't decide what's plugged in, and on
-             * real hardware (A2000, A1200/piStorm) the port reports junk
-             * in the meantime - phantom buttons that skipped the intro
-             * logos and froze the menu until the joystick was touched.
-             * WinUAE never showed any of this because its emulated port
-             * politely returns 0.
-             *
-             * Joystick mode is the safe default every classic Amiga game
-             * uses: directions and fire are plain digital lines, no serial
-             * shift register involved. A CD32 pad still works as a normal
-             * 2-button stick here; only the extra pad buttons are lost,
-             * and this game doesn't use them anyway. */
-            SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_JOYSTK, TAG_DONE);
+            AmigaLog("[INPUT] lowlevel.library v40+ not available - joystick disabled for this session");
+            AmigaJoyDisabled = 1;
+        }
+        else
+        {
+            Amiga_ConfigureJoyPort();
         }
     }
 
@@ -1639,6 +1695,13 @@ static inline void SDL_Quit(void) {
     }
     if (LowLevelBase)
     {
+        /* If we configured the gameport, hand it back to the system
+         * default (autosense) before closing the library. */
+        if (AmigaJoyPortMode)
+        {
+            SetJoyPortAttrs(1, SJA_Reinitialize, TRUE, TAG_DONE);
+            AmigaJoyPortMode = 0;
+        }
         CloseLibrary(LowLevelBase);
         LowLevelBase = NULL;
     }
@@ -2729,6 +2792,21 @@ AMIGA_STUBS_DECL int    AmigaJoyFireLogged AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int    AmigaMiddleDropLogged AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL Uint32 AmigaFrameCount AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL Uint8 AmigaKeyboardState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0});
+AMIGA_STUBS_DECL Uint8 AmigaKeyboardPhysicalState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0});
+AMIGA_STUBS_DECL Uint8 AmigaKeyboardSyntheticState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0});
+
+/* CD32 state is deliberately independent from the classic joystick path.
+ * The block mask makes a button held through a context change inert until
+ * it is released, so it cannot trigger an unrelated action in the new UI. */
+AMIGA_STUBS_DECL ULONG AmigaCD32Prev AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaCD32RawPrev AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaCD32PhantomMask AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaCD32BlockedMask AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL ULONG AmigaCD32ActionState AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int AmigaCD32Seeded AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int AmigaCD32ClearStreak[11] AMIGA_STUBS_INIT({0});
+AMIGA_STUBS_DECL int AmigaCD32Context AMIGA_STUBS_INIT(0);
+AMIGA_STUBS_DECL int AmigaCD32PauseEdge AMIGA_STUBS_INIT(0);
 
 #ifndef JPF_JOY_UP
 #define JPF_JOY_UP (1<<3)
@@ -2740,9 +2818,39 @@ AMIGA_STUBS_DECL Uint8 AmigaKeyboardState[SDL_NUM_SCANCODES] AMIGA_STUBS_INIT({0
 #define JPF_BUTTON_BLUE (1<<23) /* 2nd joystick button / right mouse button line */
 #endif
 
-static inline void Amiga_InjectKeyboardEvent(int scancode, int pressed) {
+#ifndef JPF_BUTTON_YELLOW
+#define JPF_BUTTON_YELLOW (1<<21)
+#define JPF_BUTTON_GREEN (1<<20)
+#define JPF_BUTTON_FORWARD (1<<19)
+#define JPF_BUTTON_REVERSE (1<<18)
+#endif
+
+#ifndef JP_TYPE_MASK
+#define JP_TYPE_GAMECTLR (1UL<<28)
+#define JP_TYPE_MASK (15UL<<28)
+#endif
+
+#define AMIGA_CD32_ACTION_FIRE           (1UL<<0)
+#define AMIGA_CD32_ACTION_SPECIAL_SELECT (1UL<<1)
+#define AMIGA_CD32_ACTION_MEGA_BOMB      (1UL<<2)
+#define AMIGA_CD32_ACTION_PAUSE          (1UL<<3)
+#define AMIGA_CD32_ACTION_CANCEL         (1UL<<4)
+
+#define AMIGA_CD32_CONTEXT_MENU 0
+#define AMIGA_CD32_CONTEXT_GAME 1
+
+static inline int Amiga_CD32IsActive(void)
+{
+#ifdef __AMIGA__
+    return AmigaJoyPortMode == SJA_TYPE_GAMECTLR;
+#else
+    return 0;
+#endif
+}
+
+static inline void Amiga_EmitKeyboardEvent(int scancode, int pressed)
+{
     if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES) return;
-    AmigaKeyboardState[scancode] = pressed ? 1 : 0;
 
     SDL_Event ev;
 
@@ -2753,6 +2861,136 @@ static inline void Amiga_InjectKeyboardEvent(int scancode, int pressed) {
     ev.key.keysym.mod = 0;
     Amiga_PushEvent(&ev);
 }
+
+static inline void Amiga_UpdateKeyboardState(int scancode)
+{
+    int state;
+
+    if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES) return;
+    state = AmigaKeyboardPhysicalState[scancode] ||
+            AmigaKeyboardSyntheticState[scancode];
+    if (AmigaKeyboardState[scancode] != state)
+    {
+        AmigaKeyboardState[scancode] = state;
+        Amiga_EmitKeyboardEvent(scancode, state);
+    }
+}
+
+static inline void Amiga_SetPhysicalKeyboardState(int scancode, int pressed)
+{
+    if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES) return;
+    AmigaKeyboardPhysicalState[scancode] = pressed ? 1 : 0;
+    Amiga_UpdateKeyboardState(scancode);
+}
+
+static inline void Amiga_SetSyntheticKeyboardState(int scancode, int pressed)
+{
+    if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES) return;
+    AmigaKeyboardSyntheticState[scancode] = pressed ? 1 : 0;
+    Amiga_UpdateKeyboardState(scancode);
+}
+
+#ifdef __AMIGA__
+static inline ULONG Amiga_CD32ActionForButton(ULONG button, int action)
+{
+    if (!button || action < AMIGA_CFG_CD32_FIRE ||
+        action >= AMIGA_CFG_CD32_NUM_ACTIONS)
+        return 0;
+    return 1UL << (action - AMIGA_CFG_CD32_FIRE);
+}
+
+static inline ULONG Amiga_CD32ActionsForState(ULONG state)
+{
+    ULONG actions = 0;
+
+    if (state & JPF_BUTTON_RED)
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_RED, amiga_cfg_cd32_red);
+    if (state & JPF_BUTTON_BLUE)
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_BLUE, amiga_cfg_cd32_blue);
+    if (state & JPF_BUTTON_GREEN)
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_GREEN, amiga_cfg_cd32_green);
+    if (state & JPF_BUTTON_YELLOW)
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_YELLOW, amiga_cfg_cd32_yellow);
+    if (state & JPF_BUTTON_REVERSE)
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_REVERSE, amiga_cfg_cd32_reverse);
+    if (state & JPF_BUTTON_FORWARD)
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_FORWARD, amiga_cfg_cd32_forward);
+    if (state & JPF_BUTTON_PLAY)
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_PLAY, amiga_cfg_cd32_play);
+    return actions;
+}
+
+static inline void Amiga_CD32ApplyState(ULONG state)
+{
+    ULONG actions;
+    ULONG old_actions;
+
+    state &= (JPF_JOY_UP | JPF_JOY_DOWN | JPF_JOY_LEFT | JPF_JOY_RIGHT |
+              JPF_BUTTON_BLUE | JPF_BUTTON_RED | JPF_BUTTON_YELLOW |
+              JPF_BUTTON_GREEN | JPF_BUTTON_FORWARD | JPF_BUTTON_REVERSE |
+              JPF_BUTTON_PLAY);
+    AmigaCD32BlockedMask &= state;
+    state &= ~AmigaCD32BlockedMask;
+
+    actions = Amiga_CD32ActionsForState(state);
+    old_actions = AmigaCD32ActionState;
+    AmigaCD32Prev = state;
+
+    if (AmigaCD32Context == AMIGA_CD32_CONTEXT_GAME)
+    {
+        AmigaCD32ActionState = actions;
+        if ((actions & AMIGA_CD32_ACTION_PAUSE) &&
+            !(old_actions & AMIGA_CD32_ACTION_PAUSE))
+            AmigaCD32PauseEdge = 1;
+    }
+    else
+    {
+        AmigaCD32ActionState = 0;
+    }
+
+    /* FIRE and CANCEL are keyboard-equivalent only outside active gameplay.
+     * In gameplay CANCEL remains ESC, while the other actions feed buttons[]. */
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RETURN,
+        AmigaCD32Context != AMIGA_CD32_CONTEXT_GAME &&
+        (actions & AMIGA_CD32_ACTION_FIRE));
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_ESCAPE,
+        (actions & AMIGA_CD32_ACTION_CANCEL) != 0);
+}
+
+static inline void Amiga_CD32SetContext(int context)
+{
+    if (!Amiga_CD32IsActive() || AmigaCD32Context == context)
+        return;
+
+    /* Do not carry a held pad button across a game/menu/modal boundary. */
+    AmigaCD32BlockedMask |= AmigaCD32Prev;
+    AmigaCD32ActionState = 0;
+    AmigaCD32PauseEdge = 0;
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RETURN, 0);
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_ESCAPE, 0);
+    AmigaCD32Context = context;
+}
+
+static inline void Amiga_CD32BlockHeld(void)
+{
+    if (!Amiga_CD32IsActive())
+        return;
+
+    /* Do not carry a held pad button across a game/menu/modal boundary. */
+    AmigaCD32BlockedMask |= AmigaCD32Prev;
+    AmigaCD32ActionState = 0;
+    AmigaCD32PauseEdge = 0;
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RETURN, 0);
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_ESCAPE, 0);
+}
+
+static inline int Amiga_CD32TakePauseEdge(void)
+{
+    int edge = AmigaCD32PauseEdge;
+    AmigaCD32PauseEdge = 0;
+    return edge;
+}
+#endif
 
 static inline void Amiga_PumpWindowEvents(void)
 {
@@ -2783,7 +3021,7 @@ static inline void Amiga_PumpWindowEvents(void)
                 int scancode = AmigaRawKeyToScancode[code];
                 if (scancode)
                 {
-                    Amiga_InjectKeyboardEvent(scancode, pressed);
+                    Amiga_SetPhysicalKeyboardState(scancode, pressed);
                 }
             }
         }
@@ -2910,6 +3148,72 @@ static inline void SDL_PumpEvents(void) {
             return;
         AmigaJoyLastPoll = joyNow;
 
+        if (Amiga_CD32IsActive()) {
+            static const ULONG cd32_bits[11] = {
+                JPF_JOY_UP, JPF_JOY_DOWN, JPF_JOY_LEFT, JPF_JOY_RIGHT,
+                JPF_BUTTON_BLUE, JPF_BUTTON_RED, JPF_BUTTON_YELLOW,
+                JPF_BUTTON_GREEN, JPF_BUTTON_FORWARD, JPF_BUTTON_REVERSE,
+                JPF_BUTTON_PLAY
+            };
+            const ULONG cd32_mask = JPF_JOY_UP | JPF_JOY_DOWN |
+                                    JPF_JOY_LEFT | JPF_JOY_RIGHT |
+                                    JPF_BUTTON_BLUE | JPF_BUTTON_RED |
+                                    JPF_BUTTON_YELLOW | JPF_BUTTON_GREEN |
+                                    JPF_BUTTON_FORWARD | JPF_BUTTON_REVERSE |
+                                    JPF_BUTTON_PLAY;
+            ULONG raw_port = ReadJoyPort(1);
+            ULONG raw;
+            int bi;
+
+            /* The type is part of ReadJoyPort's unmasked result. A failed
+             * serial read must release the previously accepted CD32 state
+             * before its debounce history is discarded. */
+            if ((raw_port & JP_TYPE_MASK) != JP_TYPE_GAMECTLR) {
+                if (AmigaCD32Prev || AmigaCD32ActionState)
+                    Amiga_CD32ApplyState(0);
+                AmigaJoyState = 0;
+                AmigaCD32RawPrev = 0;
+                AmigaCD32PhantomMask = 0;
+                AmigaCD32Seeded = 0;
+                memset(AmigaCD32ClearStreak, 0, sizeof(AmigaCD32ClearStreak));
+            } else {
+                raw = raw_port & cd32_mask;
+
+                /* Opposite directions cannot coexist. Keep button data and
+                 * reject only the impossible directional pair. */
+                if ((raw & (JPF_JOY_UP | JPF_JOY_DOWN)) ==
+                    (JPF_JOY_UP | JPF_JOY_DOWN))
+                    raw &= ~(JPF_JOY_UP | JPF_JOY_DOWN);
+                if ((raw & (JPF_JOY_LEFT | JPF_JOY_RIGHT)) ==
+                    (JPF_JOY_LEFT | JPF_JOY_RIGHT))
+                    raw &= ~(JPF_JOY_LEFT | JPF_JOY_RIGHT);
+
+                if (raw != AmigaCD32RawPrev) {
+                    AmigaCD32RawPrev = raw;
+                } else {
+                    /* First stable sample is treated as idle noise. Each bit
+                     * becomes usable only after it was stably clear once. */
+                    if (!AmigaCD32Seeded) {
+                        AmigaCD32Seeded = 1;
+                        AmigaCD32PhantomMask = raw;
+                    }
+                    for (bi = 0; bi < 11; bi++) {
+                        if (raw & cd32_bits[bi]) {
+                            AmigaCD32ClearStreak[bi] = 0;
+                        } else if (AmigaCD32PhantomMask & cd32_bits[bi]) {
+                            if (++AmigaCD32ClearStreak[bi] >= 25)
+                                AmigaCD32PhantomMask &= ~cd32_bits[bi];
+                        }
+                    }
+
+                    raw &= ~AmigaCD32PhantomMask;
+                    Amiga_CD32ApplyState(raw);
+                    /* Controller axes read the accepted CD32 directions.
+                     * Buttons are consumed through AmigaCD32ActionState. */
+                    AmigaJoyState = AmigaCD32Prev;
+                }
+            }
+        } else {
         /* Trust the digital lines only: directions + fire (RED). Those
          * are pulled high and driven low, exactly like the mouse button,
          * so an empty port reads a clean "nothing pressed" on any board.
@@ -2977,16 +3281,16 @@ static inline void SDL_PumpEvents(void) {
             ULONG changed = joy ^ AmigaJoyStatePrev;
 
             if (changed & JPF_JOY_UP) {
-                Amiga_InjectKeyboardEvent(SDL_SCANCODE_UP, (joy & JPF_JOY_UP) != 0);
+                Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_UP, (joy & JPF_JOY_UP) != 0);
             }
             if (changed & JPF_JOY_DOWN) {
-                Amiga_InjectKeyboardEvent(SDL_SCANCODE_DOWN, (joy & JPF_JOY_DOWN) != 0);
+                Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_DOWN, (joy & JPF_JOY_DOWN) != 0);
             }
             if (changed & JPF_JOY_LEFT) {
-                Amiga_InjectKeyboardEvent(SDL_SCANCODE_LEFT, (joy & JPF_JOY_LEFT) != 0);
+                Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_LEFT, (joy & JPF_JOY_LEFT) != 0);
             }
             if (changed & JPF_JOY_RIGHT) {
-                Amiga_InjectKeyboardEvent(SDL_SCANCODE_RIGHT, (joy & JPF_JOY_RIGHT) != 0);
+                Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RIGHT, (joy & JPF_JOY_RIGHT) != 0);
             }
 
             /* Only RED (fire 1) is injected as RETURN = "select" in menus.
@@ -3000,11 +3304,12 @@ static inline void SDL_PumpEvents(void) {
                     AmigaJoyFireLogged = 1;
                     AmigaLog("[INPUT] joystick fire (RED) -> RETURN");
                 }
-                Amiga_InjectKeyboardEvent(SDL_SCANCODE_RETURN, curr_fire);
+                Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RETURN, curr_fire);
             }
 
             AmigaJoyState = joy;
             AmigaJoyStatePrev = joy;
+        }
         }
         AmigaFrameCount++;
     } else if (AmigaJoyDisabled) {
@@ -3122,6 +3427,12 @@ static inline Uint8 SDL_GameControllerGetButton(SDL_GameController *gamecontroll
     (void)gamecontroller;
 #ifdef __AMIGA__
     if (!LowLevelBase) return 0;
+
+    /* CD32 directions use the axis API exclusively and button actions use
+     * the configured AmigaCD32ActionState. Do not expose legacy A/B/DPAD
+     * aliases that would bypass the assignment table. */
+    if (Amiga_CD32IsActive())
+        return 0;
 
     {
         const int fire_red  = (AmigaJoyState & JPF_BUTTON_RED)  ? 1 : 0;
