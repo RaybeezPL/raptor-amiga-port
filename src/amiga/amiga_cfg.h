@@ -57,8 +57,12 @@ extern int amiga_cfg_cd32_forward;
 extern int amiga_cfg_cd32_play;
 
 /* Loads amiga.cfg from the current directory.  Missing file = built-in
- * defaults (127 / 127 / 127).  Loads once per session; later calls are
- * no-ops. */
+ * defaults: all four volumes (music_adlib, music_mhi, music_wave,
+ * sfx_volume) default to 127 (maximum), CD32 mode defaults to OFF
+ * (classic joystick) and the CD32 button assignments default to
+ * red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB,
+ * yellow / reverse / forward = NONE, play = PAUSE.  Loads once per
+ * session; later calls are no-ops. */
 void AmigaCfg_Load(void);
 
 /* Updates current volume values in amiga.cfg without rebuilding an existing
