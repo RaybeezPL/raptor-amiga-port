@@ -76,9 +76,12 @@ request the native NTSC display mode used by Raptor. No NTSC selection in
 Early Startup is required, no reboot into NTSC is required, and nothing in
 DEVS:Monitors needs to be changed; VIDEO= has no effect on the RTG path.
 
-Keyboard, mouse and joystick/CD32 pad input work simultaneously. Workbench
-icon ToolTypes are supported (GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, etc.).
-Persistent audio volumes are stored in amiga.cfg in the game directory.
+Keyboard, mouse and joystick input work simultaneously, and an optional
+CD32 gamepad can be enabled with "cd32 = ON" in amiga.cfg (disabled by
+default). Workbench icon ToolTypes are supported (GFX, VIDEO, MUSIC,
+MOUSE, JOYSTICK, etc.). Persistent audio volumes are stored in amiga.cfg
+in the game directory; saving updates the file in place and preserves
+manual edits, comments and CD32 assignments.
 
 This is release candidate 0.9.9-rc.4. MP3PRELOAD=ON was confirmed on
 real WARP hardware. On the tested Amiga IDE + WARP setup, preload

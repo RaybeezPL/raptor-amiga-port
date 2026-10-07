@@ -1,0 +1,45 @@
+; Raptor: Call of the Shadows - Amiga port
+; Reference amiga.cfg (every value shown is the built-in default).
+;
+; Raptor creates amiga.cfg automatically on first run in the game directory
+; (the drawer that also holds MP3/ and WAVE/). This file is only a
+; reference/example - copy it to the game drawer as "amiga.cfg" if you want
+; to start from it.
+;
+; Format: "key = value" lines. A line starting with ';' or '#' is a
+; comment; blank lines are allowed; keys are case-insensitive; unknown
+; keys are ignored; whitespace around '=' is optional.
+;
+; Volumes are integers in the range 0..127 (127 = loudest). When the
+; in-game Options volumes are saved, this file is updated in place:
+; comments, unknown keys, manual edits, key order, spacing and line endings
+; are preserved and only the volume values are rewritten. Missing volume
+; keys are appended; the CD32 block below is written only when amiga.cfg is
+; created from scratch.
+
+; ==== AUDIO ====
+; Raptor Amiga volumes (0..127, 127 = loud)
+music_adlib = 127
+music_mhi   = 127
+music_wave  = 127
+sfx_volume  = 127
+
+; ==== JOYSTICK / CD32 ====
+; cd32 = OFF : classic joystick on port 1 (default, unchanged behaviour)
+; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
+; NOJOY / JOYSTICK=OFF takes precedence over this block.
+; Button assignments, one value per physical pad button:
+;   FIRE           - main guns
+;   SPECIAL_SELECT - fire the selected special weapon
+;   MEGA_BOMB      - launch a mega bomb
+;   PAUSE          - pause the game
+;   CANCEL         - cancel / back out
+;   NONE           - button disabled
+cd32 = OFF
+cd32_red     = FIRE ; Red button
+cd32_blue    = SPECIAL_SELECT ; Blue button
+cd32_green   = MEGA_BOMB ; Green button
+cd32_yellow  = NONE ; Yellow button
+cd32_reverse = NONE ; Reverse button (left shoulder)
+cd32_forward = NONE ; Forward button (right shoulder)
+cd32_play    = PAUSE ; Play button (triangle)

@@ -60,8 +60,10 @@ Grafika:    RTG z Picasso96 albo CyberGraphX (CGX)
             (np. CyberVision 64/3D, Picasso IV, UAEGFX/PiStorm)
             — wymagany tryb 320x200x8
 Miejsce:    około 25 MB wolnego miejsca (pliki gry + zapisane gry)
-Joystick:   Opcjonalny — port 1 (DB9); wymaga lowlevel.library v40+
-            (dołączonej do AmigaOS 3.2); obsługiwane są również pady CD32
+Joystick:   Opcjonalny — port 1 (DB9, drugi fizyczny port Amigi); wymaga
+            lowlevel.library v40+ (dołączonej do AmigaOS 3.2). Pad CD32
+            można włączyć wpisem cd32 = ON w amiga.cfg (patrz sekcja
+            „amiga.cfg — plik konfiguracyjny” poniżej).
 Dźwięk:     AHI (ahi.device v4+) dla efektów dźwiękowych; domyślnie
             żaden backend muzyki nie jest włączony (MUSIC=OFF). Muzykę
             można wybrać jawnie przez MUSIC=ADLIB (wbudowana emulacja
@@ -763,38 +765,151 @@ Mysz — podczas gry:
    Right button     — Strzał z special weapon
    Middle button    — Zmiana aktywnej special weapon
 
-Joystick / pad CD32 (port 1):
+Joystick (port 1):
 
 Wymaga lowlevel.library v40+ (standardowo dostępnej w AmigaOS 3.2).
-Port jest przełączany w tryb game controller, dlatego obsługiwane są
-standardowe joysticki 1- i 2-button oraz pady CD32.
+Port jest domyślnie ustawiony w zwykły tryb joysticka, więc standardowe
+joysticki 1- i 2-button działają bez zmian.
 
    Stick / D-pad    — Sterowanie statkiem
    FIRE 1 (red)     — Strzał z primary weapon
-   FIRE 2 (blue)    — Strzał z special weapon
-   CD32 PLAY        — Strzał z special weapon
 
-Uwagi:
-- Zmiana special weapon i MegaFire są dostępne wyłącznie z klawiatury
-  (SPACE / Right SHIFT) albo myszy (środkowy przycisk).
-- Pause jest dostępne wyłącznie z klawiatury (P) — joystick Amigi nie
-  ma przycisku Start.
-- Bez lowlevel.library joystick jest niedostępny, ale gra normalnie
-  działa z klawiaturą i myszą.
+Drugi przycisk klasycznego joysticka (linie BLUE/PLAY) nie jest
+odczytywany: te wejścia pływają na prawdziwym sprzęcie, a strzał z
+special weapon jest dostępny z klawiatury (Left ALT) lub środkowego
+przycisku myszy.
+
+Pad CD32 (opcjonalnie, port 1):
+
+Pad CD32 można włączyć wpisem cd32 = ON w amiga.cfg (patrz sekcja
+„amiga.cfg — plik konfiguracyjny” poniżej). Przy domyślnym cd32 = OFF
+port pozostaje w zwykłym trybie joysticka, a pad CD32 zachowuje się jak
+zwykły 2-button joystick. NOJOY / JOYSTICK=OFF ma pierwszeństwo: gdy
+joystick jest wyłączony, lowlevel.library nie jest otwierana, a port
+nigdy nie jest odpytywany, niezależnie od cd32.
+
+Każdemu z siedmiu przycisków pada (cd32_red, cd32_blue, cd32_green,
+cd32_yellow, cd32_reverse, cd32_forward, cd32_play) można przypisać jedną
+z akcji:
+
+   FIRE            — strzał z głównych dział
+   SPECIAL_SELECT  — strzał z wybranej broni specjalnej
+   MEGA_BOMB       — zrzut mega bomby
+   PAUSE           — pauza gry (podczas rozgrywki)
+   CANCEL          — powrót / anulowanie (odpowiednik ESC)
+   NONE            — przycisk wyłączony
+
+Tę samą akcję można przypisać kilku przyciskom. Domyślne przypisania:
+red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB,
+yellow / reverse / forward = NONE, play = PAUSE. Na przykład, aby
+strzelać niebieskim przyciskiem i pozostawić czerwony nieużywany:
+
+   cd32_red  = NONE
+   cd32_blue = FIRE
+
+Działanie akcji w rozgrywce oraz w menu/intro:
+
+   Akcja             W rozgrywce                W menu / intro
+   FIRE              strzał z głównych dział    wybór / zatwierdzenie (Return)
+   SPECIAL_SELECT    strzał z wybranej broni   (bez efektu)
+   MEGA_BOMB         zrzut mega bomby           (bez efektu)
+   PAUSE             pauza gry                  (bez efektu)
+   CANCEL            ESC (przerwanie / powrót)  powrót / anulowanie (ESC)
+   NONE              (bez efektu)               (bez efektu)
+
+D-pad zawsze steruje statkiem i nawiguje po menu przez zwykłe wejście
+kierunkowe; przyciski nigdy nie pełnią funkcji kierunków. Przycisk
+trzymany w momencie zmiany kontekstu (gra/menu/okno modalne) jest
+odrzucany do momentu zwolnienia, więc trzymany PAUSE nie zatwierdza od
+razu okna pauzy, a trzymana akcja nie potwierdza okna dialogowego.
+
+Przy cd32 = ON, jeśli nie uda się włączyć trybu game controller, port
+przechodzi na zwykły tryb joysticka na czas sesji (z wpisem w logu
+startowym); jeśli to także się nie powiedzie, joystick jest wyłączany na
+czas sesji. Zapisana preferencja cd32 nie jest nadpisywana. Przy wyjściu
+skonfigurowany port jest zwracany systemowi (autosense) przed
+zamknięciem lowlevel.library. Bez lowlevel.library joystick jest
+niedostępny, ale gra normalnie działa z klawiaturą i myszą.
 
 Sterowanie w menu (klawiatura / mysz / joystick):
 
    Arrow keys / joystick D-pad       — Nawigacja po opcjach
    ENTER lub SPACE                   — Wybór opcji
    Left mouse button                 — Wybór opcji (kliknięcie)
-   FIRE 1 (red)                      — Wybór opcji
-   ESC                               — Powrót / anulowanie
-   FIRE 2 (blue) / CD32 PLAY         — Powrót / anulowanie
+   FIRE 1 (red) / CD32 FIRE          — Wybór opcji
+   ESC / CD32 CANCEL                 — Powrót / anulowanie
    F1                                — Help kontekstowy
    ALT + X                           — Wyjście do systemu
    Arrows / PgUp / PgDn / Home / End — Przewijanie okna pomocy
    BACKSPACE (w polach tekstowych)   — Usunięcie znaku
    CTRL + Y (w polach tekstowych)    — Wyczyszczenie całego pola
+
+
+amiga.cfg — plik konfiguracyjny
+-------------------------------
+
+Raptor czyta ustawienia z pliku amiga.cfg w katalogu gry (tym samym
+drawerze co foldery MP3/ i WAVE/ — czyli w bieżącym katalogu, z którego
+gra jest uruchamiana). Jest to zwykły plik tekstowy z wierszami
+"klucz = wartość"; wiersz zaczynający się od ';' lub '#' to komentarz,
+a puste wiersze są dozwolone. Jeśli pliku nie ma, jest on tworzony
+automatycznie przy pierwszym uruchomieniu z wszystkimi kluczami
+ustawionymi na wartości domyślne. Starsze pliki zawierające tylko klucze
+głośności nadal się wczytują: brakujące klucze zachowują wbudowane
+wartości domyślne, a nieznane klucze są ignorowane.
+
+Głośności audio to liczby całkowite w zakresie 0..127 (127 = najgłośniej).
+Gdy głośności z menu opcji są zapisywane, istniejący plik jest
+aktualizowany w miejscu: komentarze, nieznane klucze, ręczne zmiany,
+kolejność kluczy, odstępy i końce wierszy są zachowywane, a zmieniane są
+tylko wartości głośności. Brakujące klucze głośności są dopisywane na
+końcu pliku. Poniższy blok CD32 jest zapisywany tylko wtedy, gdy
+amiga.cfg jest tworzony od podstaw; istniejący plik bez tych kluczy
+korzysta z wbudowanych wartości domyślnych, dopóki klucze nie zostaną
+dodane ręcznie.
+
+Obsługa pada CD32 jest domyślnie wyłączona. Ustaw cd32 = ON, aby
+przełączyć gameport 1 (drugi fizyczny port DB9 Amigi) w tryb game
+controller lowlevel.library; cd32 = OFF zachowuje klasyczne zachowanie
+joysticka. Każdy z siedmiu przycisków pada przyjmuje jedną nazwę akcji,
+zgodnie z sekcją CD32 w „Sterowanie” powyżej.
+
+Zapis odbywa się przez plik tymczasowy (amiga.cfg.tmpN), który jest
+następnie zmieniany nazwą na amiga.cfg. Istniejący plik jest najpierw
+odsuwany jako amiga.cfg.bakN i usuwany dopiero po umieszczeniu nowego
+pliku, więc nieudany zapis pozostawia poprzedni plik nienaruszony. Nie
+jest to pełna gwarancja odporności na utratę zasilania: awaria w
+niewłaściwym momencie może pozostawić plik tymczasowy lub backup.
+
+Kompletny przykład (pokazane wartości są domyślne; ten sam przykład
+znajduje się w pliku docs/amiga.cfg.example w repozytorium źródeł):
+
+   ; ==== AUDIO ====
+   ; Raptor Amiga volumes (0..127, 127 = loud)
+   music_adlib = 127
+   music_mhi   = 127
+   music_wave  = 127
+   sfx_volume  = 127
+
+   ; ==== JOYSTICK / CD32 ====
+   ; cd32 = OFF : classic joystick on port 1 (default, unchanged behaviour)
+   ; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
+   ; NOJOY / JOYSTICK=OFF takes precedence over this block.
+   ; Button assignments, one value per physical pad button:
+   ;   FIRE           - main guns
+   ;   SPECIAL_SELECT - fire the selected special weapon
+   ;   MEGA_BOMB      - launch a mega bomb
+   ;   PAUSE          - pause the game
+   ;   CANCEL         - cancel / back out
+   ;   NONE           - button disabled
+   cd32 = OFF
+   cd32_red     = FIRE ; Red button
+   cd32_blue    = SPECIAL_SELECT ; Blue button
+   cd32_green   = MEGA_BOMB ; Green button
+   cd32_yellow  = NONE ; Yellow button
+   cd32_reverse = NONE ; Reverse button (left shoulder)
+   cd32_forward = NONE ; Forward button (right shoulder)
+   cd32_play    = PAUSE ; Play button (triangle)
 
 
 Znane ograniczenia
@@ -830,11 +945,16 @@ Znane ograniczenia
   amiga.cfg w katalogu gry (pliku tworzonego przy pierwszym uruchomieniu)
   i przywracana przy kolejnym starcie. Każdy backend muzyki ma własny
   klucz głośności (music_adlib, music_mhi, music_wave) oraz sfx_volume.
+  Plik jest aktualizowany w miejscu, więc ręczne zmiany, komentarze,
+  nieznane klucze i przypisania CD32 przetrwają zmianę głośności.
   Poziom detali nie jest zapisywany.
 - Muzyka WAVE (MUSIC=WAVE) wymaga plików WAV w drawerze WAVE/ w
   wymaganym formacie (11025 Hz, stereo, 16-bit PCM); utwory, których
   pliku WAV brakuje, pozostają celowo ciche.
-- Brak pause i wyjścia z menu bezpośrednio z joysticka (użyj klawiatury).
+- Klasyczny joystick nie ma pauzy ani wyjścia z menu na samym drążku
+  (użyj klawiatury); opcjonalnemu padowi CD32 można przypisać PAUSE i
+  CANCEL (patrz sekcja CD32 powyżej). Obsługa CD32 jest opcjonalna i
+  domyślnie wyłączona (cd32 = OFF).
 - Brak obsługi rumble / haptic.
 - Systemowy pointer myszy Amigi jest ukrywany podczas działania gry
   (i przywracany przy wyjściu do systemu).
@@ -873,6 +993,14 @@ Testowane konfiguracje
 - WinUAE z konfiguracjami 68030 i 68060, z FPU i bez FPU,
   przetestowano w trybach AGA oraz RTG.
 - Przetestowano na AmigaOS 3.1.4, 3.2 i 3.2.3.
+
+Pad CD32 (status testów): build Amigi oraz testy jednostkowe konfiguracji
+amiga.cfg przechodzą. Zgłoszono wstępne, częściowe działanie pada w stylu
+Segi pod WinUAE — wymaga to jeszcze potwierdzenia; pełna walidacja na
+fizycznym padzie CD32 jest wciąż oczekiwana i ma zostać wykonana przez
+drugiego testera. cd32 = ON korzysta z trybu game controller
+lowlevel.library i nie implementuje natywnego protokołu szeregowego
+pada Sega; pełna walidacja CD32 nie jest na razie deklarowana.
 
 
 Plany / pozostałe prace

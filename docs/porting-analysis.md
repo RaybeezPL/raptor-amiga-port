@@ -111,6 +111,12 @@ game's normal `i_video.cpp` flow:
   in `SDL_PumpEvents` at most at ~50 Hz; the polled state is shared with
   `joyapi.cpp`/`input.cpp` through the single-instance globals owned by
   `amiga_stubs_impl.cpp`.
+- Optional CD32 gamepad support (default `cd32 = OFF`) pins gameport 1 to
+  `SJA_TYPE_GAMECTLR`; each of the seven pad buttons gets one configurable
+  action (`cd32_red` .. `cd32_play`, one of FIRE / SPECIAL_SELECT /
+  MEGA_BOMB / PAUSE / CANCEL / NONE). Plain joystick mode remains the
+  default and the safe fallback when the game controller mode is
+  unavailable.
 - `MOUSE=ON|OFF` / `NOMOUSE` and `JOYSTICK=ON|OFF` / `NOJOY` parameters
   disable per-device processing (performance/troubleshooting aids); an
   explicit `KEYWORD=value` wins over the legacy bare flag.
@@ -147,8 +153,10 @@ game's normal `i_video.cpp` flow:
   is classified by its library path (case-insensitive substring match,
   never `MHIQ_DECODER_NAME`) and reported in the startup log.
 - `NOSOUND` / `NOMUSIC` parameters; persistent volumes (music_adlib,
-  music_mhi, music_wave, sfx) stored in `amiga.cfg`
-  (`src/amiga/amiga_cfg.cpp/h`).
+  music_mhi, music_wave, sfx) and the optional CD32 settings (cd32 and
+  cd32_red .. cd32_play) stored in `amiga.cfg`
+  (`src/amiga/amiga_cfg.cpp/h`). Volume saves update the existing file in
+  place, preserving unknown keys, comments and CD32 assignments.
 - AHI sound effects and AdLib music were tested on real hardware (0.9.0);
   CAMD and MHI paths are implemented and documented but depend on external
   MIDI/MHI hardware: **requires validation** on those setups.
@@ -193,7 +201,7 @@ game's normal `i_video.cpp` flow:
 | Video CGX fallback | Implemented | Requires validation |
 | Video AGA + C2P | Implemented (C2P bit-exact verified host-side) | Requires validation |
 | Keyboard / mouse | Implemented | Tested |
-| Joystick / CD32 pad | Implemented | Requires validation across devices |
+| Joystick / CD32 pad | Implemented (configurable `cd32`) | Joystick tested; CD32 pad real-hardware validation pending |
 | AHI SFX + AdLib/dbopl music | Implemented | Tested |
 | CAMD MIDI | Implemented | Requires validation (needs MIDI driver/synth) |
 | MHI MP3 | Implemented | Prisma MegaMix tested on real hardware; other driver families (Amiblaster, ArmedWarp, etc.) require validation |
@@ -242,7 +250,8 @@ src/amiga/
 │                          # timer, byte order); active with USE_SDL_STUBS
 ├── amiga_stubs_impl.cpp   # Single TU that owns all shared stub globals
 │                          # (AMIGA_STUBS_OWNER pattern)
-├── amiga_cfg.cpp/.h       # Persistent audio volumes in amiga.cfg
+├── amiga_cfg.cpp/.h       # Persistent settings in amiga.cfg (audio volumes
+│                          # + optional CD32 pad configuration)
 ├── SDL.h                  # Redirect -> amiga_sdl_stubs.h
 ├── SDL_endian.h           # Redirect -> amiga_sdl_stubs.h
 ├── SDL_filesystem.h       # Redirect header (no filesystem stubs needed)

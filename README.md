@@ -111,6 +111,17 @@ Working:
   input device is a performance/troubleshooting option: with the mouse off
   the window registers no mouse events at all, and with the joystick off
   the game port is never polled.
+- **Optional CD32 gamepad**, disabled by default. With `cd32 = ON` in
+  `amiga.cfg` the second physical Amiga gameport (`lowlevel.library`
+  port 1) is switched to game controller mode; the classic joystick path
+  is the default and is unchanged. Each of the seven CD32 buttons
+  (`cd32_red`, `cd32_blue`, `cd32_green`, `cd32_yellow`, `cd32_reverse`,
+  `cd32_forward`, `cd32_play`) can be assigned one action: `FIRE`,
+  `SPECIAL_SELECT`, `MEGA_BOMB`, `PAUSE`, `CANCEL` or `NONE`, and the
+  same action may be assigned to several buttons. `NOJOY` /
+  `JOYSTICK=OFF` takes precedence (the gameport is never touched).
+  Built-in defaults: red = `FIRE`, blue = `SPECIAL_SELECT`,
+  green = `MEGA_BOMB`, play = `PAUSE`, the rest `NONE`.
 - Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/VIDEO/MUSIC/
   AHIUNIT/MHIDRIVER/MP3PRELOAD/JOYSTICK/MOUSE) via the official WBStartup + icon.library
   mechanism
@@ -134,7 +145,10 @@ Working:
 - **Persistent audio volumes** via `amiga.cfg` in the game directory
   (created on first run): separate startup volumes for AdLib/OPL3
   music, MHI/MP3 music, WAVE music and sound effects; the in-game
-  Options sliders write their values back to it
+  Options sliders write their values back to it. Saving updates the
+  existing file in place, so comments, unknown keys, manual edits and
+  CD32 assignments are preserved. The same file also holds the optional
+  CD32 controller settings (see above).
 - **Automatic 64 KB main-process stack** on Amiga: Raptor requests a
   minimum 65536-byte main stack through the libnix `__stack` /
   swapstack startup mechanism before `main()`, so CLI users no longer

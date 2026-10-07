@@ -2,6 +2,54 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [Unreleased]
+
+### Added
+- Optional CD32 gamepad support, disabled by default (`cd32 = OFF` in
+  `amiga.cfg`). Setting `cd32 = ON` switches gameport 1 (the second
+  physical Amiga DB9 port, `lowlevel.library` port 1) into game
+  controller mode. The classic joystick remains the default and is
+  unchanged.
+- Configurable CD32 button assignments via the `amiga.cfg` keys
+  `cd32_red`, `cd32_blue`, `cd32_green`, `cd32_yellow`, `cd32_reverse`,
+  `cd32_forward` and `cd32_play`. Each accepts one action name:
+  `FIRE`, `SPECIAL_SELECT`, `MEGA_BOMB`, `PAUSE`, `CANCEL` or `NONE`.
+  The same action may be assigned to several buttons; unknown names keep
+  the built-in default.
+- Built-in CD32 defaults: red = `FIRE`, blue = `SPECIAL_SELECT`,
+  green = `MEGA_BOMB`, yellow / reverse / forward = `NONE`,
+  play = `PAUSE`.
+
+### Changed
+- `NOJOY` / `JOYSTICK=OFF` still takes precedence over the `amiga.cfg`
+  CD32 block: with the joystick disabled `lowlevel.library` is not
+  opened and the gameport is never touched, regardless of `cd32`.
+- `amiga.cfg` is now updated in place instead of being rebuilt when the
+  in-game Options volumes are saved: existing comments, unknown keys,
+  manual edits, key order, spacing and line endings are preserved and
+  only the volume values are rewritten.
+- `cd32 = ON` with an unavailable/unsupported game controller mode falls
+  back to plain joystick mode for the session; if that also fails the
+  joystick is disabled for the session. The saved `cd32` preference is
+  never rewritten.
+
+### Fixed
+- Saving the audio volumes from the in-game Options no longer rewrites
+  `amiga.cfg` from scratch. The previous save rebuilt the whole file and
+  could drop CD32 assignments, comments and unknown content. Missing
+  volume keys (`music_adlib`, `music_mhi`, `music_wave`, `sfx_volume`)
+  are appended; the CD32 block is written only when the file is first
+  created.
+
+### Testing / status
+- The Amiga build and the `amiga.cfg` configuration unit tests pass
+  (`bash tests/run_amiga_cfg_test.sh`).
+- Preliminary, partial CD32 behaviour was reported by the user with a
+  Sega-style pad under WinUAE. Full validation with a real CD32 pad is
+  still pending and is expected from a second tester.
+- This does not implement the native Sega gamepad serial protocol and
+  does not constitute full CD32 validation.
+
 ## [0.9.9-rc.4] - 2026-09-22
 
 ### Added

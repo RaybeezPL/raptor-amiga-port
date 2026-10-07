@@ -56,8 +56,10 @@ Graphics:   RTG with Picasso96 or CyberGraphX (CGX)
             (e.g. CyberVision 64/3D, Picasso IV, UAEGFX/PiStorm)
             - 320x200x8 mode required
 Disk space: approx. 25 MB free (game files + saved games)
-Joystick:   Optional - port 1 (DB9); requires lowlevel.library v40+
-            (included in AmigaOS 3.2); CD32 pads are also supported
+Joystick:   Optional - port 1 (DB9, the second physical Amiga port);
+            requires lowlevel.library v40+ (included in AmigaOS 3.2).
+            A CD32 pad can be enabled with cd32 = ON in amiga.cfg (see
+            "amiga.cfg - configuration file" below).
 Sound:      AHI (ahi.device v4+) for sound effects; no music backend
             is enabled by default (MUSIC=OFF). Music can be selected
             explicitly with MUSIC=ADLIB (built-in OPL3 emulation),
@@ -754,38 +756,148 @@ Mouse - in game:
    Right button     - Fire special weapon
    Middle button    - Cycle active special weapon
 
-Joystick / CD32 pad (port 1):
+Joystick (port 1):
 
-Requires lowlevel.library v40+ (standard in AmigaOS 3.2). The port
-is switched to game controller mode, so standard 1- and 2-button
-joysticks and CD32 pads are supported.
+Requires lowlevel.library v40+ (standard in AmigaOS 3.2). The port is
+pinned to plain joystick mode by default, so standard 1- and 2-button
+joysticks work unchanged.
 
    Stick / D-pad    - Move ship
    FIRE 1 (red)     - Fire primary weapon
-   FIRE 2 (blue)    - Fire special weapon
-   CD32 PLAY        - Fire special weapon
 
-Notes:
-- Special weapon cycling and MegaFire are only available from
-  keyboard (SPACE / Right SHIFT) or mouse (middle button).
-- Pause is only available from keyboard (P) - the Amiga joystick
-  has no Start button.
-- Without lowlevel.library the joystick is unavailable, but the
-  game works normally with keyboard and mouse.
+A classic joystick's second button (the BLUE/PLAY pot lines) is not
+read: those inputs float on real hardware, and Fire Special is available
+from the keyboard (Left ALT) or the middle mouse button.
+
+CD32 gamepad (optional, port 1):
+
+A CD32 pad can be enabled with cd32 = ON in amiga.cfg (see "amiga.cfg -
+configuration file" below). With the default cd32 = OFF the port stays in
+plain joystick mode and a CD32 pad behaves like a normal 2-button stick.
+NOJOY / JOYSTICK=OFF takes precedence: with the joystick disabled
+lowlevel.library is not opened and the port is never touched, whatever
+cd32 says.
+
+Each of the seven pad buttons (cd32_red, cd32_blue, cd32_green,
+cd32_yellow, cd32_reverse, cd32_forward, cd32_play) can be assigned one
+of these actions:
+
+   FIRE            - fire the main guns
+   SPECIAL_SELECT  - fire the selected special weapon
+   MEGA_BOMB       - launch a mega bomb
+   PAUSE           - pause the game (gameplay)
+   CANCEL          - back / cancel (equivalent to the ESC key)
+   NONE            - button disabled
+
+The same action may be assigned to several buttons. Built-in defaults:
+red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB,
+yellow / reverse / forward = NONE, play = PAUSE. For example, to fire
+with the blue button and leave the red button unused:
+
+   cd32_red  = NONE
+   cd32_blue = FIRE
+
+Action behaviour in gameplay and in menus/intro:
+
+   Action            In gameplay               In menus / intro
+   FIRE              fire the main guns        select / acknowledge (Return)
+   SPECIAL_SELECT    fire the selected special (no effect)
+   MEGA_BOMB         launch a mega bomb        (no effect)
+   PAUSE             pause the game            (no effect)
+   CANCEL            ESC (abort / back)        back / cancel (ESC)
+   NONE              (no effect)               (no effect)
+
+The D-pad always steers the ship and navigates menus through the normal
+direction input; the buttons never double as directions. A button that is
+already held when the game/menu/modal context changes is discarded until
+it is released, so a held PAUSE does not immediately acknowledge the
+pause window and a held action does not confirm a dialog.
+
+With cd32 = ON, if the game controller mode cannot be enabled the port
+falls back to plain joystick mode for the session (with a note in the
+startup log); if that also fails, the joystick is disabled for the
+session. The saved cd32 preference is not rewritten. On exit the
+configured port is handed back to the system (autosense) before
+lowlevel.library is closed. Without lowlevel.library the joystick is
+unavailable, but the game works normally with keyboard and mouse.
 
 Menu controls (keyboard / mouse / joystick):
 
    Arrow keys / joystick D-pad  - Navigate options
    ENTER or SPACE               - Select option
    Left mouse button            - Select option (click)
-   FIRE 1 (red)                 - Select option
-   ESC                          - Back / cancel
-   FIRE 2 (blue) / CD32 PLAY    - Back / cancel
+   FIRE 1 (red) / CD32 FIRE     - Select option
+   ESC / CD32 CANCEL            - Back / cancel
    F1                           - Context help
    ALT + X                      - Quit to system
    Arrows / PgUp / PgDn / Home / End - Scroll help window
    BACKSPACE (in text fields)   - Delete character
    CTRL + Y (in text fields)    - Clear entire field
+
+
+amiga.cfg - configuration file
+------------------------------
+
+Raptor reads its settings from amiga.cfg in the game directory (the same
+drawer as the MP3/ and WAVE/ folders - the current directory the game is
+started from). It is a plain text file of "key = value" lines; a line
+beginning with ';' or '#' is a comment and blank lines are allowed. If
+the file does not exist it is created automatically on first run with all
+keys written at their defaults. Older files that only contain the audio
+volume keys keep loading: keys that are absent keep their built-in
+defaults, and unknown keys are ignored.
+
+Audio volumes are stored as integers in the range 0..127 (127 = loudest).
+When the in-game Options volumes are saved, the existing file is updated
+in place: comments, unknown keys, manual edits, key order, spacing and
+line endings are preserved and only the volume values are rewritten.
+Missing volume keys are appended to the end of the file. The CD32 block
+below is written only when amiga.cfg is created from scratch; an existing
+file without those keys simply keeps using the built-in defaults until the
+keys are added by hand.
+
+CD32 gamepad support is off by default. Set cd32 = ON to switch gameport 1
+(the second physical Amiga DB9 port) into lowlevel.library game controller
+mode; cd32 = OFF keeps the classic joystick behaviour. The seven CD32
+buttons each take one action name, as described in the CD32 section under
+"Controls" above.
+
+Updates are written to a temporary file (amiga.cfg.tmpN) which is then
+renamed over amiga.cfg. An existing file is first renamed aside as
+amiga.cfg.bakN and removed only after the new file is in place, so a
+failed write leaves the previous file intact. This is not a full
+power-loss guarantee: a crash at the wrong moment can still leave a
+temporary or backup file behind.
+
+Complete example (the values shown are the defaults; the same example is
+provided as docs/amiga.cfg.example in the source repository):
+
+   ; ==== AUDIO ====
+   ; Raptor Amiga volumes (0..127, 127 = loud)
+   music_adlib = 127
+   music_mhi   = 127
+   music_wave  = 127
+   sfx_volume  = 127
+
+   ; ==== JOYSTICK / CD32 ====
+   ; cd32 = OFF : classic joystick on port 1 (default, unchanged behaviour)
+   ; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
+   ; NOJOY / JOYSTICK=OFF takes precedence over this block.
+   ; Button assignments, one value per physical pad button:
+   ;   FIRE           - main guns
+   ;   SPECIAL_SELECT - fire the selected special weapon
+   ;   MEGA_BOMB      - launch a mega bomb
+   ;   PAUSE          - pause the game
+   ;   CANCEL         - cancel / back out
+   ;   NONE           - button disabled
+   cd32 = OFF
+   cd32_red     = FIRE ; Red button
+   cd32_blue    = SPECIAL_SELECT ; Blue button
+   cd32_green   = MEGA_BOMB ; Green button
+   cd32_yellow  = NONE ; Yellow button
+   cd32_reverse = NONE ; Reverse button (left shoulder)
+   cd32_forward = NONE ; Forward button (right shoulder)
+   cd32_play    = PAUSE ; Play button (triangle)
 
 
 Known Limitations
@@ -821,11 +933,16 @@ Known Limitations
   are saved to amiga.cfg in the game directory (created on first run)
   and restored on the next start. Each music backend has its own
   volume key (music_adlib, music_mhi, music_wave) plus sfx_volume.
+  The file is updated in place, so manual edits, comments, unknown
+  keys and CD32 assignments survive a volume change.
   Detail level is not persisted.
 - WAVE music (MUSIC=WAVE) needs WAV files in the WAVE/ drawer in the
   required format (11025 Hz, stereo, 16-bit PCM); songs whose WAV
   file is missing stay silent by design.
-- No pause or menu exit directly from joystick (use keyboard).
+- With a classic joystick there is no pause or menu exit on the stick
+  itself (use the keyboard); an optional CD32 pad can be assigned
+  PAUSE and CANCEL (see the CD32 section above). CD32 support is
+  optional and disabled by default (cd32 = OFF).
 - No rumble / haptic support.
 - The Amiga system mouse pointer is hidden while the game is
   running (restored on exit to system).
@@ -863,6 +980,14 @@ Tested configurations
 - WinUAE with 68030 and 68060 configurations, with and without
   FPU, tested in AGA and RTG modes.
 - Tested on AmigaOS 3.1.4, 3.2 and 3.2.3.
+
+CD32 gamepad (testing status): the Amiga build and the amiga.cfg
+configuration unit tests pass. Preliminary, partial behaviour of a
+Sega-style pad under WinUAE was reported and still needs confirmation;
+full validation with a physical CD32 pad is pending and is expected from
+a second tester. cd32 = ON uses lowlevel.library game controller mode
+and does not implement the native Sega gamepad serial protocol; no full
+CD32 validation is claimed yet.
 
 
 Roadmap / Remaining Work

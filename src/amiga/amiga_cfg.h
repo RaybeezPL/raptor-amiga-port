@@ -24,8 +24,8 @@
  * mode is chosen; SND_InitSound calls it again harmlessly for the volume
  * keys) - file wins over
  * the built-in defaults.  AmigaCfg_Save() is called when the in-game
- * Options sliders are exited and always writes BOTH blocks, so manual
- * edits, slider changes and CD32 assignments all stick. */
+ * Options sliders are exited.  Existing files retain manual edits, CD32
+ * assignments and unknown content when their volume values are updated. */
 
 #ifdef __AMIGA__
 
@@ -61,7 +61,16 @@ extern int amiga_cfg_cd32_play;
  * no-ops. */
 void AmigaCfg_Load(void);
 
-/* Writes the current amiga_cfg_* values back to amiga.cfg. */
+/* Updates current volume values in amiga.cfg without rebuilding an existing
+ * file. */
 void AmigaCfg_Save(void);
+
+#ifdef AMIGA_CFG_TEST
+void AmigaCfg_TestSetPath(const char *path);
+void AmigaCfg_TestResetLoad(void);
+void AmigaCfg_TestFailNextTempOpen(void);
+void AmigaCfg_TestFailNextReplace(void);
+void AmigaCfg_TestFailReplacementAfterBackup(void);
+#endif
 
 #endif /* __AMIGA__ */
