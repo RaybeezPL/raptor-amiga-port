@@ -695,8 +695,8 @@ Startup. Na RTG parametr `VIDEO=` nie ma żadnego efektu.
 Uwaga: środkowy przycisk myszy jest ignorowany. Na niektórych komputerach
 (w szczególności A1200 + PiStorm/Emu68, zarówno na ekranach RTG, jak i AGA)
 powoduje on fałszywe naciśnięcia, które pomijają intro logos, natychmiast
-kończą dema i zakłócają sterowanie. Zmiana aktywnej special weapon jest
-zawsze dostępna za pomocą klawisza SPACE. Lewy i prawy przycisk myszy
+kończą dema i zakłócają sterowanie. Zmiana broni drugorzędnej jest
+zawsze dostępna za pomocą klawisza Left ALT. Lewy i prawy przycisk myszy
 działają normalnie we wszystkich trybach.
 
 
@@ -736,10 +736,11 @@ klawiaturą pozostaje bez zmian.
 Klawiatura — podczas gry:
 
    Arrow keys       — Sterowanie statkiem
-   Left CTRL        — Strzał z primary weapon
-   Left ALT         — Strzał z special weapon
-   SPACE            — Zmiana aktywnej special weapon
-   Right SHIFT      — MegaFire (mega bomba)
+   Left CTRL        — Strzał z broni podstawowej oraz wybranej broni
+                      drugorzędnej
+   Left ALT         — Zmiana (przełączanie) broni drugorzędnej
+   SPACE            — Zrzut mega bomby
+   Right SHIFT      — (brak przypisanej akcji w rozgrywce)
    1 ... 0, "-"     — Bezpośredni wybór special weapon (zob. poniżej)
    P                — Pause
    F1               — Help
@@ -761,9 +762,11 @@ Bezpośredni wybór special weapon (jeśli jest w inventory):
 Mysz — podczas gry:
 
    Mouse movement   — Sterowanie statkiem (pozycja kursora)
-   Left button      — Strzał z primary weapon
-   Right button     — Strzał z special weapon
-   Middle button    — Zmiana aktywnej special weapon
+   Left button      — Strzał z broni podstawowej oraz wybranej broni
+                      drugorzędnej
+   Right button     — Zmiana (przełączanie) broni drugorzędnej
+   Middle button    — Zrzut mega bomby (ignorowany na Amidze — patrz
+                      uwaga powyżej)
 
 Joystick (port 1):
 
@@ -774,10 +777,13 @@ joysticki 1- i 2-button działają bez zmian.
    Stick / D-pad    — Sterowanie statkiem
    FIRE 1 (red)     — Strzał z primary weapon
 
-Drugi przycisk klasycznego joysticka (linie BLUE/PLAY) nie jest
-odczytywany: te wejścia pływają na prawdziwym sprzęcie, a strzał z
-special weapon jest dostępny z klawiatury (Left ALT) lub środkowego
-przycisku myszy.
+Drugi przycisk klasycznego joysticka (linie BLUE/PLAY) nie jest domyślnie
+odczytywany: te wejścia pływają na prawdziwym sprzęcie. Strzał
+wykorzystuje broń podstawową oraz wybraną broń drugorzędną, a zmianę
+broni drugorzędnej można wykonać z klawiatury (Left ALT) lub myszą.
+Eksperymentalny tryb joysticka trójprzyciskowego potrafi odczytać linię
+drugiego przycisku oraz trzeci przycisk — patrz „Joystick
+trójprzyciskowy” poniżej.
 
 Pad CD32 (opcjonalnie, port 1):
 
@@ -792,8 +798,9 @@ Każdemu z siedmiu przycisków pada (cd32_red, cd32_blue, cd32_green,
 cd32_yellow, cd32_reverse, cd32_forward, cd32_play) można przypisać jedną
 z akcji:
 
-   FIRE            — strzał z głównych dział
-   SPECIAL_SELECT  — strzał z wybranej broni specjalnej
+   FIRE            — strzał z broni podstawowej oraz wybranej broni
+                     drugorzędnej
+   SPECIAL_SELECT  — zmiana (przełączanie) broni drugorzędnej
    MEGA_BOMB       — zrzut mega bomby
    PAUSE           — pauza gry (podczas rozgrywki)
    CANCEL          — powrót / anulowanie (odpowiednik ESC)
@@ -807,15 +814,32 @@ strzelać niebieskim przyciskiem i pozostawić czerwony nieużywany:
    cd32_red  = NONE
    cd32_blue = FIRE
 
-Działanie akcji w rozgrywce oraz w menu/intro:
+CANCEL nie jest domyślnie przypisany do żadnego przycisku i pozostaje
+nieaktywny, dopóki nie zostanie przypisany jawnie; aby anulować żółtym
+przyciskiem, dodaj (lub zmień) wiersz:
 
-   Akcja             W rozgrywce                W menu / intro
-   FIRE              strzał z głównych dział    wybór / zatwierdzenie (Return)
-   SPECIAL_SELECT    strzał z wybranej broni   (bez efektu)
-   MEGA_BOMB         zrzut mega bomby           (bez efektu)
-   PAUSE             pauza gry                  (bez efektu)
-   CANCEL            ESC (przerwanie / powrót)  powrót / anulowanie (ESC)
-   NONE              (bez efektu)               (bez efektu)
+   cd32_yellow = CANCEL
+
+Działanie akcji w rozgrywce, w sklepie oraz w menu/intro:
+
+   Akcja             W rozgrywce            W sklepie              W menu / intro
+   FIRE              strzał z broni         potwierdzenie          wybór (Return)
+                     podstawowej +          (Return)
+                     drugorzędnej
+   SPECIAL_SELECT    zmiana (cykl) broni    przełączenie BUY/SELL  (bez efektu)
+                     drugorzędnej           (Space)
+   MEGA_BOMB         zrzut mega bomby       (bez efektu)           (bez efektu)
+   PAUSE             pauza gry              (bez efektu)           (bez efektu)
+   CANCEL            ESC (przerwanie /      wyjście (ESC)          powrót / anulowanie
+                     powrót)                                       (ESC)
+   NONE              (bez efektu)           (bez efektu)           (bez efektu)
+
+Tylko w sklepie SPECIAL_SELECT działa jak klawisz SPACE i przełącza
+sklep między trybem BUY i SELL; nigdy nie potwierdza tam wyboru. FIRE
+potwierdza (Return), a CANCEL wychodzi ze sklepu (ESC). Gdy otwarta jest
+pomoc sklepu albo okno potwierdzenia wyjścia, mapowanie sklepu jest
+zawieszone, więc trzymany przycisk nie może wstrzyknąć SPACE do tych
+okien.
 
 D-pad zawsze steruje statkiem i nawiguje po menu przez zwykłe wejście
 kierunkowe; przyciski nigdy nie pełnią funkcji kierunków. Przycisk
@@ -830,6 +854,36 @@ czas sesji. Zapisana preferencja cd32 nie jest nadpisywana. Przy wyjściu
 skonfigurowany port jest zwracany systemowi (autosense) przed
 zamknięciem lowlevel.library. Bez lowlevel.library joystick jest
 niedostępny, ale gra normalnie działa z klawiaturą i myszą.
+
+Joystick trójprzyciskowy (opcjonalnie, port 1) — eksperymentalny:
+
+Trójprzyciskowy joystick DB9 Amigi można włączyć wpisem joy3 = ON w
+amiga.cfg. Jego trzy przyciski są odczytywane z niezależnych pinów portu —
+przycisk 1 z pinu 6 (klasyczna linia ognia), przycisk 2 z pinu 9, a
+przycisk 3 z pinu 5 — a nie z rejestru przesuwnego CD32; natywny
+szeregowy protokół pada Sega nie jest implementowany. Domyślne joy3 = OFF
+oznacza, że klasyczny joystick 1- lub 2-przyciskowy działa dokładnie jak
+dotychczas. cd32 = ON ma pierwszeństwo przed joy3 = ON, a
+NOJOY / JOYSTICK=OFF wyłącza całe wejście joysticka niezależnie od obu
+ustawień.
+
+Każdy z trzech przycisków przyjmuje jedną nazwę akcji — ten sam zestaw co
+pad CD32 (FIRE, SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL, NONE) i z tym
+samym zachowaniem zależnym od ekranu, opisanym powyżej. Domyślne
+przypisania:
+
+   joy3 = OFF
+   joy3_button1 = FIRE            ; Button 1 (DB9 pin 6, fire line)
+   joy3_button2 = SPECIAL_SELECT  ; Button 2 (DB9 pin 9)
+   joy3_button3 = MEGA_BOMB       ; Button 3 (DB9 pin 5)
+
+Przycisk 3 jest odczytywany przez linię potgo.resource współdzieloną z
+pinem 5 drugiego gameportu. Jeśli tej linii nie da się przydzielić — na
+przykład gdy inny program już ją zajmuje — przycisk 3 pozostaje
+nieaktywny, przyciski 1 i 2 nadal działają, a log startowy odnotowuje
+tryb ograniczony; zapisane amiga.cfg nie jest zmieniane. Współdziałanie
+lowlevel.library i potgo na konkretnej maszynie wciąż wymaga weryfikacji
+na prawdziwym sprzęcie.
 
 Sterowanie w menu (klawiatura / mysz / joystick):
 
@@ -863,10 +917,12 @@ Gdy głośności z menu opcji są zapisywane, istniejący plik jest
 aktualizowany w miejscu: komentarze, nieznane klucze, ręczne zmiany,
 kolejność kluczy, odstępy i końce wierszy są zachowywane, a zmieniane są
 tylko wartości głośności. Brakujące klucze głośności są dopisywane na
-końcu pliku. Poniższy blok CD32 jest zapisywany tylko wtedy, gdy
-amiga.cfg jest tworzony od podstaw; istniejący plik bez tych kluczy
-korzysta z wbudowanych wartości domyślnych, dopóki klucze nie zostaną
-dodane ręcznie.
+końcu pliku. Poniższe bloki CD32 oraz JOYSTICK / 3 BUTTON są zapisywane
+tylko wtedy, gdy amiga.cfg jest tworzony od podstaw; istniejący plik
+nigdy nie otrzymuje ich automatycznie — korzysta z wbudowanych
+(wyłączonych) wartości domyślnych, dopóki klucze nie zostaną dodane
+ręcznie, np. przez skopiowanie bloku z przykładu poniżej lub z pliku
+docs/amiga.cfg.example.
 
 Obsługa pada CD32 jest domyślnie wyłączona. Ustaw cd32 = ON, aby
 przełączyć gameport 1 (drugi fizyczny port DB9 Amigi) w tryb game
@@ -896,8 +952,8 @@ znajduje się w pliku docs/amiga.cfg.example w repozytorium źródeł):
    ; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
    ; NOJOY / JOYSTICK=OFF takes precedence over this block.
    ; Button assignments, one value per physical pad button:
-   ;   FIRE           - main guns
-   ;   SPECIAL_SELECT - fire the selected special weapon
+   ;   FIRE           - primary guns + selected secondary weapon
+   ;   SPECIAL_SELECT - change (cycle) the secondary weapon
    ;   MEGA_BOMB      - launch a mega bomb
    ;   PAUSE          - pause the game
    ;   CANCEL         - cancel / back out
@@ -910,6 +966,20 @@ znajduje się w pliku docs/amiga.cfg.example w repozytorium źródeł):
    cd32_reverse = NONE ; Reverse button (left shoulder)
    cd32_forward = NONE ; Forward button (right shoulder)
    cd32_play    = PAUSE ; Play button (triangle)
+
+   ; ==== JOYSTICK / 3 BUTTON ====
+   ; Amiga DB9 three-button joystick (experimental). Its buttons are read
+   ; from the independent port pins 6, 9 and 5, not from the CD32 shift
+   ; register. cd32 = ON above takes precedence over joy3 = ON.
+   ; joy3 = OFF : two-button joystick on port 1 (default, unchanged)
+   ; joy3 = ON  : three-button joystick on port 1 (buttons on DB9 pins 6/9/5;
+   ;              button 3 uses potgo.resource; ignored when cd32 = ON)
+   ; Same action names as the CD32 block above. If the button-3 line cannot
+   ; be allocated, button 3 stays inactive and buttons 1/2 keep working.
+   joy3 = OFF
+   joy3_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)
+   joy3_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)
+   joy3_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)
 
 
 Znane ograniczenia
@@ -952,9 +1022,10 @@ Znane ograniczenia
   wymaganym formacie (11025 Hz, stereo, 16-bit PCM); utwory, których
   pliku WAV brakuje, pozostają celowo ciche.
 - Klasyczny joystick nie ma pauzy ani wyjścia z menu na samym drążku
-  (użyj klawiatury); opcjonalnemu padowi CD32 można przypisać PAUSE i
-  CANCEL (patrz sekcja CD32 powyżej). Obsługa CD32 jest opcjonalna i
-  domyślnie wyłączona (cd32 = OFF).
+  (użyj klawiatury); opcjonalnemu padowi CD32 lub joystickowi
+  trójprzyciskowemu można przypisać PAUSE i CANCEL (patrz sekcje
+  powyżej). Oba tryby są opcjonalne i domyślnie wyłączone (cd32 = OFF,
+  joy3 = OFF); joystick trójprzyciskowy jest eksperymentalny.
 - Brak obsługi rumble / haptic.
 - Systemowy pointer myszy Amigi jest ukrywany podczas działania gry
   (i przywracany przy wyjściu do systemu).
@@ -994,13 +1065,21 @@ Testowane konfiguracje
   przetestowano w trybach AGA oraz RTG.
 - Przetestowano na AmigaOS 3.1.4, 3.2 i 3.2.3.
 
-Pad CD32 (status testów): build Amigi oraz testy jednostkowe konfiguracji
-amiga.cfg przechodzą. Zgłoszono wstępne, częściowe działanie pada w stylu
-Segi pod WinUAE — wymaga to jeszcze potwierdzenia; pełna walidacja na
-fizycznym padzie CD32 jest wciąż oczekiwana i ma zostać wykonana przez
-drugiego testera. cd32 = ON korzysta z trybu game controller
-lowlevel.library i nie implementuje natywnego protokołu szeregowego
-pada Sega; pełna walidacja CD32 nie jest na razie deklarowana.
+Pad CD32 (status testów): działanie w rozgrywce na padzie CD32 /
+kompatybilnym z CD32 zostało zgłoszone jako działające na prawdziwym
+sprzęcie Amiga przez testera. Dedykowana obsługa sklepu dla CD32
+(SPECIAL_SELECT przełącza BUY/SELL) oraz poprawka endianowości procentu
+maksymalnej energii bossa w skanerze są już w bieżącym drzewie źródeł;
+build przechodzi, a weryfikacja działania obu tych poprawek na prawdziwym
+sprzęcie jest wciąż oczekiwana. cd32 = ON korzysta z trybu game controller
+lowlevel.library i nie implementuje natywnego protokołu szeregowego pada
+Sega.
+
+Joystick trójprzyciskowy (status testów): eksperymentalny. Implementacja
+się kompiluje oraz testy jednostkowe amiga.cfg przechodzą, ale przycisk 3
+oraz współdziałanie lowlevel.library / potgo wciąż wymagają weryfikacji na
+prawdziwym sprzęcie. Udany build nie potwierdza działania trzeciego
+przycisku.
 
 
 Plany / pozostałe prace
@@ -1024,6 +1103,11 @@ Autorzy i kontakt
    Specjalne podziękowania dla użytkownika PPA Jacques za cierpliwość i
    szeroko zakrojone testy MHI na karcie WARP. Dzięki jego testom powstała
    opcja MP3PRELOAD.
+
+   Specjalne podziękowania dla użytkownika PPA Solo Kazuki
+   (https://www.ppa.pl/uzytkownicy/490) za testy na prawdziwym sprzęcie
+   Amiga oraz za sugestię obsługi padów CD32 i kompatybilnych gamepadów,
+   a także trójprzyciskowych joysticków Amiga.
 
    Podziękowanie dla współtwórcy: @midwan — rozpoznanie MHI drivera
    MNT ZZ9000 / ZZ9000AX (LIBS:MHI/mhizz9000.library), GitHub PR #3.

@@ -22,6 +22,10 @@ reset_values(void)
     amiga_cfg_cd32_reverse = AMIGA_CFG_CD32_NONE;
     amiga_cfg_cd32_forward = AMIGA_CFG_CD32_NONE;
     amiga_cfg_cd32_play = AMIGA_CFG_CD32_PAUSE;
+    amiga_cfg_joy3 = 0;
+    amiga_cfg_joy3_button1 = AMIGA_CFG_CD32_FIRE;
+    amiga_cfg_joy3_button2 = AMIGA_CFG_CD32_SPECIAL_SELECT;
+    amiga_cfg_joy3_button3 = AMIGA_CFG_CD32_MEGA_BOMB;
     AmigaCfg_TestResetLoad();
 }
 
@@ -167,6 +171,7 @@ main(void)
     assert(count_text(contents, "music_wave = ") == 1);
     assert(count_text(contents, "sfx_volume = ") == 1);
     assert(strstr(contents, "cd32 = ") == 0);
+    assert(strstr(contents, "joy3 = ") == 0);
     free(contents);
 
     /* 7. Temp-file/write and replacement failures leave the original intact. */
@@ -186,6 +191,106 @@ main(void)
     AmigaCfg_Save();
     contents = read_file(path);
     assert(strcmp(contents, "music_adlib = 9\ncustom = original\n") == 0);
+    free(contents);
+
+    /* 8. Old cfg without any JOY3 keys keeps the built-in JOY3 defaults and
+     * an Options save still must not add the block to an existing file. */
+    write_file(path, "music_adlib = 5\ncd32 = ON\ncd32_red = CANCEL\n");
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_music_adlib == 5);
+    assert(amiga_cfg_cd32 == 1 && amiga_cfg_cd32_red == AMIGA_CFG_CD32_CANCEL);
+    assert(amiga_cfg_joy3 == 0);
+    assert(amiga_cfg_joy3_button1 == AMIGA_CFG_CD32_FIRE);
+    assert(amiga_cfg_joy3_button2 == AMIGA_CFG_CD32_SPECIAL_SELECT);
+    assert(amiga_cfg_joy3_button3 == AMIGA_CFG_CD32_MEGA_BOMB);
+    AmigaCfg_Save();
+    contents = read_file(path);
+    assert(count_text(contents, "joy3 = ") == 0);
+    assert(count_text(contents, "joy3_button1 = ") == 0);
+    assert(strstr(contents, "cd32 = ON\ncd32_red = CANCEL\n") != 0);
+    free(contents);
+
+    /* 9. JOY3 keys are accepted with mixed case and every existing action. */
+    write_file(path,
+        "JOY3 = On\n"
+        "Joy3_Button1\t=\tFire\n"
+        "joy3_button2 = special_select\n"
+        "JOY3_BUTTON3 = NONE\n");
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_joy3 == 1);
+    assert(amiga_cfg_joy3_button1 == AMIGA_CFG_CD32_FIRE);
+    assert(amiga_cfg_joy3_button2 == AMIGA_CFG_CD32_SPECIAL_SELECT);
+    assert(amiga_cfg_joy3_button3 == AMIGA_CFG_CD32_NONE);
+    write_file(path,
+        "joy3 = off\njoy3_button1 = PAUSE\njoy3_button2 = cancel\n"
+        "joy3_button3 = mega_bomb\n");
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_joy3 == 0);
+    assert(amiga_cfg_joy3_button1 == AMIGA_CFG_CD32_PAUSE);
+    assert(amiga_cfg_joy3_button2 == AMIGA_CFG_CD32_CANCEL);
+    assert(amiga_cfg_joy3_button3 == AMIGA_CFG_CD32_MEGA_BOMB);
+
+    /* 10. Missing and invalid JOY3 keys/values keep the safe defaults. */
+    write_file(path,
+        "joy3 = MAYBE\njoy3_button1 = BOGUS\njoy3_button2 =\njoy3_button3 = 9\n");
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_joy3 == 0);
+    assert(amiga_cfg_joy3_button1 == AMIGA_CFG_CD32_FIRE);
+    assert(amiga_cfg_joy3_button2 == AMIGA_CFG_CD32_SPECIAL_SELECT);
+    assert(amiga_cfg_joy3_button3 == AMIGA_CFG_CD32_MEGA_BOMB);
+
+    /* 11. Options volume save rewrites volumes only: own JOY3 assignments,
+     * comments, unknown keys, spacing and CRLF stay untouched. */
+    write_file(path,
+        "; own joy3 setup\r\nmusic_adlib = 20\r\njoy3 = ON\r\n"
+        "joy3_button1 = MEGA_BOMB\r\njoy3_button2 = NONE\r\n"
+        "joy3_button3 = FIRE ; custom\r\nunknown = keep\r\n"
+        "music_mhi = 30\r\nmusic_wave = 40\r\nsfx_volume = 50\r\n");
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_joy3 == 1);
+    assert(amiga_cfg_joy3_button1 == AMIGA_CFG_CD32_MEGA_BOMB);
+    assert(amiga_cfg_joy3_button2 == AMIGA_CFG_CD32_NONE);
+    assert(amiga_cfg_joy3_button3 == AMIGA_CFG_CD32_FIRE);
+    amiga_cfg_sfx = 66;                       /* in-game Options change */
+    AmigaCfg_Save();
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_sfx == 66 && amiga_cfg_music_adlib == 20);
+    assert(amiga_cfg_joy3 == 1);
+    assert(amiga_cfg_joy3_button1 == AMIGA_CFG_CD32_MEGA_BOMB);
+    assert(amiga_cfg_joy3_button2 == AMIGA_CFG_CD32_NONE);
+    assert(amiga_cfg_joy3_button3 == AMIGA_CFG_CD32_FIRE);
+    contents = read_file(path);
+    assert(strstr(contents, "; own joy3 setup\r\n") != 0);
+    assert(strstr(contents, "joy3 = ON\r\n") != 0);
+    assert(strstr(contents, "joy3_button3 = FIRE ; custom\r\n") != 0);
+    assert(strstr(contents, "unknown = keep\r\n") != 0);
+    assert(strstr(contents, "sfx_volume = 66\r\n") != 0);
+    assert(count_text(contents, "joy3 = ") == 1);
+    assert(count_text(contents, "joy3_button1 = ") == 1);
+    free(contents);
+
+    /* 12. A file created from scratch carries the JOYSTICK / 3 BUTTON block
+     * below the CD32 block, with the built-in defaults. */
+    unlink(path);
+    reset_values();
+    AmigaCfg_Load();                          /* missing file -> template */
+    assert(amiga_cfg_joy3 == 0);
+    assert(amiga_cfg_joy3_button2 == AMIGA_CFG_CD32_SPECIAL_SELECT);
+    contents = read_file(path);
+    assert(strstr(contents, "; ==== JOYSTICK / CD32 ====\n") != 0);
+    assert(strstr(contents, "; ==== JOYSTICK / 3 BUTTON ====\n") != 0);
+    assert(strstr(contents, "; ==== JOYSTICK / CD32 ====\n") <
+           strstr(contents, "; ==== JOYSTICK / 3 BUTTON ====\n"));
+    assert(strstr(contents,
+        "joy3 = OFF\njoy3_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)\n"
+        "joy3_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)\n"
+        "joy3_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)\n") != 0);
     free(contents);
 
     unlink(path);

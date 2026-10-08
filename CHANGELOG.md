@@ -15,15 +15,37 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   `cd32_forward` and `cd32_play`. Each accepts one action name:
   `FIRE`, `SPECIAL_SELECT`, `MEGA_BOMB`, `PAUSE`, `CANCEL` or `NONE`.
   The same action may be assigned to several buttons; unknown names keep
-  the built-in default.
+  the built-in default. `CANCEL` is not assigned to any button by
+  default and must be assigned explicitly.
 - Built-in CD32 defaults: red = `FIRE`, blue = `SPECIAL_SELECT`,
   green = `MEGA_BOMB`, yellow / reverse / forward = `NONE`,
   play = `PAUSE`.
+- Dedicated shop input context for configurable controllers: in the shop
+  `SPECIAL_SELECT` toggles between BUY and SELL (Space), `FIRE` confirms
+  (Return) and `CANCEL` backs out (ESC). Outside the shop
+  `SPECIAL_SELECT` stays inert, so it can never leak Space into the
+  hangar, the main menu, the intro, the pause window or a dialog. The
+  mapping is suspended while shop help or the exit confirmation dialog is
+  open.
+- Experimental three-button Amiga joystick support, disabled by default
+  (`joy3 = OFF`). With `cd32 = OFF` and `joy3 = ON` the buttons on DB9
+  pins 6/9/5 are read (`joy3_button1`, `joy3_button2`, `joy3_button3`,
+  same action names as the CD32 pad). Button 3 is read through
+  `potgo.resource`; if the line cannot be allocated button 3 stays
+  inactive, buttons 1/2 keep working and the startup log notes the
+  limited mode. The saved configuration is never rewritten.
 
 ### Changed
 - `NOJOY` / `JOYSTICK=OFF` still takes precedence over the `amiga.cfg`
-  CD32 block: with the joystick disabled `lowlevel.library` is not
-  opened and the gameport is never touched, regardless of `cd32`.
+  CD32 and JOY3 blocks: with the joystick disabled `lowlevel.library` is
+  not opened and the gameport is never touched, regardless of `cd32` and
+  `joy3`.
+- `cd32 = ON` takes precedence over `joy3 = ON`; `cd32 = OFF` with
+  `joy3 = ON` enables the experimental three-button joystick.
+- Documentation: `FIRE` fires the primary weapon together with the
+  selected secondary weapon and `SPECIAL_SELECT` changes (cycles) the
+  secondary weapon. The earlier "fire the selected special weapon"
+  wording for `SPECIAL_SELECT` was wrong and has been corrected.
 - `amiga.cfg` is now updated in place instead of being rebuilt when the
   in-game Options volumes are saved: existing comments, unknown keys,
   manual edits, key order, spacing and line endings are preserved and
@@ -34,21 +56,35 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   never rewritten.
 
 ### Fixed
+- Boss energy scanner percentage on big-endian Amiga: the maximum health
+  field is converted with `LE_LONG`, while the current runtime health
+  stays in native byte order. Scanner ownership, rendering and save data
+  are unchanged.
 - Saving the audio volumes from the in-game Options no longer rewrites
   `amiga.cfg` from scratch. The previous save rebuilt the whole file and
   could drop CD32 assignments, comments and unknown content. Missing
   volume keys (`music_adlib`, `music_mhi`, `music_wave`, `sfx_volume`)
-  are appended; the CD32 block is written only when the file is first
-  created.
+  are appended; the CD32 and JOYSTICK / 3 BUTTON blocks are written only
+  when the file is first created. An existing file is never extended
+  automatically.
+- A held pad button is ignored while the shop help or the exit
+  confirmation dialog is open, and `SPECIAL_SELECT` no longer confirms a
+  shop choice.
 
 ### Testing / status
 - The Amiga build and the `amiga.cfg` configuration unit tests pass
   (`bash tests/run_amiga_cfg_test.sh`).
-- Preliminary, partial CD32 behaviour was reported by the user with a
-  Sega-style pad under WinUAE. Full validation with a real CD32 pad is
-  still pending and is expected from a second tester.
-- This does not implement the native Sega gamepad serial protocol and
-  does not constitute full CD32 validation.
+- In-game CD32 / CD32-compatible gamepad use was reported working on real
+  Amiga hardware by a tester (PPA user Solo Kazuki).
+- The CD32 shop controls and the boss energy scanner fix build
+  successfully; runtime verification of these two fixes on real hardware
+  is still expected.
+- Three-button joystick support is experimental: it builds and the
+  `amiga.cfg` tests pass, but button 3 and the `lowlevel.library` /
+  `potgo` interaction still need real-hardware verification. A successful
+  build does not confirm that the third button works.
+- `cd32 = ON` uses `lowlevel.library` game controller mode and does not
+  implement the native Sega gamepad serial protocol.
 
 ## [0.9.9-rc.4] - 2026-09-22
 

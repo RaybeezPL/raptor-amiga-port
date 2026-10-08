@@ -114,17 +114,26 @@ game's normal `i_video.cpp` flow:
 - Optional CD32 gamepad support (default `cd32 = OFF`) pins gameport 1 to
   `SJA_TYPE_GAMECTLR`; each of the seven pad buttons gets one configurable
   action (`cd32_red` .. `cd32_play`, one of FIRE / SPECIAL_SELECT /
-  MEGA_BOMB / PAUSE / CANCEL / NONE). Plain joystick mode remains the
-  default and the safe fallback when the game controller mode is
-  unavailable.
+  MEGA_BOMB / PAUSE / CANCEL / NONE). FIRE fires the primary weapon plus
+  the selected secondary weapon, SPECIAL_SELECT cycles the secondary
+  weapon, and the shop has its own input context where SPECIAL_SELECT
+  toggles BUY/SELL. Plain joystick mode remains the default and the safe
+  fallback when the game controller mode is unavailable.
+- Optional three-button Amiga joystick (default `joy3 = OFF`, only when
+  `cd32 = OFF`) stays in `SJA_TYPE_JOYSTK` and reads the extra button
+  from the second gameport's pin 5 through `potgo.resource`
+  (`AllocPotBits` / `WritePotgo`), falling back to a two-button limited
+  mode when the line cannot be allocated. Experimental.
 - `MOUSE=ON|OFF` / `NOMOUSE` and `JOYSTICK=ON|OFF` / `NOJOY` parameters
   disable per-device processing (performance/troubleshooting aids); an
   explicit `KEYWORD=value` wins over the legacy bare flag.
 - The middle mouse button is ignored by design (phantom-button filtering on
-  some machines, e.g. PiStorm/Emu68); special-weapon cycling is on SPACE.
-- Keyboard and mouse are exercised on real hardware and emulator; joystick
-  behavior beyond the standard DB9/CD32 polling code: **requires
-  validation** on the specific device set used by players.
+  some machines, e.g. PiStorm/Emu68); changing the secondary weapon is on
+  Left ALT.
+- In-game CD32 / CD32-compatible gamepad use is reported working on real
+  Amiga hardware; the CD32 shop controls and the three-button joystick
+  (button 3 and the `lowlevel.library` / `potgo` interaction) still
+  **require validation** on the specific device set used by players.
 
 ### 1.5 Audio and music
 

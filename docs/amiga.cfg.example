@@ -14,8 +14,10 @@
 ; in-game Options volumes are saved, this file is updated in place:
 ; comments, unknown keys, manual edits, key order, spacing and line endings
 ; are preserved and only the volume values are rewritten. Missing volume
-; keys are appended; the CD32 block below is written only when amiga.cfg is
-; created from scratch.
+; keys are appended; the CD32 and JOYSTICK / 3 BUTTON blocks below are
+; written only when amiga.cfg is created from scratch. An existing amiga.cfg
+; is never extended automatically - copy the lines you want from this
+; reference file (or from the matching section in README_AMIGA.md).
 
 ; ==== AUDIO ====
 ; Raptor Amiga volumes (0..127, 127 = loud)
@@ -29,12 +31,15 @@ sfx_volume  = 127
 ; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
 ; NOJOY / JOYSTICK=OFF takes precedence over this block.
 ; Button assignments, one value per physical pad button:
-;   FIRE           - main guns
-;   SPECIAL_SELECT - fire the selected special weapon
+;   FIRE           - primary guns + selected secondary weapon
+;   SPECIAL_SELECT - change (cycle) the secondary weapon
 ;   MEGA_BOMB      - launch a mega bomb
 ;   PAUSE          - pause the game
 ;   CANCEL         - cancel / back out
 ;   NONE           - button disabled
+; CANCEL is not assigned to any pad button by default. To cancel with the
+; yellow button, change the default line further down to:
+;   cd32_yellow = CANCEL
 cd32 = OFF
 cd32_red     = FIRE ; Red button
 cd32_blue    = SPECIAL_SELECT ; Blue button
@@ -43,3 +48,24 @@ cd32_yellow  = NONE ; Yellow button
 cd32_reverse = NONE ; Reverse button (left shoulder)
 cd32_forward = NONE ; Forward button (right shoulder)
 cd32_play    = PAUSE ; Play button (triangle)
+
+; ==== JOYSTICK / 3 BUTTON ====
+; Amiga DB9 three-button joystick. Its buttons are read from the independent
+; port pins 6, 9 and 5, not from the CD32 shift register, so this block is
+; unrelated to the CD32 pad above.
+; joy3 = OFF : two-button joystick on port 1 (default, unchanged behaviour)
+; joy3 = ON  : three-button joystick on port 1 (buttons on DB9 pins 6/9/5;
+;              button 3 uses potgo.resource; ignored when cd32 = ON)
+; If the button-3 line cannot be allocated, button 3 stays inactive,
+; buttons 1/2 keep working and the startup log notes the limited mode.
+; Same action names as the CD32 block above:
+;   FIRE           - primary guns + selected secondary weapon
+;   SPECIAL_SELECT - change (cycle) the secondary weapon
+;   MEGA_BOMB      - launch a mega bomb
+;   PAUSE          - pause the game
+;   CANCEL         - cancel / back out
+;   NONE           - button disabled
+joy3 = OFF
+joy3_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)
+joy3_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)
+joy3_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)

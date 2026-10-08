@@ -34,6 +34,14 @@ int amiga_cfg_cd32_reverse = AMIGA_CFG_CD32_NONE;
 int amiga_cfg_cd32_forward = AMIGA_CFG_CD32_NONE;
 int amiga_cfg_cd32_play    = AMIGA_CFG_CD32_PAUSE;
 
+/* Three-button (DB9) joystick. Off by default; only active when the CD32
+ * pad is off (see Amiga_ConfigureJoyPort). */
+int amiga_cfg_joy3         = 0;
+int amiga_cfg_joy3_button1 = AMIGA_CFG_CD32_FIRE;
+int amiga_cfg_joy3_button2 = AMIGA_CFG_CD32_SPECIAL_SELECT;
+int amiga_cfg_joy3_button3 = AMIGA_CFG_CD32_MEGA_BOMB;
+
+/* Shared by the CD32 pad and the three-button joystick blocks. */
 static const char *const cd32_action_names[AMIGA_CFG_CD32_NUM_ACTIONS] = {
     "NONE", "FIRE", "SPECIAL_SELECT", "MEGA_BOMB", "PAUSE", "CANCEL"
 };
@@ -41,7 +49,7 @@ static const char *const cd32_action_names[AMIGA_CFG_CD32_NUM_ACTIONS] = {
 enum cfg_key {
     CFG_NONE, CFG_ADLIB, CFG_MHI, CFG_WAVE, CFG_SFX, CFG_CD32,
     CFG_RED, CFG_BLUE, CFG_GREEN, CFG_YELLOW, CFG_REVERSE, CFG_FORWARD,
-    CFG_PLAY
+    CFG_PLAY, CFG_JOY3, CFG_JOY3_B1, CFG_JOY3_B2, CFG_JOY3_B3
 };
 
 static int cfg_loaded = 0;
@@ -128,6 +136,10 @@ cfg_parse_line(const char *line, size_t length, size_t *value_start,
     if (cfg_key_equal(line + key_start, key_end - key_start, "cd32_reverse")) return CFG_REVERSE;
     if (cfg_key_equal(line + key_start, key_end - key_start, "cd32_forward")) return CFG_FORWARD;
     if (cfg_key_equal(line + key_start, key_end - key_start, "cd32_play")) return CFG_PLAY;
+    if (cfg_key_equal(line + key_start, key_end - key_start, "joy3")) return CFG_JOY3;
+    if (cfg_key_equal(line + key_start, key_end - key_start, "joy3_button1")) return CFG_JOY3_B1;
+    if (cfg_key_equal(line + key_start, key_end - key_start, "joy3_button2")) return CFG_JOY3_B2;
+    if (cfg_key_equal(line + key_start, key_end - key_start, "joy3_button3")) return CFG_JOY3_B3;
     return CFG_NONE;
 }
 
@@ -330,8 +342,8 @@ cfg_write_default(FILE *f)
         "; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)\n"
         "; NOJOY / JOYSTICK=OFF takes precedence over this block.\n"
         "; Button assignments, one value per physical pad button:\n"
-        ";   FIRE           - main guns\n"
-        ";   SPECIAL_SELECT - fire the selected special weapon\n"
+        ";   FIRE           - primary guns + selected secondary weapon\n"
+        ";   SPECIAL_SELECT - change (cycle) the secondary weapon\n"
         ";   MEGA_BOMB      - launch a mega bomb\n"
         ";   PAUSE          - pause the game\n"
         ";   CANCEL         - cancel / back out\n"
@@ -341,13 +353,34 @@ cfg_write_default(FILE *f)
         "cd32_yellow  = %s ; Yellow button\n"
         "cd32_reverse = %s ; Reverse button (left shoulder)\n"
         "cd32_forward = %s ; Forward button (right shoulder)\n"
-        "cd32_play    = %s ; Play button (triangle)\n",
+        "cd32_play    = %s ; Play button (triangle)\n"
+        "\n"
+        "; ==== JOYSTICK / 3 BUTTON ====\n"
+        "; Amiga DB9 three-button joystick. Its buttons are read from the\n"
+        "; independent port pins 6, 9 and 5, not from the CD32 shift register.\n"
+        "; joy3 = OFF : two-button joystick on port 1 (default, unchanged)\n"
+        "; joy3 = ON  : three-button joystick on port 1 (buttons on DB9 pins 6/9/5; ignored when cd32 = ON)\n"
+        "; Same action names as the CD32 block above:\n"
+        ";   FIRE           - primary guns + selected secondary weapon\n"
+        ";   SPECIAL_SELECT - change (cycle) the secondary weapon\n"
+        ";   MEGA_BOMB      - launch a mega bomb\n"
+        ";   PAUSE          - pause the game\n"
+        ";   CANCEL         - cancel / back out\n"
+        ";   NONE           - button disabled\n"
+        "joy3 = %s\n"
+        "joy3_button1 = %s ; Button 1 (DB9 pin 6, fire line)\n"
+        "joy3_button2 = %s ; Button 2 (DB9 pin 9)\n"
+        "joy3_button3 = %s ; Button 3 (DB9 pin 5)\n",
         amiga_cfg_music_adlib, amiga_cfg_music_mhi, amiga_cfg_music_wave,
         amiga_cfg_sfx, amiga_cfg_cd32 ? "ON" : "OFF",
         cd32_action_name(amiga_cfg_cd32_red), cd32_action_name(amiga_cfg_cd32_blue),
         cd32_action_name(amiga_cfg_cd32_green), cd32_action_name(amiga_cfg_cd32_yellow),
         cd32_action_name(amiga_cfg_cd32_reverse), cd32_action_name(amiga_cfg_cd32_forward),
-        cd32_action_name(amiga_cfg_cd32_play)) >= 0;
+        cd32_action_name(amiga_cfg_cd32_play),
+        amiga_cfg_joy3 ? "ON" : "OFF",
+        cd32_action_name(amiga_cfg_joy3_button1),
+        cd32_action_name(amiga_cfg_joy3_button2),
+        cd32_action_name(amiga_cfg_joy3_button3)) >= 0;
 }
 
 void
@@ -402,6 +435,11 @@ AmigaCfg_Load(void)
             if (strcasecmp(word, "ON") == 0) amiga_cfg_cd32 = 1;
             else if (strcasecmp(word, "OFF") == 0) amiga_cfg_cd32 = 0;
         }
+        else if (key == CFG_JOY3)
+        {
+            if (strcasecmp(word, "ON") == 0) amiga_cfg_joy3 = 1;
+            else if (strcasecmp(word, "OFF") == 0) amiga_cfg_joy3 = 0;
+        }
         else if (key == CFG_RED) amiga_cfg_cd32_red = cd32_parse_action(word, amiga_cfg_cd32_red);
         else if (key == CFG_BLUE) amiga_cfg_cd32_blue = cd32_parse_action(word, amiga_cfg_cd32_blue);
         else if (key == CFG_GREEN) amiga_cfg_cd32_green = cd32_parse_action(word, amiga_cfg_cd32_green);
@@ -409,6 +447,9 @@ AmigaCfg_Load(void)
         else if (key == CFG_REVERSE) amiga_cfg_cd32_reverse = cd32_parse_action(word, amiga_cfg_cd32_reverse);
         else if (key == CFG_FORWARD) amiga_cfg_cd32_forward = cd32_parse_action(word, amiga_cfg_cd32_forward);
         else if (key == CFG_PLAY) amiga_cfg_cd32_play = cd32_parse_action(word, amiga_cfg_cd32_play);
+        else if (key == CFG_JOY3_B1) amiga_cfg_joy3_button1 = cd32_parse_action(word, amiga_cfg_joy3_button1);
+        else if (key == CFG_JOY3_B2) amiga_cfg_joy3_button2 = cd32_parse_action(word, amiga_cfg_joy3_button2);
+        else if (key == CFG_JOY3_B3) amiga_cfg_joy3_button3 = cd32_parse_action(word, amiga_cfg_joy3_button3);
         offset = line_end < length ? line_end + 1 : length;
     }
     free(contents);

@@ -78,10 +78,16 @@ DEVS:Monitors needs to be changed; VIDEO= has no effect on the RTG path.
 
 Keyboard, mouse and joystick input work simultaneously, and an optional
 CD32 gamepad can be enabled with "cd32 = ON" in amiga.cfg (disabled by
-default). Workbench icon ToolTypes are supported (GFX, VIDEO, MUSIC,
-MOUSE, JOYSTICK, etc.). Persistent audio volumes are stored in amiga.cfg
-in the game directory; saving updates the file in place and preserves
-manual edits, comments and CD32 assignments.
+default). Each of the seven pad buttons has its own assignment (FIRE,
+SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL or NONE); in the shop
+SPECIAL_SELECT toggles BUY/SELL, FIRE confirms and CANCEL backs out. An
+experimental three-button Amiga joystick ("joy3 = ON", buttons on DB9
+pins 6/9/5) is also available; cd32 = ON takes precedence over joy3, and
+NOJOY / JOYSTICK=OFF disables all joystick input. No native Sega gamepad
+serial protocol is implemented. Workbench icon ToolTypes are supported
+(GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, etc.). Persistent audio volumes are
+stored in amiga.cfg in the game directory; saving updates the file in
+place and preserves manual edits, comments and CD32 / JOY3 assignments.
 
 This is release candidate 0.9.9-rc.4. MP3PRELOAD=ON was confirmed on
 real WARP hardware. On the tested Amiga IDE + WARP setup, preload
@@ -112,3 +118,8 @@ https://github.com/skynettx/raptor
 
 License (GPL v2):
 https://github.com/RaybeezPL/raptor-amiga-port/blob/main/LICENSE
+
+Special thanks to PPA user Solo Kazuki
+https://www.ppa.pl/uzytkownicy/490
+for testing on real Amiga hardware and suggesting support for CD32 and
+compatible gamepads, as well as three-button Amiga joysticks.

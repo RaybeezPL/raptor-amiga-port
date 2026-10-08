@@ -96,8 +96,11 @@ IPT_GetButtons(
     /* Amiga: classic joystick buttons work in parallel with the keyboard.
      * A = RED (fire button 1), B = BLUE/PLAY (fire button 2 on 2-button
      * joysticks and CD32 pads).  Mapping follows j_lookup ([JoyStick]
-     * section of setup.ini): A -> Fire, B -> Fire Special by default. */
-    if (!Amiga_CD32IsActive())
+     * section of setup.ini): A -> Fire, B -> Fire Special by default.
+     * Skipped for both configurable controllers (CD32 pad and the
+     * three-button joystick): their assignments already name logical game
+     * actions and must not pass through j_lookup again. */
+    if (!Amiga_ConfigActionActive())
     {
         if (AButton)
             buttons[j_lookup[0]] = 1;
@@ -143,9 +146,10 @@ IPT_GetJoyStick(
     //Get Button
 
 #ifdef __AMIGA__
-    /* CD32 actions are collected by IPT_GetButtons(). Directions reach this
-     * function through StickX/StickY only; A/B and d-pad aliases are off. */
-    if (Amiga_CD32IsActive())
+    /* Amiga: CD32 pad / three-button joystick actions are collected by
+     * IPT_GetButtons(). Directions reach this function through StickX/StickY
+     * only; A/B and d-pad aliases are off. */
+    if (Amiga_ConfigActionActive())
         goto analog_stick;
 #endif
     
