@@ -2838,6 +2838,10 @@ AMIGA_STUBS_DECL int AmigaCD32PauseEdge AMIGA_STUBS_INIT(0);
 
 #define AMIGA_CD32_CONTEXT_MENU 0
 #define AMIGA_CD32_CONTEXT_GAME 1
+/* The store is a context of its own. SPECIAL_SELECT toggles BUY/SELL there
+ * and nowhere else, so a plain "not GAME" test would leak SPACE into the
+ * hangar, the main menu, the intro and the pause window. */
+#define AMIGA_CD32_CONTEXT_STORE 2
 
 static inline int Amiga_CD32IsActive(void)
 {
@@ -2924,6 +2928,8 @@ static inline void Amiga_CD32ApplyState(ULONG state)
 {
     ULONG actions;
     ULONG old_actions;
+    int in_menu;
+    int in_store;
 
     state &= (JPF_JOY_UP | JPF_JOY_DOWN | JPF_JOY_LEFT | JPF_JOY_RIGHT |
               JPF_BUTTON_BLUE | JPF_BUTTON_RED | JPF_BUTTON_YELLOW |
@@ -2948,13 +2954,20 @@ static inline void Amiga_CD32ApplyState(ULONG state)
         AmigaCD32ActionState = 0;
     }
 
-    /* FIRE and CANCEL are keyboard-equivalent only outside active gameplay.
-     * In gameplay CANCEL remains ESC, while the other actions feed buttons[]. */
+    in_menu = (AmigaCD32Context == AMIGA_CD32_CONTEXT_MENU);
+    in_store = (AmigaCD32Context == AMIGA_CD32_CONTEXT_STORE);
+
+    /* FIRE is RETURN in the menus and in the store; CANCEL is ESC everywhere.
+     * SPECIAL_SELECT is SPACE only in the store, where the existing store UI
+     * already uses SPACE to toggle between BUY and SELL. Outside the store
+     * the action stays inert, so it can never leak SPACE into the hangar, the
+     * main menu, the intro, the pause window or a confirmation dialog. */
     Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RETURN,
-        AmigaCD32Context != AMIGA_CD32_CONTEXT_GAME &&
-        (actions & AMIGA_CD32_ACTION_FIRE));
+        (in_menu || in_store) && (actions & AMIGA_CD32_ACTION_FIRE));
     Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_ESCAPE,
         (actions & AMIGA_CD32_ACTION_CANCEL) != 0);
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_SPACE,
+        in_store && (actions & AMIGA_CD32_ACTION_SPECIAL_SELECT));
 }
 
 static inline void Amiga_CD32SetContext(int context)
@@ -2968,6 +2981,7 @@ static inline void Amiga_CD32SetContext(int context)
     AmigaCD32PauseEdge = 0;
     Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RETURN, 0);
     Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_ESCAPE, 0);
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_SPACE, 0);
     AmigaCD32Context = context;
 }
 
@@ -2982,6 +2996,7 @@ static inline void Amiga_CD32BlockHeld(void)
     AmigaCD32PauseEdge = 0;
     Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RETURN, 0);
     Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_ESCAPE, 0);
+    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_SPACE, 0);
 }
 
 static inline int Amiga_CD32TakePauseEdge(void)

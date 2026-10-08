@@ -1234,7 +1234,7 @@ ENEMY_GetBaseDamage(
             continue;
         if (spt->y + spt->hly >= 0)
         {
-            damage = (spt->hits * 100) / spt->lib->hits;
+            damage = (spt->hits * 100) / LE_LONG(spt->lib->hits);
             total += damage;
             nums++;
         }
