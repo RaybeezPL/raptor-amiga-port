@@ -47,7 +47,7 @@ static inline void AmigaLog(const char *fmt, ...)
 #include <proto/lowlevel.h>
 #include <libraries/lowlevel.h>
 #include <resources/potgo.h>   /* POTGONAME: "potgo.resource" */
-/* The three-button joystick claims its button-3 line through potgo.resource.
+/* The shared joystick handling claims its button-3 line through potgo.resource.
  * Bind the inline calls to a base this file opens itself (AmigaPotgoBase)
  * instead of the libnix auto-opened PotgoBase, so a missing potgo.resource
  * degrades to "button 3 disabled" instead of aborting startup. */
@@ -55,7 +55,7 @@ static inline void AmigaLog(const char *fmt, ...)
 #include <proto/potgo.h>       /* AllocPotBits / FreePotBits / WritePotgo */
 #include <proto/Picasso96.h>   /* Official P96 SDK prototypes+inline stubs (installed via /opt/amiga toolchain p96.sdk). */
 
-#include "amiga_cfg.h"         /* amiga_cfg_cd32 / amiga_cfg_joy3 preferences */
+#include "amiga_cfg.h"         /* amiga_cfg_cd32 / joystick button preferences */
 
 /*
  * Global storage pattern: AMIGA_STUBS_OWNER defines actual instance,
@@ -92,15 +92,13 @@ AMIGA_STUBS_DECL ULONG AmigaJoyPortMode AMIGA_STUBS_INIT(0);
  * strictly separate from the saved amiga.cfg preferences, so a runtime
  * fallback never rewrites the configuration:
  *   NONE  - no joystick input (library missing, -nojoy, or cfg failure)
- *   PLAIN - classic 1/2-button joystick (cd32=OFF, joy3=OFF)
  *   CD32  - CD32 pad, lowlevel.library game controller mode (cd32=ON)
- *   JOY3  - three-button joystick (cd32=OFF, joy3=ON): plain joystick mode
- *           plus the potgo.resource line read for button 3. Never a game
- *           controller (SJA_TYPE_GAMECTLR). */
+ *   JOY   - shared Amiga 1/2/3-button joystick (cd32=OFF, the default):
+ *           plain joystick mode plus the potgo.resource line read for
+ *           button 3. Never a game controller (SJA_TYPE_GAMECTLR). */
 #define AMIGA_JOY_INPUT_NONE  0
-#define AMIGA_JOY_INPUT_PLAIN 1
 #define AMIGA_JOY_INPUT_CD32  2
-#define AMIGA_JOY_INPUT_JOY3  3
+#define AMIGA_JOY_INPUT_JOY   3
 AMIGA_STUBS_DECL int AmigaJoyInputMode AMIGA_STUBS_INIT(AMIGA_JOY_INPUT_NONE);
 
 /* Set by the -nomouse command line switch (rap.cpp) to hard-disable all
@@ -1591,11 +1589,12 @@ extern "C" {
 /* Init and Quit */
 #ifdef __AMIGA__
 /* Configures gameport 1 once, honoring the amiga.cfg "cd32" key:
- * cd32=OFF -> plain joystick mode, cd32=ON -> CD32 game controller mode.
+ * cd32=OFF -> shared 1/2/3-button joystick, cd32=ON -> CD32 game controller
+ * mode.
  * The result of every SetJoyPortAttrs() call is checked; a failed game
- * controller request falls back to plain joystick mode for this session
- * (AmigaJoyPortMode records the mode actually running - the saved cd32
- * preference is never rewritten), and if both fail the joystick is
+ * controller request falls back to the shared joystick handling for this
+ * session (AmigaJoyPortMode records the mode actually running - the saved
+ * cd32 preference is never rewritten), and if both fail the joystick is
  * disabled for this session so no dead port is ever polled.
  *
  * The port must be pinned to an explicit mode one way or the other. The
@@ -1617,10 +1616,12 @@ extern "C" {
  * mode. */
 static inline void Amiga_ConfigureJoyPort(void)
 {
-    /* cd32=ON wins over joy3=ON. With cd32=OFF and joy3=ON the port still
-     * runs in plain joystick mode (SJA_TYPE_JOYSTK); only the button-3 line
-     * read differs, and that is set up later, once lowlevel.library has done
-     * its own allocation. Both OFF keep the classic joystick. */
+    /* cd32=ON selects the CD32 pad. Otherwise - cd32=OFF (the default) or a
+     * failed game controller request - the port runs the shared Amiga
+     * 1/2/3-button joystick handling in plain joystick mode
+     * (SJA_TYPE_JOYSTK); the button-3 line is set up later, once
+     * lowlevel.library has done its own allocation. There is no separate
+     * enable key. */
     if (amiga_cfg_cd32)
     {
         if (SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_GAMECTLR, TAG_DONE))
@@ -1630,23 +1631,16 @@ static inline void Amiga_ConfigureJoyPort(void)
             return;
         }
 
-        /* The game controller request failed. Fall back to the plain
-         * joystick for this session only - never to JOY3 (a CD32 error must
-         * not silently start an experimental mode) and never back into the
+        /* The game controller request failed. Fall back to the shared
+         * joystick handling for this session only and never back into the
          * saved cd32 preference. */
         AmigaLog("[INPUT] gameport 1: game controller mode failed - falling back to plain joystick mode");
-        if (SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_JOYSTK, TAG_DONE))
-        {
-            AmigaJoyPortMode = SJA_TYPE_JOYSTK;
-            AmigaJoyInputMode = AMIGA_JOY_INPUT_PLAIN;
-            return;
-        }
     }
-    else if (SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_JOYSTK, TAG_DONE))
+
+    if (SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_JOYSTK, TAG_DONE))
     {
         AmigaJoyPortMode = SJA_TYPE_JOYSTK;
-        AmigaJoyInputMode = amiga_cfg_joy3 ? AMIGA_JOY_INPUT_JOY3
-                                           : AMIGA_JOY_INPUT_PLAIN;
+        AmigaJoyInputMode = AMIGA_JOY_INPUT_JOY;
         return;
     }
 
@@ -1657,9 +1651,9 @@ static inline void Amiga_ConfigureJoyPort(void)
 
 #ifdef __AMIGA__
 /* ------------------------------------------------------------------------
- * Three-button joystick (JOY3): button 3 on port 2, pin 5
+ * Shared Amiga joystick, third button: port 2, pin 5
  *
- * Button 3 of an Amiga DB9 three-button joystick is not a joystick line at
+ * Button 3 of an Amiga DB9 joystick is not a joystick line at
  * all: it is wired to pin 5 of the second physical port, which is shared
  * with the right-hand pot line (POTGO/POTGOR / DATRX, bit 12). lowlevel.
  * library cannot see it, so it is read straight from the pot port register.
@@ -1691,7 +1685,7 @@ AMIGA_STUBS_DECL int   AmigaJoy3SettlePolls    AMIGA_STUBS_INIT(0);
 /* Reads the pot port hardware register (POTGOR / former POTINP, $DFF016). */
 #define AMIGA_POTGOR (*(volatile UWORD *)0xdff016UL)
 
-/* Called from the JOY3 poll path, i.e. only after the port has been
+/* Called from the shared joystick poll path, i.e. only after the port has been
  * configured and read once, so lowlevel.library's own pot allocation is
  * already in place when the still-free DATRX line is requested here. */
 static inline void Amiga_Joy3SetUpButton3(void)
@@ -1705,7 +1699,7 @@ static inline void Amiga_Joy3SetUpButton3(void)
     AmigaPotgoBase = (struct Library *)OpenResource((CONST_STRPTR)POTGONAME);
     if (!AmigaPotgoBase)
     {
-        AmigaLog("[INPUT] joy3: potgo.resource unavailable - button 3 off (limited mode, buttons 1/2 still active)");
+        AmigaLog("[INPUT] joystick button 3: potgo.resource unavailable - button 3 off (limited mode, buttons 1/2 still active)");
         return;
     }
 
@@ -1715,7 +1709,7 @@ static inline void Amiga_Joy3SetUpButton3(void)
     granted = AllocPotBits(AMIGA_POTGO_DATRX | AMIGA_POTGO_OUTRX);
     if (!(granted & AMIGA_POTGO_DATRX))
     {
-        AmigaLog("[INPUT] joy3: DATRX (port 2 pin 5) not granted - button 3 off (limited mode, buttons 1/2 still active)");
+        AmigaLog("[INPUT] joystick button 3: DATRX (port 2 pin 5) not granted - button 3 off (limited mode, buttons 1/2 still active)");
         return;
     }
 
@@ -1730,7 +1724,7 @@ static inline void Amiga_Joy3SetUpButton3(void)
     /* Ignore the first polls: the line capacitor needs up to 300 us to
      * settle, so an immediate read must not be taken as a real state. */
     AmigaJoy3SettlePolls = 2;
-    AmigaLog("[INPUT] joy3: DATRX granted (0x%08lx) - button 3 active on port 2 pin 5",
+    AmigaLog("[INPUT] joystick button 3: DATRX granted (0x%08lx) - button 3 active on port 2 pin 5",
              (unsigned long)granted);
 }
 
@@ -1852,7 +1846,7 @@ static inline void SDL_Quit(void) {
     }
     if (LowLevelBase)
     {
-        /* Release the JOY3 button-3 line first: it is our own potgo
+        /* Release the joystick button-3 line first: it is our own potgo
          * allocation and must be freed while the port is still in the
          * configuration we set up, before lowlevel.library is told to
          * re-initialize the port and is closed. */
@@ -2950,7 +2944,7 @@ AMIGA_STUBS_DECL ULONG AmigaJoyPhantomMask AMIGA_STUBS_INIT(0);
 AMIGA_STUBS_DECL int   AmigaJoySeeded    AMIGA_STUBS_INIT(0);
 /* Joystick poll rate limiter (50 Hz) + hardened phantom filter state. */
 AMIGA_STUBS_DECL Uint32 AmigaJoyLastPoll AMIGA_STUBS_INIT(0);
-/* 7 entries: directions, RED, BLUE and the JOY3 button-3 bit (GREEN). The
+/* 7 entries: directions, RED, BLUE and the button-3 bit (GREEN). The
  * classic path only uses the first five. */
 AMIGA_STUBS_DECL int    AmigaJoyClearStreak[7] AMIGA_STUBS_INIT({0});
 AMIGA_STUBS_DECL int    AmigaJoyFireLogged AMIGA_STUBS_INIT(0);
@@ -3021,25 +3015,25 @@ static inline int Amiga_CD32IsActive(void)
 #endif
 }
 
-/* Experimental three-button joystick: plain joystick mode plus the
+/* Shared Amiga 1/2/3-button joystick: plain joystick mode plus the
  * potgo.resource line used for button 3. Never a game controller. */
-static inline int Amiga_Joy3IsActive(void)
+static inline int Amiga_JoyIsActive(void)
 {
 #ifdef __AMIGA__
-    return AmigaJoyInputMode == AMIGA_JOY_INPUT_JOY3;
+    return AmigaJoyInputMode == AMIGA_JOY_INPUT_JOY;
 #else
     return 0;
 #endif
 }
 
 /* Predicate for the code shared by both configurable controllers (the CD32
- * pad and the three-button joystick): the action table, the RETURN/ESC/SPACE
+ * pad and the shared joystick): the action table, the RETURN/ESC/SPACE
  * synthetic keys, the PAUSE edge and the context/block-held handling.
  * Directions are not part of this - they keep flowing through the classic
  * joystick path into AmigaJoyState. */
 static inline int Amiga_ConfigActionActive(void)
 {
-    return Amiga_CD32IsActive() || Amiga_Joy3IsActive();
+    return Amiga_CD32IsActive() || Amiga_JoyIsActive();
 }
 
 static inline void Amiga_EmitKeyboardEvent(int scancode, int pressed)
@@ -3114,20 +3108,20 @@ static inline ULONG Amiga_CD32ActionsForState(ULONG state)
     return actions;
 }
 
-/* Same action names, but for the three-button joystick's three physical
+/* Same action names, but for the shared Amiga joystick's three physical
  * buttons. Button 1 is the classic fire line (RED), button 2 the second
  * button line (BLUE) and button 3 the potgo line on port 2 pin 5, which is
  * carried here in the otherwise unused GREEN bit. */
-static inline ULONG Amiga_Joy3ActionsForState(ULONG state)
+static inline ULONG Amiga_JoyActionsForState(ULONG state)
 {
     ULONG actions = 0;
 
     if (state & JPF_BUTTON_RED)
-        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_RED, amiga_cfg_joy3_button1);
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_RED, amiga_cfg_joy_button1);
     if (state & JPF_BUTTON_BLUE)
-        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_BLUE, amiga_cfg_joy3_button2);
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_BLUE, amiga_cfg_joy_button2);
     if (state & JPF_BUTTON_GREEN)
-        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_GREEN, amiga_cfg_joy3_button3);
+        actions |= Amiga_CD32ActionForButton(JPF_BUTTON_GREEN, amiga_cfg_joy_button3);
     return actions;
 }
 
@@ -3145,8 +3139,8 @@ static inline void Amiga_CD32ApplyState(ULONG state)
     AmigaCD32BlockedMask &= state;
     state &= ~AmigaCD32BlockedMask;
 
-    actions = Amiga_Joy3IsActive() ? Amiga_Joy3ActionsForState(state)
-                                   : Amiga_CD32ActionsForState(state);
+    actions = Amiga_JoyIsActive() ? Amiga_JoyActionsForState(state)
+                                  : Amiga_CD32ActionsForState(state);
     old_actions = AmigaCD32ActionState;
     AmigaCD32Prev = state;
 
@@ -3437,37 +3431,33 @@ static inline void SDL_PumpEvents(void) {
                 }
             }
         } else {
-        /* Classic joystick path. It also carries the three-button joystick
-         * (JOY3): its buttons 1/2 are the plain fire/second-button lines, so
-         * they are read here together with the directions and only the
-         * button-3 line is added. Trust the digital lines only: directions +
-         * fire (RED). Those are pulled high and driven low, exactly like the
-         * mouse button, so an empty port reads a clean "nothing pressed" on
-         * any board. BLUE (2nd button) and PLAY ride the potentiometer
-         * inputs, which float on real hardware and report random "pressed"
-         * states - that phantom input is what skipped the intro logos and
-         * froze the menu until the joystick was wiggled. The game keeps Fire
-         * Special on keyboard/mouse for joystick-only players, but a JOY3
-         * player explicitly asked for the second button line. */
-        const int joy3 = Amiga_Joy3IsActive();
+        /* Classic joystick path: the shared Amiga 1/2/3-button handling.
+         * Buttons 1/2 are the plain fire/second-button lines, read here with
+         * the directions; button 3 is the potgo line added just below. Trust
+         * the digital lines: directions + fire (RED) are pulled high and
+         * driven low, exactly like the mouse button, so an empty port reads a
+         * clean "nothing pressed" on any board. BLUE (2nd button) and the
+         * button-3 line ride the potentiometer inputs, which float on real
+         * hardware and report random "pressed" states; the debounce and
+         * phantom machinery below filters them so a 1-, 2- or 3-button stick
+         * all work through this single path. */
         const ULONG joy_mask = JPF_JOY_UP | JPF_JOY_DOWN | JPF_JOY_LEFT |
                                JPF_JOY_RIGHT | JPF_BUTTON_RED |
-                               (joy3 ? JPF_BUTTON_BLUE : 0);
+                               JPF_BUTTON_BLUE;
         ULONG raw_port = ReadJoyPort(1);
         ULONG raw;
 
-        /* JOY3 first claims the potgo.resource line for button 3. This runs
-         * only now, after the port has been configured and read once, so
+        /* Button 3 first claims the potgo.resource line. This runs only now,
+         * after the port has been configured and read once, so
          * lowlevel.library's own allocation is already in place and only the
          * still-free DATRX line is requested. */
-        if (joy3)
-            Amiga_Joy3SetUpButton3();
+        Amiga_Joy3SetUpButton3();
 
         /* Type check before masking: only a plain joystick sample is valid
-         * here. An invalid read must release the JOY3 actions it was holding
+         * here. An invalid read must release the actions it was holding
          * before the debounce history is discarded - the active-mode
          * predicate is still true at this point, so the release is not lost. */
-        if (joy3 && (raw_port & JP_TYPE_MASK) != JP_TYPE_JOYSTK) {
+        if ((raw_port & JP_TYPE_MASK) != JP_TYPE_JOYSTK) {
             if (AmigaCD32Prev || AmigaCD32ActionState)
                 Amiga_CD32ApplyState(0);
             AmigaJoyState = 0;
@@ -3480,7 +3470,7 @@ static inline void SDL_PumpEvents(void) {
 
         /* Button 3 (port 2 pin 5) is OR'd into the same sample so it goes
          * through the same debounce and phantom machinery as the rest. */
-        if (joy3 && Amiga_Joy3Button3Pressed())
+        if (Amiga_Joy3Button3Pressed())
             raw |= JPF_BUTTON_GREEN;
 
         /* A stick can't physically go up+down or left+right at once.
@@ -3522,10 +3512,8 @@ static inline void SDL_PumpEvents(void) {
                     JPF_JOY_UP, JPF_JOY_DOWN, JPF_JOY_LEFT, JPF_JOY_RIGHT,
                     JPF_BUTTON_RED, JPF_BUTTON_BLUE, JPF_BUTTON_GREEN
                 };
-                /* JOY3 also guards its second-button and button-3 lines. */
-                const int jbit_count = joy3 ? 7 : 5;
                 int bi;
-                for (bi = 0; bi < jbit_count; bi++) {
+                for (bi = 0; bi < 7; bi++) {
                     if (raw & jbits[bi]) {
                         AmigaJoyClearStreak[bi] = 0;
                     } else if (AmigaJoyPhantomMask & jbits[bi]) {
@@ -3537,52 +3525,18 @@ static inline void SDL_PumpEvents(void) {
 
             ULONG joy = raw & ~AmigaJoyPhantomMask;
 
-            ULONG changed = joy ^ AmigaJoyStatePrev;
-
-            if (!joy3)
-            {
-                if (changed & JPF_JOY_UP) {
-                    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_UP, (joy & JPF_JOY_UP) != 0);
-                }
-                if (changed & JPF_JOY_DOWN) {
-                    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_DOWN, (joy & JPF_JOY_DOWN) != 0);
-                }
-                if (changed & JPF_JOY_LEFT) {
-                    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_LEFT, (joy & JPF_JOY_LEFT) != 0);
-                }
-                if (changed & JPF_JOY_RIGHT) {
-                    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RIGHT, (joy & JPF_JOY_RIGHT) != 0);
-                }
-
-                /* Only RED (fire 1) is injected as RETURN = "select" in menus.
-                 * BLUE/PLAY is the separate B button (cancel in menus, Fire
-                 * Special in game) - injecting it too would conflict. */
-                ULONG fire_mask = JPF_BUTTON_RED;
-                int prev_fire = (AmigaJoyStatePrev & fire_mask) ? 1 : 0;
-                int curr_fire = (joy & fire_mask) ? 1 : 0;
-                if (curr_fire != prev_fire) {
-                    if (curr_fire && !AmigaJoyFireLogged) {
-                        AmigaJoyFireLogged = 1;
-                        AmigaLog("[INPUT] joystick fire (RED) -> RETURN");
-                    }
-                    Amiga_SetSyntheticKeyboardState(SDL_SCANCODE_RETURN, curr_fire);
-                }
-            }
-            else
-            {
-                /* JOY3: the three physical buttons carry the configured action
-                 * names. They feed the same shared action machine the CD32 pad
-                 * uses, so FIRE / SPECIAL_SELECT / MEGA_BOMB reach the game
-                 * through AmigaCD32ActionState, PAUSE through the pause edge
-                 * and CANCEL through the synthetic ESC; the menu/store
-                 * RETURN/SPACE keys are produced there too. The classic
-                 * RED -> RETURN and BLUE -> B workarounds are deliberately
-                 * skipped, as they would bypass the assignments. Directions
-                 * are delivered through AmigaJoyState below (a single path). */
-                Amiga_CD32ApplyState(joy & (JPF_BUTTON_RED |
-                                            JPF_BUTTON_BLUE |
-                                            JPF_BUTTON_GREEN));
-            }
+            /* The three physical buttons carry the configured action names.
+             * They feed the same shared action machine the CD32 pad uses, so
+             * FIRE / SPECIAL_SELECT / MEGA_BOMB reach the game through
+             * AmigaCD32ActionState, PAUSE through the pause edge and CANCEL
+             * through the synthetic ESC; the menu/store RETURN/SPACE keys are
+             * produced there too. The old RED -> RETURN and BLUE -> B
+             * workarounds are deliberately not used, as they would bypass the
+             * assignments. Directions are delivered through AmigaJoyState
+             * below (a single path). */
+            Amiga_CD32ApplyState(joy & (JPF_BUTTON_RED |
+                                        JPF_BUTTON_BLUE |
+                                        JPF_BUTTON_GREEN));
 
             AmigaJoyState = joy;
             AmigaJoyStatePrev = joy;
@@ -3706,10 +3660,10 @@ static inline Uint8 SDL_GameControllerGetButton(SDL_GameController *gamecontroll
 #ifdef __AMIGA__
     if (!LowLevelBase) return 0;
 
-    /* Both configurable controllers (CD32 pad and three-button joystick)
-     * read their directions through the axis API and their buttons through
-     * the configured AmigaCD32ActionState. Do not expose legacy A/B/DPAD
-     * aliases that would bypass the assignment table - for JOY3 that also
+    /* Both configurable controllers (CD32 pad and the shared Amiga
+     * joystick) read their directions through the axis API and their buttons
+     * through the configured AmigaCD32ActionState. Do not expose legacy
+     * A/B/DPAD aliases that would bypass the assignment table - this also
      * disables the old RED -> A and BLUE -> B workarounds. */
     if (Amiga_ConfigActionActive())
         return 0;

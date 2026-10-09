@@ -13,8 +13,9 @@
  *                 stream.
  * - sfx_volume  : sound effects through the AHI stream.
  *
- * Action names shared by the CD32 pad and the three-button joystick blocks
- * (one of the AMIGA_CFG_CD32_* ids below, case-insensitive):
+ * Action names shared by the joystick and CD32 blocks (one of the
+ * AMIGA_CFG_CD32_* ids below, case-insensitive; NONE is a full, valid
+ * action):
  * - FIRE           : fire the primary guns and the selected secondary weapon.
  * - SPECIAL_SELECT : change (cycle) the secondary weapon.
  * - MEGA_BOMB      : launch a mega bomb.
@@ -22,30 +23,50 @@
  * - CANCEL         : cancel / back out.
  * - NONE           : button disabled.
  *
+ * Block order in a newly generated amiga.cfg: AUDIO, then the shared
+ * JOYSTICK / 1-2-3 BUTTONS block, then the JOYSTICK / CD32 block.  The order
+ * applies to the template, the documented examples and the one-time legacy
+ * migration described below; an existing amiga.cfg is otherwise never
+ * reordered or extended automatically.
+ *
+ * Legacy migration (the only exception to "existing files are never
+ * extended"): an amiga.cfg that holds nothing but audio volume keys (comments
+ * and blank lines allowed) is completed once at load time - the missing
+ * volume keys and the JOYSTICK blocks are appended with the built-in
+ * defaults, keeping the original values, comments and line endings.  The
+ * original file is retained as the first free amiga.cfg.bakN copy.  A file
+ * that already contains controller keys (cd32* / joy_button* / joy3_button*)
+ * or any other active key is never migrated automatically.
+ *
+ * JOYSTICK / 1-2-3 BUTTONS block (an Amiga DB9 joystick on the second
+ * physical port; active whenever cd32 = OFF, which is the default - there is
+ * no separate enable key):
+ * - joy_button1/2/3 : text action name per physical DB9 button (pin 6, pin
+ *                   9, pin 5), same action ids as the CD32 block. Unknown
+ *                   values keep the built-in safe defaults.
+ * - joy3_button1/2/3 : deprecated aliases of joy_button1/2/3, still
+ *                   accepted so existing files keep their assignments. A
+ *                   valid joy_buttonN wins over the alias regardless of
+ *                   line order; the alias applies only when no valid
+ *                   joy_buttonN is present.
+ * - joy3          : deprecated and ignored. A leftover "joy3 = OFF" no
+ *                   longer disables the shared joystick handling.
+ *
  * JOYSTICK / CD32 block:
- * - cd32          : OFF (default, classic joystick) / ON (CD32 pad on
- *                   port 1, lowlevel.library game controller mode).
+ * - cd32          : OFF (default, shared joystick handling) / ON (CD32 pad
+ *                   on port 1, lowlevel.library game controller mode).
  * - cd32_red/blue/green/yellow/reverse/forward/play : text action name
  *                   per pad button, one of the AMIGA_CFG_CD32_* ids below.
- *                   Unknown values keep the built-in safe defaults.
- *
- * JOYSTICK / 3 BUTTON block:
- * - joy3          : OFF (default) / ON. For an Amiga DB9 three-button
- *                   joystick whose buttons are wired to the independent
- *                   port pins 6, 9 and 5. With cd32 = OFF this turns the
- *                   experimental three-button support on (button 3 is read
- *                   through potgo.resource); cd32 = ON still takes
- *                   precedence.
- * - joy3_button1/2/3 : text action name per physical DB9 button (pin 6,
- *                   pin 9, pin 5), same action ids as the CD32 block.
  *                   Unknown values keep the built-in safe defaults.
  *
  * AmigaCfg_Load() is called once at startup (SDL_Init, before the gameport
  * mode is chosen; SND_InitSound calls it again harmlessly for the volume
  * keys) - file wins over
- * the built-in defaults.  AmigaCfg_Save() is called when the in-game
- * Options sliders are exited.  Existing files retain manual edits, CD32
- * assignments and unknown content when their volume values are updated. */
+ * the built-in defaults.  A legacy volumes-only file is completed once at
+ * this point (see the migration note above).  AmigaCfg_Save() is called when
+ * the in-game Options sliders are exited and only rewrites the volume values.
+ * Existing files retain manual edits, CD32 and joystick assignments and
+ * unknown content when their volume values are updated. */
 
 #ifdef __AMIGA__
 
@@ -77,23 +98,19 @@ extern int amiga_cfg_cd32_reverse;
 extern int amiga_cfg_cd32_forward;
 extern int amiga_cfg_cd32_play;
 
-/* Three-button (DB9) joystick mode: 0 = OFF (default), 1 = ON. Only used
- * when cd32 is OFF; a failed CD32 request never enables it. */
-extern int amiga_cfg_joy3;
-
-/* Assignment per physical three-button joystick button, DB9 pin 6 / pin 9 /
- * pin 5 (AMIGA_CFG_CD32_* action ids). */
-extern int amiga_cfg_joy3_button1;
-extern int amiga_cfg_joy3_button2;
-extern int amiga_cfg_joy3_button3;
+/* Assignment per physical joystick button, DB9 pin 6 / pin 9 / pin 5
+ * (AMIGA_CFG_CD32_* action ids). Active whenever cd32 is OFF. */
+extern int amiga_cfg_joy_button1;
+extern int amiga_cfg_joy_button2;
+extern int amiga_cfg_joy_button3;
 
 /* Loads amiga.cfg from the current directory.  Missing file = built-in
  * defaults: all four volumes (music_adlib, music_mhi, music_wave,
  * sfx_volume) default to 127 (maximum), CD32 mode defaults to OFF
- * (classic joystick) and the CD32 button assignments default to
+ * (shared joystick handling) and the CD32 button assignments default to
  * red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB,
  * yellow / reverse / forward = NONE, play = PAUSE.
- * The three-button joystick defaults to OFF with button1 = FIRE,
+ * The joystick buttons default to button1 = FIRE,
  * button2 = SPECIAL_SELECT and button3 = MEGA_BOMB.
  * Loads once per session; later calls are no-ops. */
 void AmigaCfg_Load(void);

@@ -14,10 +14,15 @@
 ; in-game Options volumes are saved, this file is updated in place:
 ; comments, unknown keys, manual edits, key order, spacing and line endings
 ; are preserved and only the volume values are rewritten. Missing volume
-; keys are appended; the CD32 and JOYSTICK / 3 BUTTON blocks below are
-; written only when amiga.cfg is created from scratch. An existing amiga.cfg
-; is never extended automatically - copy the lines you want from this
-; reference file (or from the matching section in README_AMIGA.md).
+; keys are appended.
+;
+; A legacy amiga.cfg that holds only audio volume keys is migrated once at
+; load time: the missing volume keys and the JOYSTICK / 1-2-3 BUTTONS and
+; JOYSTICK / CD32 blocks below are appended with the built-in defaults,
+; keeping the original values, comments and line endings; the original is
+; kept as amiga.cfg.bakN. A file that already holds controller keys or any
+; other active key is never migrated automatically - copy the lines you want
+; from this reference file (or from the matching section in README_AMIGA.md).
 
 ; ==== AUDIO ====
 ; Raptor Amiga volumes (0..127, 127 = loud)
@@ -26,8 +31,30 @@ music_mhi   = 127
 music_wave  = 127
 sfx_volume  = 127
 
+; ==== JOYSTICK / 1-2-3 BUTTONS ====
+; Amiga DB9 joystick on the second physical port.
+; Active when cd32 = OFF. No separate enable setting is required.
+; Buttons: 1 = pin 6, 2 = pin 9, 3 = pin 5.
+; Action names (same set as the CD32 block below):
+;   FIRE           - primary guns + selected secondary weapon
+;   SPECIAL_SELECT - change (cycle) the secondary weapon
+;   MEGA_BOMB      - launch a mega bomb
+;   PAUSE          - pause the game
+;   CANCEL         - cancel / back out
+;   NONE           - button disabled
+; The deprecated keys joy3_button1 / joy3_button2 / joy3_button3 are still
+; accepted as aliases of joy_button1 / joy_button2 / joy_button3, so
+; assignments from earlier builds keep working; a valid joy_buttonN wins over
+; the joy3_buttonN alias for the same button. A leftover "joy3 = OFF" is
+; ignored and no longer disables anything. If the button-3 line cannot be
+; allocated, button 3 stays inactive, buttons 1/2 keep working and the
+; startup log notes the limited mode.
+joy_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)
+joy_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)
+joy_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)
+
 ; ==== JOYSTICK / CD32 ====
-; cd32 = OFF : classic joystick on port 1 (default, unchanged behaviour)
+; cd32 = OFF : shared joystick handling on port 1 (default)
 ; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
 ; NOJOY / JOYSTICK=OFF takes precedence over this block.
 ; Button assignments, one value per physical pad button:
@@ -48,24 +75,3 @@ cd32_yellow  = NONE ; Yellow button
 cd32_reverse = NONE ; Reverse button (left shoulder)
 cd32_forward = NONE ; Forward button (right shoulder)
 cd32_play    = PAUSE ; Play button (triangle)
-
-; ==== JOYSTICK / 3 BUTTON ====
-; Amiga DB9 three-button joystick. Its buttons are read from the independent
-; port pins 6, 9 and 5, not from the CD32 shift register, so this block is
-; unrelated to the CD32 pad above.
-; joy3 = OFF : two-button joystick on port 1 (default, unchanged behaviour)
-; joy3 = ON  : three-button joystick on port 1 (buttons on DB9 pins 6/9/5;
-;              button 3 uses potgo.resource; ignored when cd32 = ON)
-; If the button-3 line cannot be allocated, button 3 stays inactive,
-; buttons 1/2 keep working and the startup log notes the limited mode.
-; Same action names as the CD32 block above:
-;   FIRE           - primary guns + selected secondary weapon
-;   SPECIAL_SELECT - change (cycle) the secondary weapon
-;   MEGA_BOMB      - launch a mega bomb
-;   PAUSE          - pause the game
-;   CANCEL         - cancel / back out
-;   NONE           - button disabled
-joy3 = OFF
-joy3_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)
-joy3_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)
-joy3_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)

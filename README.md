@@ -125,14 +125,18 @@ Working:
   `JOYSTICK=OFF` takes precedence (the gameport is never touched).
   Built-in defaults: red = `FIRE`, blue = `SPECIAL_SELECT`,
   green = `MEGA_BOMB`, play = `PAUSE`, the rest `NONE`.
-- **Optional three-button Amiga joystick** (experimental), disabled by
-  default with `joy3 = OFF`. With `cd32 = OFF` and `joy3 = ON` the
-  buttons on DB9 pins 6/9/5 are read (`joy3_button1`, `joy3_button2`,
-  `joy3_button3`; same action names as the CD32 pad) and button 3 is read
-  through `potgo.resource`. `cd32 = ON` takes precedence over `joy3`;
-  `NOJOY` / `JOYSTICK=OFF` disables all joystick input. If the button-3
-  line cannot be allocated, button 3 stays inactive and buttons 1/2 keep
-  working. No native Sega gamepad serial protocol is implemented.
+- **Amiga joystick, 1/2/3-button** on the second physical gameport: the
+  default classic path, active whenever `cd32 = OFF` (the default). The
+  joystick buttons on DB9 pins 6/9/5 are read (`joy_button1`, `joy_button2`,
+  `joy_button3`; same action names as the CD32 pad) and button 3 is read
+  through `potgo.resource`. No separate enable setting is required, and the
+  same path serves 1-, 2- and 3-button sticks. The deprecated
+  `joy3_button1` / `joy3_button2` / `joy3_button3` keys are still accepted
+  as aliases (a valid `joy_buttonN` wins over the alias) and a leftover
+  `joy3 = OFF` is ignored. `cd32 = ON` takes precedence; `NOJOY` /
+  `JOYSTICK=OFF` disables all joystick input. If the button-3 line cannot be
+  allocated, button 3 stays inactive and buttons 1/2 keep working. No native
+  Sega gamepad serial protocol is implemented.
 - Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/VIDEO/MUSIC/
   AHIUNIT/MHIDRIVER/MP3PRELOAD/JOYSTICK/MOUSE) via the official WBStartup + icon.library
   mechanism
@@ -158,11 +162,13 @@ Working:
   music, MHI/MP3 music, WAVE music and sound effects; the in-game
   Options sliders write their values back to it. Saving updates the
   existing file in place, so comments, unknown keys, manual edits and
-  CD32 / JOY3 assignments are preserved. The same file also holds the
-  optional CD32 and three-button joystick settings (see above); those
-  blocks are only written when the file is created from scratch, so an
-  existing `amiga.cfg` keeps the built-in defaults until the keys are
-  added by hand.
+  CD32 and joystick button assignments are preserved. The same file also
+  holds the optional CD32 and joystick settings (see above). A legacy
+  `amiga.cfg` that contains only volume keys is migrated once at load time:
+  the missing volume keys and the JOYSTICK blocks are appended with the
+  built-in defaults, keeping the original comments, values and line endings,
+  and the original file is retained as `amiga.cfg.bakN`. A file that already
+  holds controller keys or any other active key is left untouched.
 - **Automatic 64 KB main-process stack** on Amiga: Raptor requests a
   minimum 65536-byte main stack through the libnix `__stack` /
   swapstack startup mechanism before `main()`, so CLI users no longer

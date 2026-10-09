@@ -27,21 +27,25 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   hangar, the main menu, the intro, the pause window or a dialog. The
   mapping is suspended while shop help or the exit confirmation dialog is
   open.
-- Experimental three-button Amiga joystick support, disabled by default
-  (`joy3 = OFF`). With `cd32 = OFF` and `joy3 = ON` the buttons on DB9
-  pins 6/9/5 are read (`joy3_button1`, `joy3_button2`, `joy3_button3`,
-  same action names as the CD32 pad). Button 3 is read through
-  `potgo.resource`; if the line cannot be allocated button 3 stays
-  inactive, buttons 1/2 keep working and the startup log notes the
-  limited mode. The saved configuration is never rewritten.
+- Shared Amiga 1/2/3-button joystick support, active whenever `cd32 = OFF`
+  (the default) with no separate enable key. The buttons on DB9 pins 6/9/5
+  are read (`joy_button1`, `joy_button2`, `joy_button3`, same action names
+  as the CD32 pad). Button 3 is read through `potgo.resource`; if the line
+  cannot be allocated button 3 stays inactive, buttons 1/2 keep working and
+  the startup log notes the limited mode. The deprecated `joy3_button1` /
+  `joy3_button2` / `joy3_button3` keys are still accepted as aliases, a
+  leftover `joy3 = OFF` is ignored, and an existing file that already
+  carries joystick keys is not rewritten.
 
 ### Changed
 - `NOJOY` / `JOYSTICK=OFF` still takes precedence over the `amiga.cfg`
-  CD32 and JOY3 blocks: with the joystick disabled `lowlevel.library` is
-  not opened and the gameport is never touched, regardless of `cd32` and
-  `joy3`.
-- `cd32 = ON` takes precedence over `joy3 = ON`; `cd32 = OFF` with
-  `joy3 = ON` enables the experimental three-button joystick.
+  CD32 and joystick blocks: with the joystick disabled `lowlevel.library`
+  is not opened and the gameport is never touched, regardless of `cd32`.
+- `cd32 = ON` selects the CD32 pad; `cd32 = OFF` (the default) uses the
+  shared 1/2/3-button joystick path. The `joy3` key is deprecated and
+  ignored, so an old `joy3 = OFF` no longer disables anything; the new
+  `joy_buttonN` keys take precedence over the `joy3_buttonN` aliases for
+  the same button regardless of line order.
 - Documentation: `FIRE` fires the primary weapon together with the
   selected secondary weapon and `SPECIAL_SELECT` changes (cycles) the
   secondary weapon. The earlier "fire the selected special weapon"
@@ -51,8 +55,8 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   manual edits, key order, spacing and line endings are preserved and
   only the volume values are rewritten.
 - `cd32 = ON` with an unavailable/unsupported game controller mode falls
-  back to plain joystick mode for the session; if that also fails the
-  joystick is disabled for the session. The saved `cd32` preference is
+  back to the shared joystick handling for the session; if that also fails
+  the joystick is disabled for the session. The saved `cd32` preference is
   never rewritten.
 
 ### Fixed
@@ -64,25 +68,37 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   `amiga.cfg` from scratch. The previous save rebuilt the whole file and
   could drop CD32 assignments, comments and unknown content. Missing
   volume keys (`music_adlib`, `music_mhi`, `music_wave`, `sfx_volume`)
-  are appended; the CD32 and JOYSTICK / 3 BUTTON blocks are written only
-  when the file is first created. An existing file is never extended
-  automatically.
+  are appended and an existing file is otherwise never reordered.
+- One-time migration of a legacy `amiga.cfg` that holds only audio volume
+  keys (comments and blank lines allowed). At load time the missing volume
+  keys and the JOYSTICK / 1-2-3 BUTTONS and JOYSTICK / CD32 blocks are
+  appended in that order with the built-in defaults, keeping the original
+  values, comments, spacing and line endings. The original file is kept as
+  the first free `amiga.cfg.bakN` copy. After the migration the file is
+  complete, so it is never extended again. Files that already contain
+  controller keys (`cd32*` / `joy_button*` / `joy3_button*`) or any other
+  active key are left untouched.
 - A held pad button is ignored while the shop help or the exit
   confirmation dialog is open, and `SPECIAL_SELECT` no longer confirms a
   shop choice.
 
 ### Testing / status
-- The Amiga build and the `amiga.cfg` configuration unit tests pass
-  (`bash tests/run_amiga_cfg_test.sh`).
-- In-game CD32 / CD32-compatible gamepad use was reported working on real
-  Amiga hardware by a tester (PPA user Solo Kazuki).
-- The CD32 shop controls and the boss energy scanner fix build
-  successfully; runtime verification of these two fixes on real hardware
-  is still expected.
-- Three-button joystick support is experimental: it builds and the
-  `amiga.cfg` tests pass, but button 3 and the `lowlevel.library` /
-  `potgo` interaction still need real-hardware verification. A successful
-  build does not confirm that the third button works.
+- The previous build was tested on real Amiga hardware by PPA user Solo
+  Kazuki, who reported in-game CD32 / CD32-compatible gamepad use, the
+  joystick button handling (including button 3) and the CD32 shop controls
+  / boss energy scanner fix as working. That build still used the separate
+  `joy3 = ON` switch.
+- The simplified mode selection (a shared 1/2/3-button joystick path active
+  with `cd32 = OFF`, no `joy3` switch, no button-count setting or
+  autodetection) is new: the Amiga build and the `amiga.cfg` unit tests
+  pass (`bash tests/run_amiga_cfg_test.sh`), and real-hardware verification
+  of the new behaviour is still expected.
+- The legacy volumes-only migration is covered by the `amiga.cfg` unit tests
+  (`bash tests/run_amiga_cfg_test.sh`): the own volume values are kept, the
+  missing volumes get the defaults, comments/CRLF are preserved, a second
+  load does not duplicate a block, files with assignments or an unknown key
+  stay untouched, and a failed temp write/replace leaves the original intact.
+  Real-hardware verification is still expected.
 - `cd32 = ON` uses `lowlevel.library` game controller mode and does not
   implement the native Sega gamepad serial protocol.
 

@@ -58,7 +58,8 @@ Graphics:   RTG with Picasso96 or CyberGraphX (CGX)
 Disk space: approx. 25 MB free (game files + saved games)
 Joystick:   Optional - port 1 (DB9, the second physical Amiga port);
             requires lowlevel.library v40+ (included in AmigaOS 3.2).
-            A CD32 pad can be enabled with cd32 = ON in amiga.cfg (see
+            1/2/3-button Amiga joysticks work by default (cd32 = OFF); a
+            CD32 pad can be enabled with cd32 = ON in amiga.cfg (see
             "amiga.cfg - configuration file" below).
 Sound:      AHI (ahi.device v4+) for sound effects; no music backend
             is enabled by default (MUSIC=OFF). Music can be selected
@@ -768,12 +769,12 @@ joysticks work unchanged.
    Stick / D-pad    - Move ship
    FIRE 1 (red)     - Fire primary weapon
 
-A classic joystick's second button (the BLUE/PLAY pot lines) is not
-read by default: those inputs float on real hardware. Firing already
-uses the primary weapon plus the selected secondary weapon, and the
-secondary weapon is changed from the keyboard (Left ALT) or with the
-mouse. An experimental three-button joystick mode can read the second
-button line and a third button - see "Three-button joystick" below.
+The shared Amiga joystick path reads the directions and all three button
+lines of a DB9 stick: button 1 (pin 6, the classic fire line), button 2
+(pin 9) and button 3 (pin 5, through potgo.resource). Firing already uses
+the primary weapon plus the selected secondary weapon, and the secondary
+weapon is changed from the keyboard (Left ALT), the mouse or the assigned
+button. See "Joystick (1/2/3-button, port 1)" below.
 
 CD32 gamepad (optional, port 1):
 
@@ -835,40 +836,44 @@ it is released, so a held PAUSE does not immediately acknowledge the
 pause window and a held action does not confirm a dialog.
 
 With cd32 = ON, if the game controller mode cannot be enabled the port
-falls back to plain joystick mode for the session (with a note in the
-startup log); if that also fails, the joystick is disabled for the
+falls back to the shared joystick handling for the session (with a note in
+the startup log); if that also fails, the joystick is disabled for the
 session. The saved cd32 preference is not rewritten. On exit the
 configured port is handed back to the system (autosense) before
 lowlevel.library is closed. Without lowlevel.library the joystick is
 unavailable, but the game works normally with keyboard and mouse.
 
-Three-button joystick (optional, port 1) - experimental:
+Joystick (1/2/3-button, port 1):
 
-An Amiga DB9 three-button joystick can be enabled with joy3 = ON in
-amiga.cfg. Its three buttons are read from the independent port pins -
-button 1 on pin 6 (the classic fire line), button 2 on pin 9 and button
-3 on pin 5 - not from a CD32 shift register; the native Sega gamepad
-serial protocol is not implemented. joy3 = OFF is the default, so a
-classic 1- or 2-button joystick behaves exactly as before. cd32 = ON
-takes precedence over joy3 = ON, and NOJOY / JOYSTICK=OFF disables all
-joystick input regardless of both settings.
+An Amiga DB9 joystick is the shared classic path, active whenever
+cd32 = OFF (the default) - there is no separate enable setting. Its three
+buttons are read from the independent port pins - button 1 on pin 6 (the
+classic fire line), button 2 on pin 9 and button 3 on pin 5 - not from a
+CD32 shift register; the native Sega gamepad serial protocol is not
+implemented. The same path serves 1-, 2- and 3-button sticks. cd32 = ON
+takes precedence, and NOJOY / JOYSTICK=OFF disables all joystick input.
 
 Each of the three buttons takes one action name - the same set as the
 CD32 pad (FIRE, SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL, NONE) and with
 the same per-screen behaviour described above. Built-in defaults:
 
-   joy3 = OFF
-   joy3_button1 = FIRE            ; Button 1 (DB9 pin 6, fire line)
-   joy3_button2 = SPECIAL_SELECT  ; Button 2 (DB9 pin 9)
-   joy3_button3 = MEGA_BOMB       ; Button 3 (DB9 pin 5)
+   joy_button1 = FIRE            ; Button 1 (DB9 pin 6, fire line)
+   joy_button2 = SPECIAL_SELECT  ; Button 2 (DB9 pin 9)
+   joy_button3 = MEGA_BOMB       ; Button 3 (DB9 pin 5)
+
+The deprecated keys joy3_button1 / joy3_button2 / joy3_button3 are still
+accepted as aliases of joy_button1 / joy_button2 / joy_button3, so a file
+written for an earlier build keeps its assignments; a valid joy_buttonN
+wins over the joy3_buttonN alias for the same button, whatever the line
+order. A leftover joy3 = OFF (or ON) is ignored and no longer disables
+anything. When the in-game Options volumes are saved the file is updated
+in place, so these assignments and any comments survive.
 
 Button 3 is read through the potgo.resource line shared with pin 5 of the
 second gameport. If that line cannot be allocated - for example because
 another program already holds it - button 3 simply stays inactive,
 buttons 1 and 2 keep working and the startup log notes the limited mode;
-the saved amiga.cfg is never changed. The interaction between
-lowlevel.library and potgo on a given machine still needs real-hardware
-verification.
+the saved amiga.cfg is never changed.
 
 Menu controls (keyboard / mouse / joystick):
 
@@ -893,31 +898,40 @@ started from). It is a plain text file of "key = value" lines; a line
 beginning with ';' or '#' is a comment and blank lines are allowed. If
 the file does not exist it is created automatically on first run with all
 keys written at their defaults. Older files that only contain the audio
-volume keys keep loading: keys that are absent keep their built-in
-defaults, and unknown keys are ignored.
+volume keys keep loading and are completed once (see below): absent keys
+keep their built-in defaults, and unknown keys are ignored.
 
 Audio volumes are stored as integers in the range 0..127 (127 = loudest).
 When the in-game Options volumes are saved, the existing file is updated
 in place: comments, unknown keys, manual edits, key order, spacing and
 line endings are preserved and only the volume values are rewritten.
-Missing volume keys are appended to the end of the file. The CD32 and
-JOYSTICK / 3 BUTTON blocks below are written only when amiga.cfg is
-created from scratch; an existing file never receives them automatically -
-it keeps the built-in (disabled) defaults until the keys are added by
-hand, for example by copying the block from the example below or from
-docs/amiga.cfg.example.
+Missing volume keys are appended to the end of the file.
 
-CD32 gamepad support is off by default. Set cd32 = ON to switch gameport 1
-(the second physical Amiga DB9 port) into lowlevel.library game controller
-mode; cd32 = OFF keeps the classic joystick behaviour. The seven CD32
-buttons each take one action name, as described in the CD32 section under
-"Controls" above.
+A legacy amiga.cfg that contains nothing but audio volume keys (comments
+and blank lines allowed) is completed once, at load time: the missing
+volume keys and the JOYSTICK / 1-2-3 BUTTONS and JOYSTICK / CD32 blocks
+below are appended in that order with the built-in defaults, keeping the
+original values, comments and line endings. The original file is retained
+as the first free amiga.cfg.bakN copy. After this one-time migration the
+file is complete, so a later start appends nothing. A file that already
+contains controller keys (cd32* / joy_button* / joy3_button*) or any other
+active key is never migrated automatically and keeps working as before, so
+it simply keeps the built-in button defaults until assignment keys are
+added by hand, for example by copying the block from the example below or
+from docs/amiga.cfg.example.
+
+The shared joystick (1/2/3-button) handling on gameport 1 is active with
+cd32 = OFF, the default. Set cd32 = ON to switch gameport 1 (the second
+physical Amiga DB9 port) into lowlevel.library game controller mode for a
+CD32 pad. The joystick buttons and the seven CD32 buttons each take one
+action name, as described under "Controls" above.
 
 Updates are written to a temporary file (amiga.cfg.tmpN) which is then
 renamed over amiga.cfg. An existing file is first renamed aside as
 amiga.cfg.bakN and removed only after the new file is in place, so a
-failed write leaves the previous file intact. This is not a full
-power-loss guarantee: a crash at the wrong moment can still leave a
+failed write leaves the previous file intact. (The one-time legacy
+migration above keeps its amiga.cfg.bakN copy on purpose.) This is not a
+full power-loss guarantee: a crash at the wrong moment can still leave a
 temporary or backup file behind.
 
 Complete example (the values shown are the defaults; the same example is
@@ -930,8 +944,25 @@ provided as docs/amiga.cfg.example in the source repository):
    music_wave  = 127
    sfx_volume  = 127
 
+   ; ==== JOYSTICK / 1-2-3 BUTTONS ====
+   ; Amiga DB9 joystick on the second physical port.
+   ; Active when cd32 = OFF. No separate enable setting is required.
+   ; Buttons: 1 = pin 6, 2 = pin 9, 3 = pin 5.
+   ; Action names (same set as the CD32 block below):
+   ;   FIRE           - primary guns + selected secondary weapon
+   ;   SPECIAL_SELECT - change (cycle) the secondary weapon
+   ;   MEGA_BOMB      - launch a mega bomb
+   ;   PAUSE          - pause the game
+   ;   CANCEL         - cancel / back out
+   ;   NONE           - button disabled
+   ; The deprecated joy3_button1..3 keys are still read as aliases; a valid
+   ; joy_buttonN wins over the alias. A leftover joy3 = OFF is ignored.
+   joy_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)
+   joy_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)
+   joy_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)
+
    ; ==== JOYSTICK / CD32 ====
-   ; cd32 = OFF : classic joystick on port 1 (default, unchanged behaviour)
+   ; cd32 = OFF : shared joystick handling on port 1 (default)
    ; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
    ; NOJOY / JOYSTICK=OFF takes precedence over this block.
    ; Button assignments, one value per physical pad button:
@@ -949,20 +980,6 @@ provided as docs/amiga.cfg.example in the source repository):
    cd32_reverse = NONE ; Reverse button (left shoulder)
    cd32_forward = NONE ; Forward button (right shoulder)
    cd32_play    = PAUSE ; Play button (triangle)
-
-   ; ==== JOYSTICK / 3 BUTTON ====
-   ; Amiga DB9 three-button joystick (experimental). Its buttons are read
-   ; from the independent port pins 6, 9 and 5, not from the CD32 shift
-   ; register. cd32 = ON above takes precedence over joy3 = ON.
-   ; joy3 = OFF : two-button joystick on port 1 (default, unchanged)
-   ; joy3 = ON  : three-button joystick on port 1 (buttons on DB9 pins 6/9/5;
-   ;              button 3 uses potgo.resource; ignored when cd32 = ON)
-   ; Same action names as the CD32 block above. If the button-3 line cannot
-   ; be allocated, button 3 stays inactive and buttons 1/2 keep working.
-   joy3 = OFF
-   joy3_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)
-   joy3_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)
-   joy3_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)
 
 
 Known Limitations
@@ -1004,11 +1021,10 @@ Known Limitations
 - WAVE music (MUSIC=WAVE) needs WAV files in the WAVE/ drawer in the
   required format (11025 Hz, stereo, 16-bit PCM); songs whose WAV
   file is missing stay silent by design.
-- With a classic joystick there is no pause or menu exit on the stick
-  itself (use the keyboard); an optional CD32 pad or three-button
-  joystick can be assigned PAUSE and CANCEL (see the sections above).
-  Both modes are optional and disabled by default (cd32 = OFF,
-  joy3 = OFF); the three-button joystick is experimental.
+- A joystick has no pause or menu exit on the stick itself by default
+  (use the keyboard); the configurable joystick buttons or an optional
+  CD32 pad can be assigned PAUSE and CANCEL (see the sections above).
+  CD32 pad mode is optional and off by default (cd32 = OFF).
 - No rumble / haptic support.
 - The Amiga system mouse pointer is hidden while the game is
   running (restored on exit to system).
@@ -1047,20 +1063,23 @@ Tested configurations
   FPU, tested in AGA and RTG modes.
 - Tested on AmigaOS 3.1.4, 3.2 and 3.2.3.
 
-CD32 gamepad (testing status): in-game use of a CD32 / CD32-compatible
-gamepad was reported working on real Amiga hardware by a tester. The
-dedicated CD32 shop controls (SPECIAL_SELECT toggling BUY/SELL) and the
-big-endian fix for the boss maximum-energy percentage in the scanner are
-included in the current source tree; the build passes and runtime
-verification of these two fixes on real hardware is still expected.
+CD32 gamepad and joystick (testing status): in-game use of a CD32 /
+CD32-compatible gamepad and the joystick button handling (including
+button 3) were reported working on real Amiga hardware by a tester, and
+the tester confirmed the CD32 shop controls (SPECIAL_SELECT toggling
+BUY/SELL) and the big-endian fix for the boss maximum-energy percentage
+in the scanner. That report covers the previous build, which still had
+the separate joy3 = ON switch.
+
+The simplified mode selection (a shared 1/2/3-button joystick path active
+with cd32 = OFF, with no joy3 switch and no button-count setting or
+autodetection) is new in the current source tree: the build passes and
+the amiga.cfg unit tests pass, and real-hardware verification is still
+expected. A successful build does not by itself confirm the new joystick
+behaviour.
+
 cd32 = ON uses lowlevel.library game controller mode and does not
 implement the native Sega gamepad serial protocol.
-
-Three-button joystick (testing status): experimental. The implementation
-builds and the amiga.cfg unit tests pass, but button 3 and the
-lowlevel.library / potgo interaction still need real-hardware
-verification. A successful build does not confirm that the third button
-works.
 
 
 Roadmap / Remaining Work

@@ -111,29 +111,33 @@ game's normal `i_video.cpp` flow:
   in `SDL_PumpEvents` at most at ~50 Hz; the polled state is shared with
   `joyapi.cpp`/`input.cpp` through the single-instance globals owned by
   `amiga_stubs_impl.cpp`.
-- Optional CD32 gamepad support (default `cd32 = OFF`) pins gameport 1 to
-  `SJA_TYPE_GAMECTLR`; each of the seven pad buttons gets one configurable
-  action (`cd32_red` .. `cd32_play`, one of FIRE / SPECIAL_SELECT /
-  MEGA_BOMB / PAUSE / CANCEL / NONE). FIRE fires the primary weapon plus
-  the selected secondary weapon, SPECIAL_SELECT cycles the secondary
-  weapon, and the shop has its own input context where SPECIAL_SELECT
-  toggles BUY/SELL. Plain joystick mode remains the default and the safe
-  fallback when the game controller mode is unavailable.
-- Optional three-button Amiga joystick (default `joy3 = OFF`, only when
-  `cd32 = OFF`) stays in `SJA_TYPE_JOYSTK` and reads the extra button
-  from the second gameport's pin 5 through `potgo.resource`
+- Optional CD32 gamepad support (`cd32 = ON`, default `cd32 = OFF`) pins
+  gameport 1 to `SJA_TYPE_GAMECTLR`; each of the seven pad buttons gets one
+  configurable action (`cd32_red` .. `cd32_play`, one of FIRE /
+  SPECIAL_SELECT / MEGA_BOMB / PAUSE / CANCEL / NONE). FIRE fires the
+  primary weapon plus the selected secondary weapon, SPECIAL_SELECT cycles
+  the secondary weapon, and the shop has its own input context where
+  SPECIAL_SELECT toggles BUY/SELL.
+- Shared Amiga 1/2/3-button joystick handling is the default classic path:
+  with `cd32 = OFF` gameport 1 stays in `SJA_TYPE_JOYSTK` and reads the
+  third button from the second gameport's pin 5 through `potgo.resource`
   (`AllocPotBits` / `WritePotgo`), falling back to a two-button limited
-  mode when the line cannot be allocated. Experimental.
+  mode when the line cannot be allocated. There is no enable key and no
+  button-count detection. The keys `joy_button1/2/3` configure the three
+  actions; the deprecated `joy3_button1/2/3` are still accepted as aliases
+  (a valid `joy_buttonN` wins) and a leftover `joy3 = OFF` is ignored. A
+  failed `cd32 = ON` game controller request falls back to this shared path.
 - `MOUSE=ON|OFF` / `NOMOUSE` and `JOYSTICK=ON|OFF` / `NOJOY` parameters
   disable per-device processing (performance/troubleshooting aids); an
   explicit `KEYWORD=value` wins over the legacy bare flag.
 - The middle mouse button is ignored by design (phantom-button filtering on
   some machines, e.g. PiStorm/Emu68); changing the secondary weapon is on
   Left ALT.
-- In-game CD32 / CD32-compatible gamepad use is reported working on real
-  Amiga hardware; the CD32 shop controls and the three-button joystick
-  (button 3 and the `lowlevel.library` / `potgo` interaction) still
-  **require validation** on the specific device set used by players.
+- In-game CD32 / CD32-compatible gamepad use and the joystick button
+  handling (including button 3) are reported working on real Amiga
+  hardware on the previous build; the simplified mode selection (shared
+  1/2/3-button joystick, no `joy3` switch) **requires validation** on the
+  specific device set used by players.
 
 ### 1.5 Audio and music
 
@@ -165,7 +169,10 @@ game's normal `i_video.cpp` flow:
   music_mhi, music_wave, sfx) and the optional CD32 settings (cd32 and
   cd32_red .. cd32_play) stored in `amiga.cfg`
   (`src/amiga/amiga_cfg.cpp/h`). Volume saves update the existing file in
-  place, preserving unknown keys, comments and CD32 assignments.
+  place, preserving unknown keys, comments and CD32 assignments. A legacy
+  file that holds only volume keys is migrated once at load time: the
+  missing volume keys and the JOYSTICK blocks are appended (original kept as
+  amiga.cfg.bakN); a file with any other active key is left untouched.
 - AHI sound effects and AdLib music were tested on real hardware (0.9.0);
   CAMD and MHI paths are implemented and documented but depend on external
   MIDI/MHI hardware: **requires validation** on those setups.

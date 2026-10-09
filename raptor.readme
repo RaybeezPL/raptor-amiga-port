@@ -76,18 +76,20 @@ request the native NTSC display mode used by Raptor. No NTSC selection in
 Early Startup is required, no reboot into NTSC is required, and nothing in
 DEVS:Monitors needs to be changed; VIDEO= has no effect on the RTG path.
 
-Keyboard, mouse and joystick input work simultaneously, and an optional
+Keyboard, mouse and joystick input work simultaneously. Amiga 1/2/3-button
+joysticks work by default (cd32 = OFF) with per-button assignments
+(joy_button1/2/3; button 3 on DB9 pin 5 via potgo.resource). An optional
 CD32 gamepad can be enabled with "cd32 = ON" in amiga.cfg (disabled by
 default). Each of the seven pad buttons has its own assignment (FIRE,
 SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL or NONE); in the shop
-SPECIAL_SELECT toggles BUY/SELL, FIRE confirms and CANCEL backs out. An
-experimental three-button Amiga joystick ("joy3 = ON", buttons on DB9
-pins 6/9/5) is also available; cd32 = ON takes precedence over joy3, and
-NOJOY / JOYSTICK=OFF disables all joystick input. No native Sega gamepad
-serial protocol is implemented. Workbench icon ToolTypes are supported
-(GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, etc.). Persistent audio volumes are
-stored in amiga.cfg in the game directory; saving updates the file in
-place and preserves manual edits, comments and CD32 / JOY3 assignments.
+SPECIAL_SELECT toggles BUY/SELL, FIRE confirms and CANCEL backs out. The
+deprecated joy3_button1..3 keys are still read as aliases and a leftover
+joy3 = OFF is ignored; NOJOY / JOYSTICK=OFF disables all joystick input.
+No native Sega gamepad serial protocol is implemented. Workbench icon
+ToolTypes are supported (GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, etc.).
+Persistent audio volumes are stored in amiga.cfg in the game directory;
+saving updates the file in place and preserves manual edits, comments and
+CD32 / joystick button assignments.
 
 This is release candidate 0.9.9-rc.4. MP3PRELOAD=ON was confirmed on
 real WARP hardware. On the tested Amiga IDE + WARP setup, preload
