@@ -552,6 +552,17 @@ accepted. Parameters may be combined in any order.
 
     -nojoy      Legacy form of JOYSTICK=OFF (see above).
 
+    -cd32=ON|OFF
+                Selects the controller on gameport 1: ON for a CD32
+                pad (lowlevel.library game controller mode), OFF for
+                the shared 1/2/3-button joystick path (the default).
+                This overrides the cd32 setting in amiga.cfg for this
+                launch only; the file is never changed. The dashless
+                form "CD32=ON" also works. An invalid value is ignored
+                (the previous selection, or the amiga.cfg setting,
+                stays). NOJOY / JOYSTICK=OFF takes precedence and
+                disables all joystick input regardless of cd32.
+
     -gfx=M      Selects the graphics driver path used for the game
                screen. M may be:
                  AUTO  - try P96 (Picasso96) RTG first; if P96 is not
@@ -633,6 +644,7 @@ Workbench. Parameters are passed via icon ToolTypes:
       (NOMOUSE)
       JOYSTICK=OFF
       (NOJOY)
+      (CD32=ON)
       AHIUNIT=1
 
    A ToolType enclosed in parentheses is INACTIVE (ignored by the
@@ -658,6 +670,12 @@ over the legacy bare flag. Disabling an input device is a
 performance/troubleshooting option: with the mouse off the window
 registers no mouse events at all, and with the joystick off the game
 port is never polled.
+
+Note: CD32=ON selects the CD32 pad on gameport 1 and CD32=OFF selects
+the shared 1/2/3-button joystick path (the default). Either value
+overrides the cd32 setting in amiga.cfg for that launch only and is
+never written back to the file. JOYSTICK=OFF / NOJOY still wins: with
+the joystick disabled the game port is never touched.
 
 Note: when started from the Workbench icon the game produces no
 console output (no console window is opened at all). To see the
@@ -779,11 +797,12 @@ button. See "Joystick (1/2/3-button, port 1)" below.
 CD32 gamepad (optional, port 1):
 
 A CD32 pad can be enabled with cd32 = ON in amiga.cfg (see "amiga.cfg -
-configuration file" below). With the default cd32 = OFF the port stays in
-plain joystick mode and a CD32 pad behaves like a normal 2-button stick.
-NOJOY / JOYSTICK=OFF takes precedence: with the joystick disabled
-lowlevel.library is not opened and the port is never touched, whatever
-cd32 says.
+configuration file" below) or with the CD32=ON startup parameter (CLI
+-cd32=on / icon ToolType CD32=ON), which overrides the file for that
+launch only. With the default cd32 = OFF the port stays in plain joystick
+mode and a CD32 pad behaves like a normal 2-button stick. NOJOY /
+JOYSTICK=OFF takes precedence: with the joystick disabled lowlevel.library
+is not opened and the port is never touched, whatever cd32 says.
 
 Each of the seven pad buttons (cd32_red, cd32_blue, cd32_green,
 cd32_yellow, cd32_reverse, cd32_forward, cd32_play) can be assigned one
@@ -798,18 +817,21 @@ of these actions:
    NONE            - button disabled
 
 The same action may be assigned to several buttons. Built-in defaults:
-red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB,
-yellow / reverse / forward = NONE, play = PAUSE. For example, to fire
-with the blue button and leave the red button unused:
+red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB, yellow = CANCEL,
+reverse / forward = NONE, play = PAUSE. For example, to fire with the
+blue button and leave the red button unused:
 
    cd32_red  = NONE
    cd32_blue = FIRE
 
-CANCEL is not assigned to any button by default and stays inert until it
-is assigned explicitly; to cancel with the yellow button, add (or change)
-this line:
-
-   cd32_yellow = CANCEL
+CANCEL equals the ESC key: in the shop it returns to the hangar, in the
+hangar it does the same as the physical ESC key, and in game it opens the
+"Abort Mission ?" confirmation. It is assigned to the yellow button by
+default. An existing amiga.cfg with an explicit cd32_yellow = NONE keeps
+that button disabled - remove the line (or set it to CANCEL) to use the
+new default. The CD32 pad is selected with cd32 = ON in amiga.cfg or, for
+one launch only, with the CD32=ON startup parameter (CLI -cd32=on; icon
+ToolType CD32=ON), which is never written back to the file.
 
 Action behaviour in gameplay, in the shop and in the menus/intro:
 
@@ -820,7 +842,7 @@ Action behaviour in gameplay, in the shop and in the menus/intro:
                      secondary weapon
    MEGA_BOMB         launch a mega bomb     (no effect)             (no effect)
    PAUSE             pause the game         (no effect)             (no effect)
-   CANCEL            ESC (abort / back)     back out (ESC)          back / cancel (ESC)
+   CANCEL            ESC (abort mission)    back to hangar (ESC)    back / cancel (ESC)
    NONE              (no effect)            (no effect)             (no effect)
 
 Only in the shop does SPECIAL_SELECT act as the SPACE key, toggling the
@@ -923,8 +945,14 @@ from docs/amiga.cfg.example.
 The shared joystick (1/2/3-button) handling on gameport 1 is active with
 cd32 = OFF, the default. Set cd32 = ON to switch gameport 1 (the second
 physical Amiga DB9 port) into lowlevel.library game controller mode for a
-CD32 pad. The joystick buttons and the seven CD32 buttons each take one
-action name, as described under "Controls" above.
+CD32 pad. The CD32=ON|OFF startup parameter (CLI -cd32=on; icon ToolType
+CD32=ON) overrides the stored cd32 value for that launch and is never
+written back to the file; an invalid value is ignored and keeps the
+previous selection. With NOJOY / JOYSTICK=OFF the file is still loaded
+(the volumes and the one-time migration run), but lowlevel.library is not
+opened and the game port is never touched. The joystick buttons and the
+seven CD32 buttons each take one action name, as described under
+"Controls" above.
 
 Updates are written to a temporary file (amiga.cfg.tmpN) which is then
 renamed over amiga.cfg. An existing file is first renamed aside as
@@ -964,19 +992,19 @@ provided as docs/amiga.cfg.example in the source repository):
    ; ==== JOYSTICK / CD32 ====
    ; cd32 = OFF : shared joystick handling on port 1 (default)
    ; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
-   ; NOJOY / JOYSTICK=OFF takes precedence over this block.
+   ; CD32=ON|OFF (CLI/ToolType) overrides this session only; NOJOY wins.
    ; Button assignments, one value per physical pad button:
    ;   FIRE           - primary guns + selected secondary weapon
    ;   SPECIAL_SELECT - change (cycle) the secondary weapon
    ;   MEGA_BOMB      - launch a mega bomb
    ;   PAUSE          - pause the game
-   ;   CANCEL         - cancel / back out
+   ;   CANCEL         - cancel / back out (default: yellow button)
    ;   NONE           - button disabled
    cd32 = OFF
    cd32_red     = FIRE ; Red button
    cd32_blue    = SPECIAL_SELECT ; Blue button
    cd32_green   = MEGA_BOMB ; Green button
-   cd32_yellow  = NONE ; Yellow button
+   cd32_yellow  = CANCEL ; Yellow button
    cd32_reverse = NONE ; Reverse button (left shoulder)
    cd32_forward = NONE ; Forward button (right shoulder)
    cd32_play    = PAUSE ; Play button (triangle)

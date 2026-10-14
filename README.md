@@ -112,19 +112,26 @@ Working:
   the window registers no mouse events at all, and with the joystick off
   the game port is never polled.
 - **Optional CD32 gamepad**, disabled by default. With `cd32 = ON` in
-  `amiga.cfg` the second physical Amiga gameport (`lowlevel.library`
-  port 1) is switched to game controller mode; the classic joystick path
-  is the default and is unchanged. Each of the seven CD32 buttons
-  (`cd32_red`, `cd32_blue`, `cd32_green`, `cd32_yellow`, `cd32_reverse`,
-  `cd32_forward`, `cd32_play`) can be assigned one action:
-  `FIRE` (primary weapon plus the selected secondary weapon),
-  `SPECIAL_SELECT` (change / cycle the secondary weapon), `MEGA_BOMB`,
-  `PAUSE`, `CANCEL` or `NONE`, and the same action may be assigned to
-  several buttons. `CANCEL` has no button by default and needs an
-  explicit assignment (for example `cd32_yellow = CANCEL`). `NOJOY` /
-  `JOYSTICK=OFF` takes precedence (the gameport is never touched).
-  Built-in defaults: red = `FIRE`, blue = `SPECIAL_SELECT`,
-  green = `MEGA_BOMB`, play = `PAUSE`, the rest `NONE`.
+  `amiga.cfg` (or the `CD32=ON` startup parameter) the second physical
+  Amiga gameport (`lowlevel.library` port 1) is switched to game
+  controller mode; the classic joystick path is the default and is
+  unchanged. Each of the seven CD32 buttons (`cd32_red`, `cd32_blue`,
+  `cd32_green`, `cd32_yellow`, `cd32_reverse`, `cd32_forward`,
+  `cd32_play`) can be assigned one action: `FIRE` (primary weapon plus
+  the selected secondary weapon), `SPECIAL_SELECT` (change / cycle the
+  secondary weapon), `MEGA_BOMB`, `PAUSE`, `CANCEL` or `NONE`, and the
+  same action may be assigned to several buttons. Built-in defaults:
+  red = `FIRE`, blue = `SPECIAL_SELECT`, green = `MEGA_BOMB`,
+  yellow = `CANCEL`, play = `PAUSE`, reverse / forward = `NONE`. The
+  yellow button therefore returns from the shop to the hangar, acts as
+  the physical ESC key in the hangar and asks "Abort Mission ?" in the
+  game, exactly like ESC. The `CD32=ON|OFF` startup parameter (CLI
+  `-cd32=on`; icon ToolType `CD32=ON`) overrides the `amiga.cfg` value
+  for that session only and is never written back to the file. An
+  explicit `cd32_yellow = NONE` in an existing `amiga.cfg` still
+  disables the button; to get the new default the old line must be
+  changed to `CANCEL` or removed. `NOJOY` / `JOYSTICK=OFF` takes
+  precedence (the gameport is never touched).
 - **Amiga joystick, 1/2/3-button** on the second physical gameport: the
   default classic path, active whenever `cd32 = OFF` (the default). The
   joystick buttons on DB9 pins 6/9/5 are read (`joy_button1`, `joy_button2`,
@@ -138,7 +145,7 @@ Working:
   allocated, button 3 stays inactive and buttons 1/2 keep working. No native
   Sega gamepad serial protocol is implemented.
 - Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/VIDEO/MUSIC/
-  AHIUNIT/MHIDRIVER/MP3PRELOAD/JOYSTICK/MOUSE) via the official WBStartup + icon.library
+  AHIUNIT/MHIDRIVER/MP3PRELOAD/JOYSTICK/MOUSE/CD32) via the official WBStartup + icon.library
   mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
   launches no console window is opened at all (nothing is left behind

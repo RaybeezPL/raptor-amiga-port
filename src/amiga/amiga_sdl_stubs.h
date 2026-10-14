@@ -1616,18 +1616,21 @@ extern "C" {
  * mode. */
 static inline void Amiga_ConfigureJoyPort(void)
 {
-    /* cd32=ON selects the CD32 pad. Otherwise - cd32=OFF (the default) or a
-     * failed game controller request - the port runs the shared Amiga
-     * 1/2/3-button joystick handling in plain joystick mode
-     * (SJA_TYPE_JOYSTK); the button-3 line is set up later, once
-     * lowlevel.library has done its own allocation. There is no separate
-     * enable key. */
-    if (amiga_cfg_cd32)
+    /* The effective mode is decided by AmigaCfg_ResolveCd32(): a CD32=ON
+     * startup parameter (CLI/ToolType) or cd32 = ON selects the CD32 pad.
+     * Otherwise - the default CD32=OFF / cd32 = OFF, or a failed game
+     * controller request - the port runs the shared Amiga 1/2/3-button
+     * joystick handling in plain joystick mode (SJA_TYPE_JOYSTK); the
+     * button-3 line is set up later, once lowlevel.library has done its own
+     * allocation. There is no separate enable key. */
+    if (AmigaCfg_Cd32Effective())
     {
         if (SetJoyPortAttrs(1, SJA_Type, SJA_TYPE_GAMECTLR, TAG_DONE))
         {
             AmigaJoyPortMode = SJA_TYPE_GAMECTLR;
             AmigaJoyInputMode = AMIGA_JOY_INPUT_CD32;
+            AmigaLog("[INPUT] CD32 mode: source=%s effective=ON port=GAMECTLR",
+                     AmigaCfg_Cd32SourceName());
             return;
         }
 
@@ -1641,6 +1644,9 @@ static inline void Amiga_ConfigureJoyPort(void)
     {
         AmigaJoyPortMode = SJA_TYPE_JOYSTK;
         AmigaJoyInputMode = AMIGA_JOY_INPUT_JOY;
+        AmigaLog("[INPUT] CD32 mode: source=%s effective=%s port=JOYSTK",
+                 AmigaCfg_Cd32SourceName(),
+                 AmigaCfg_Cd32Effective() ? "ON" : "OFF");
         return;
     }
 
@@ -1776,15 +1782,21 @@ static inline int SDL_Init(uint32_t flags)
 #ifdef __AMIGA__
 
     /* Startup order: CLI/ToolTypes (rap.cpp main) -> SDL_Init ->
-     * SND_InitSound. Load amiga.cfg once here so the cd32 preference is
-     * known before the gameport mode is chosen; the SND_InitSound() call
-     * then only reuses the in-memory values. NOJOY / JOYSTICK=OFF (parsed
-     * before any SDL_Init call) takes precedence over the cfg block: the
-     * library is not opened and the port is never touched. */
+     * SND_InitSound. amiga.cfg is loaded once, unconditionally: it also
+     * holds the audio volumes and runs the one-time legacy migration, so it
+     * must be read even with NOJOY / JOYSTICK=OFF. The CD32 session override
+     * (CLI / icon ToolType) is resolved right after the load and only then -
+     * and only when the joystick is not disabled - is lowlevel.library
+     * opened, the gameport configured and the potgo button-3 line claimed.
+     * NOJOY / JOYSTICK=OFF therefore blocks the library/port setup, not the
+     * configuration load, and a CD32=ON setting can never re-enable input
+     * that was disabled this way. SND_InitSound() then only reuses the
+     * in-memory values. */
+    AmigaCfg_Load();
+    AmigaCfg_ResolveCd32();
+
     if (!LowLevelBase && !AmigaJoyDisabled)
     {
-        AmigaCfg_Load();
-
         LowLevelBase = OpenLibrary((CONST_STRPTR)"lowlevel.library", 40);
         if (!LowLevelBase)
         {

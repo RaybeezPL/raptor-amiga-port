@@ -18,13 +18,15 @@ reset_values(void)
     amiga_cfg_cd32_red = AMIGA_CFG_CD32_FIRE;
     amiga_cfg_cd32_blue = AMIGA_CFG_CD32_SPECIAL_SELECT;
     amiga_cfg_cd32_green = AMIGA_CFG_CD32_MEGA_BOMB;
-    amiga_cfg_cd32_yellow = AMIGA_CFG_CD32_NONE;
+    amiga_cfg_cd32_yellow = AMIGA_CFG_CD32_CANCEL;
     amiga_cfg_cd32_reverse = AMIGA_CFG_CD32_NONE;
     amiga_cfg_cd32_forward = AMIGA_CFG_CD32_NONE;
     amiga_cfg_cd32_play = AMIGA_CFG_CD32_PAUSE;
     amiga_cfg_joy_button1 = AMIGA_CFG_CD32_FIRE;
     amiga_cfg_joy_button2 = AMIGA_CFG_CD32_SPECIAL_SELECT;
     amiga_cfg_joy_button3 = AMIGA_CFG_CD32_MEGA_BOMB;
+    amiga_cfg_cd32_override = AMIGA_CFG_CD32_OVERRIDE_UNSET;
+    AmigaCfg_ResolveCd32();
     AmigaCfg_TestResetLoad();
 }
 
@@ -144,6 +146,7 @@ main(void)
     assert(strstr(contents, "; ==== JOYSTICK / 1-2-3 BUTTONS ====\n") != 0);
     assert(strstr(contents, "; ==== JOYSTICK / CD32 ====\n") != 0);
     assert(count_text(contents, "cd32 = OFF\n") == 1);
+    assert(strstr(contents, "cd32_yellow  = CANCEL ; Yellow button\n") != 0);
     free(contents);
     /* An Options save still rewrites volume values only, in place. */
     amiga_cfg_music_adlib = 11;
@@ -398,6 +401,7 @@ main(void)
     assert(strstr(contents,
         "joy_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)\r\n") != 0);
     assert(strstr(contents, "cd32 = OFF\r\n") != 0);
+    assert(strstr(contents, "cd32_yellow  = CANCEL ; Yellow button\r\n") != 0);
     assert(strstr(contents, "; ==== JOYSTICK / 1-2-3 BUTTONS ====\r\n") <
            strstr(contents, "; ==== JOYSTICK / CD32 ====\r\n"));
     free(contents);
@@ -507,6 +511,7 @@ main(void)
     assert(amiga_cfg_joy_button1 == AMIGA_CFG_CD32_FIRE);
     assert(amiga_cfg_joy_button2 == AMIGA_CFG_CD32_SPECIAL_SELECT);
     assert(amiga_cfg_joy_button3 == AMIGA_CFG_CD32_MEGA_BOMB);
+    assert(amiga_cfg_cd32_yellow == AMIGA_CFG_CD32_CANCEL);
     contents = read_file(path);
     assert(strstr(contents, "; ==== AUDIO ====\n") != 0);
     assert(strstr(contents, "; ==== JOYSTICK / 1-2-3 BUTTONS ====\n") != 0);
@@ -519,6 +524,14 @@ main(void)
         "joy_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)\n"
         "joy_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)\n"
         "joy_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)\n") != 0);
+    assert(strstr(contents,
+        "cd32_red     = FIRE ; Red button\n"
+        "cd32_blue    = SPECIAL_SELECT ; Blue button\n"
+        "cd32_green   = MEGA_BOMB ; Green button\n"
+        "cd32_yellow  = CANCEL ; Yellow button\n"
+        "cd32_reverse = NONE ; Reverse button (left shoulder)\n"
+        "cd32_forward = NONE ; Forward button (right shoulder)\n"
+        "cd32_play    = PAUSE ; Play button (triangle)\n") != 0);
     assert(strstr(contents, "joy3 = ") == 0);
     assert(strstr(contents, "joy3_button") == 0);
     free(contents);
@@ -543,6 +556,129 @@ main(void)
     load_and_assert_untouched(path);
     assert(amiga_cfg_music_adlib == 5);
     assert(amiga_cfg_joy_button1 == AMIGA_CFG_CD32_CANCEL);
+
+    /* 22. New default: yellow = CANCEL. A file without the cd32_yellow key
+     * keeps the new default; an explicit NONE is still honoured and leaves
+     * the button disabled; other explicit assignments are kept. */
+    write_file(path, "cd32 = ON\nmusic_adlib = 5\n");
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_cd32_yellow == AMIGA_CFG_CD32_CANCEL);
+
+    write_file(path, "cd32 = ON\ncd32_yellow = NONE\nmusic_adlib = 5\n");
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_cd32_yellow == AMIGA_CFG_CD32_NONE);
+
+    write_file(path, "cd32_yellow = PAUSE\ncd32_play = NONE\n");
+    reset_values();
+    AmigaCfg_Load();
+    assert(amiga_cfg_cd32_yellow == AMIGA_CFG_CD32_PAUSE);
+    assert(amiga_cfg_cd32_play == AMIGA_CFG_CD32_NONE);
+
+    /* 23. Without a startup override the amiga.cfg value decides the
+     * effective mode, and its OFF default applies when the key is absent. */
+    write_file(path, "cd32 = ON\nmusic_adlib = 5\n");
+    reset_values();
+    AmigaCfg_Load();
+    AmigaCfg_ResolveCd32();
+    assert(AmigaCfg_Cd32Effective() == 1);
+    assert(strcmp(AmigaCfg_Cd32SourceName(), "amiga.cfg") == 0);
+
+    write_file(path, "cd32 = OFF\nmusic_adlib = 5\n");
+    reset_values();
+    AmigaCfg_Load();
+    AmigaCfg_ResolveCd32();
+    assert(AmigaCfg_Cd32Effective() == 0);
+
+    write_file(path, "music_adlib = 5\n");
+    reset_values();
+    AmigaCfg_Load();
+    AmigaCfg_ResolveCd32();
+    assert(amiga_cfg_cd32 == 0);
+    assert(AmigaCfg_Cd32Effective() == 0);
+    assert(strcmp(AmigaCfg_Cd32SourceName(), "amiga.cfg") == 0);
+
+    /* 24. A startup override ON wins over amiga.cfg OFF for this session
+     * only: the persisted value and the file are never changed, also not by
+     * an Options save. */
+    write_file(path, "cd32 = OFF\nmusic_adlib = 5\nmusic_mhi = 6\n"
+                     "music_wave = 7\nsfx_volume = 8\n");
+    reset_values();
+    assert(AmigaCfg_SetCd32Override("ON") == 1);
+    AmigaCfg_Load();
+    AmigaCfg_ResolveCd32();
+    assert(AmigaCfg_Cd32Effective() == 1);
+    assert(strcmp(AmigaCfg_Cd32SourceName(), "CLI/ToolType override") == 0);
+    assert(amiga_cfg_cd32 == 0);              /* persisted value untouched */
+    AmigaCfg_Save();
+    contents = read_file(path);
+    assert(strstr(contents, "cd32 = OFF\n") != 0);
+    assert(strstr(contents, "cd32 = ON\n") == 0);
+    assert(strstr(contents, "cd32_override") == 0);
+    free(contents);
+
+    /* 25. A startup override OFF wins over amiga.cfg ON for this session
+     * only; the persisted ON value is kept in the file. */
+    write_file(path, "cd32 = ON\nmusic_adlib = 5\nmusic_mhi = 6\n"
+                     "music_wave = 7\nsfx_volume = 8\n");
+    reset_values();
+    assert(AmigaCfg_SetCd32Override("off") == 1);   /* case-insensitive */
+    AmigaCfg_Load();
+    AmigaCfg_ResolveCd32();
+    assert(AmigaCfg_Cd32Effective() == 0);
+    assert(strcmp(AmigaCfg_Cd32SourceName(), "CLI/ToolType override") == 0);
+    assert(amiga_cfg_cd32 == 1);
+    AmigaCfg_Save();
+    contents = read_file(path);
+    assert(strstr(contents, "cd32 = ON\n") != 0);
+    assert(strstr(contents, "cd32_override") == 0);
+    free(contents);
+
+    /* 26. A bad startup value is rejected: it keeps the previous selection
+     * and never enables the pad by accident; a bad amiga.cfg value keeps the
+     * OFF default. */
+    reset_values();
+    assert(AmigaCfg_SetCd32Override("ON") == 1);
+    assert(AmigaCfg_SetCd32Override("BOGUS") == 0);
+    assert(amiga_cfg_cd32_override == AMIGA_CFG_CD32_OVERRIDE_ON);
+
+    reset_values();
+    assert(AmigaCfg_SetCd32Override("OFF") == 1);
+    assert(AmigaCfg_SetCd32Override("") == 0);
+    assert(amiga_cfg_cd32_override == AMIGA_CFG_CD32_OVERRIDE_OFF);
+    AmigaCfg_ResolveCd32();
+    assert(AmigaCfg_Cd32Effective() == 0);
+
+    write_file(path, "cd32 = MAYBE\nmusic_adlib = 5\n");
+    reset_values();
+    AmigaCfg_Load();
+    AmigaCfg_ResolveCd32();
+    assert(amiga_cfg_cd32 == 0);
+    assert(AmigaCfg_Cd32Effective() == 0);
+
+    /* 27. The startup override is never written to amiga.cfg - not on load,
+     * not on an Options save and not in a freshly created file; a later load
+     * keeps the persisted OFF value. */
+    unlink(path);
+    reset_values();
+    assert(AmigaCfg_SetCd32Override("ON") == 1);
+    AmigaCfg_Load();                          /* missing file -> template */
+    AmigaCfg_ResolveCd32();
+    assert(AmigaCfg_Cd32Effective() == 1);
+    assert(amiga_cfg_cd32 == 0);              /* persisted default stays OFF */
+    amiga_cfg_music_adlib = 20;
+    AmigaCfg_Save();
+    contents = read_file(path);
+    assert(strstr(contents, "cd32 = OFF\n") != 0);
+    assert(strstr(contents, "cd32 = ON\n") == 0);
+    assert(strstr(contents, "cd32_override") == 0);
+    free(contents);
+    AmigaCfg_TestResetLoad();
+    AmigaCfg_Load();
+    AmigaCfg_ResolveCd32();
+    assert(amiga_cfg_cd32 == 0);
+    assert(AmigaCfg_Cd32Effective() == 1);    /* override still ON */
 
     /* Remove this run's own files (amiga.cfg, its .bakN copies and any
      * leftover .tmpN scratch file) before removing the run directory. */

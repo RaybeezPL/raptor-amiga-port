@@ -32,10 +32,18 @@ int amiga_cfg_cd32 = 0;
 int amiga_cfg_cd32_red     = AMIGA_CFG_CD32_FIRE;
 int amiga_cfg_cd32_blue    = AMIGA_CFG_CD32_SPECIAL_SELECT;
 int amiga_cfg_cd32_green   = AMIGA_CFG_CD32_MEGA_BOMB;
-int amiga_cfg_cd32_yellow  = AMIGA_CFG_CD32_NONE;
+int amiga_cfg_cd32_yellow  = AMIGA_CFG_CD32_CANCEL;
 int amiga_cfg_cd32_reverse = AMIGA_CFG_CD32_NONE;
 int amiga_cfg_cd32_forward = AMIGA_CFG_CD32_NONE;
 int amiga_cfg_cd32_play    = AMIGA_CFG_CD32_PAUSE;
+
+/* Session-only CD32 override set by the CD32 startup parameter. Kept apart
+ * from amiga_cfg_cd32 (the persisted preference) so a startup setting never
+ * leaks into amiga.cfg. */
+int amiga_cfg_cd32_override = AMIGA_CFG_CD32_OVERRIDE_UNSET;
+
+static int cfg_cd32_effective = 0;
+static int cfg_cd32_source = AMIGA_CFG_CD32_SOURCE_CFG;
 
 /* Shared Amiga 1/2/3-button joystick (DB9 pins 6/9/5). Active whenever the
  * CD32 pad is off (see Amiga_ConfigureJoyPort); there is no enable key. */
@@ -184,6 +192,69 @@ cd32_parse_action_strict(const char *word, int *action)
             return 1;
         }
     return 0;
+}
+
+/* Applies a CD32=<ON|OFF> startup value to the session override. Values are
+ * matched case-insensitively; returns 1 when the value was valid and the
+ * override was updated, 0 when it was invalid - in which case the override
+ * is left exactly as it was, so a bad value never clears an earlier valid
+ * selection and never enables the pad by accident. */
+int
+AmigaCfg_SetCd32Override(const char *value)
+{
+    if (!value) return 0;
+
+    if (strcasecmp(value, "ON") == 0)
+    {
+        amiga_cfg_cd32_override = AMIGA_CFG_CD32_OVERRIDE_ON;
+        return 1;
+    }
+    if (strcasecmp(value, "OFF") == 0)
+    {
+        amiga_cfg_cd32_override = AMIGA_CFG_CD32_OVERRIDE_OFF;
+        return 1;
+    }
+    return 0;
+}
+
+/* Resolves the effective CD32 mode once the configuration has been loaded.
+ * A session override (CLI/ToolType) wins over the persisted amiga.cfg value;
+ * without one the cfg value - and therefore its OFF default - applies. The
+ * persisted amiga_cfg_cd32 is never modified here, so the resolved mode is
+ * session-only and is never written back to amiga.cfg. */
+void
+AmigaCfg_ResolveCd32(void)
+{
+    if (amiga_cfg_cd32_override == AMIGA_CFG_CD32_OVERRIDE_ON)
+    {
+        cfg_cd32_effective = 1;
+        cfg_cd32_source = AMIGA_CFG_CD32_SOURCE_OVERRIDE;
+    }
+    else if (amiga_cfg_cd32_override == AMIGA_CFG_CD32_OVERRIDE_OFF)
+    {
+        cfg_cd32_effective = 0;
+        cfg_cd32_source = AMIGA_CFG_CD32_SOURCE_OVERRIDE;
+    }
+    else
+    {
+        cfg_cd32_effective = amiga_cfg_cd32 ? 1 : 0;
+        cfg_cd32_source = AMIGA_CFG_CD32_SOURCE_CFG;
+    }
+}
+
+/* Effective CD32 mode for this session: 1 = CD32 pad, 0 = shared joystick. */
+int
+AmigaCfg_Cd32Effective(void)
+{
+    return cfg_cd32_effective;
+}
+
+/* Name of the source that decided the effective mode (one-shot log only). */
+const char *
+AmigaCfg_Cd32SourceName(void)
+{
+    return cfg_cd32_source == AMIGA_CFG_CD32_SOURCE_OVERRIDE
+               ? "CLI/ToolType override" : "amiga.cfg";
 }
 
 /* Returns 1 for a complete read, -1 for a missing file, 0 for any error. */
@@ -397,13 +468,13 @@ cfg_write_joystick(FILE *f, const char *eol)
         "; ==== JOYSTICK / CD32 ====%s"
         "; cd32 = OFF : shared joystick handling on port 1 (default)%s"
         "; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)%s"
-        "; NOJOY / JOYSTICK=OFF takes precedence over this block.%s"
+        "; CD32=ON|OFF (CLI/ToolType) overrides this session only; NOJOY wins.%s"
         "; Button assignments, one value per physical pad button:%s"
         ";   FIRE           - primary guns + selected secondary weapon%s"
         ";   SPECIAL_SELECT - change (cycle) the secondary weapon%s"
         ";   MEGA_BOMB      - launch a mega bomb%s"
         ";   PAUSE          - pause the game%s"
-        ";   CANCEL         - cancel / back out%s"
+        ";   CANCEL         - cancel / back out (default: yellow button)%s"
         ";   NONE           - button disabled%s"
         "cd32 = %s%scd32_red     = %s ; Red button%s"
         "cd32_blue    = %s ; Blue button%s"

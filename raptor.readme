@@ -79,14 +79,20 @@ DEVS:Monitors needs to be changed; VIDEO= has no effect on the RTG path.
 Keyboard, mouse and joystick input work simultaneously. Amiga 1/2/3-button
 joysticks work by default (cd32 = OFF) with per-button assignments
 (joy_button1/2/3; button 3 on DB9 pin 5 via potgo.resource). An optional
-CD32 gamepad can be enabled with "cd32 = ON" in amiga.cfg (disabled by
-default). Each of the seven pad buttons has its own assignment (FIRE,
-SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL or NONE); in the shop
-SPECIAL_SELECT toggles BUY/SELL, FIRE confirms and CANCEL backs out. The
+CD32 gamepad can be enabled with "cd32 = ON" in amiga.cfg or with the
+CD32=ON startup parameter (CLI -cd32=on or icon ToolType CD32=ON), which
+overrides the file for that launch only and is never written back (disabled
+by default). Each of the seven pad buttons has its own assignment (FIRE,
+SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL or NONE); the yellow button
+defaults to CANCEL (the ESC key: the shop returns to the hangar, the hangar
+acts like physical ESC, in game it asks "Abort Mission ?") and the play
+button is PAUSE. In the shop SPECIAL_SELECT toggles BUY/SELL, FIRE confirms
+and CANCEL backs out. An existing amiga.cfg line cd32_yellow = NONE keeps
+that button disabled; remove it (or set CANCEL) for the new default. The
 deprecated joy3_button1..3 keys are still read as aliases and a leftover
 joy3 = OFF is ignored; NOJOY / JOYSTICK=OFF disables all joystick input.
 No native Sega gamepad serial protocol is implemented. Workbench icon
-ToolTypes are supported (GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, etc.).
+ToolTypes are supported (GFX, VIDEO, MUSIC, MOUSE, JOYSTICK, CD32, etc.).
 Persistent audio volumes are stored in amiga.cfg in the game directory;
 saving updates the file in place and preserves manual edits, comments and
 CD32 / joystick button assignments.

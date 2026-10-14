@@ -111,13 +111,18 @@ game's normal `i_video.cpp` flow:
   in `SDL_PumpEvents` at most at ~50 Hz; the polled state is shared with
   `joyapi.cpp`/`input.cpp` through the single-instance globals owned by
   `amiga_stubs_impl.cpp`.
-- Optional CD32 gamepad support (`cd32 = ON`, default `cd32 = OFF`) pins
-  gameport 1 to `SJA_TYPE_GAMECTLR`; each of the seven pad buttons gets one
-  configurable action (`cd32_red` .. `cd32_play`, one of FIRE /
-  SPECIAL_SELECT / MEGA_BOMB / PAUSE / CANCEL / NONE). FIRE fires the
-  primary weapon plus the selected secondary weapon, SPECIAL_SELECT cycles
-  the secondary weapon, and the shop has its own input context where
-  SPECIAL_SELECT toggles BUY/SELL.
+- Optional CD32 gamepad support (`cd32 = ON`, default `cd32 = OFF`; also
+  selectable for one session with the `CD32=ON|OFF` CLI/ToolType parameter,
+  which overrides the file and is never written back) pins gameport 1 to
+  `SJA_TYPE_GAMECTLR`; each of the seven pad buttons gets one configurable
+  action (`cd32_red` .. `cd32_play`, one of FIRE / SPECIAL_SELECT /
+  MEGA_BOMB / PAUSE / CANCEL / NONE). The built-in defaults are
+  red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB, yellow = CANCEL,
+  reverse / forward = NONE, play = PAUSE. FIRE fires the primary weapon
+  plus the selected secondary weapon, SPECIAL_SELECT cycles the secondary
+  weapon, CANCEL is the ESC key (shop -> hangar, hangar -> physical ESC,
+  in game -> "Abort Mission ?"), and the shop has its own input context
+  where SPECIAL_SELECT toggles BUY/SELL.
 - Shared Amiga 1/2/3-button joystick handling is the default classic path:
   with `cd32 = OFF` gameport 1 stays in `SJA_TYPE_JOYSTK` and reads the
   third button from the second gameport's pin 5 through `potgo.resource`
@@ -168,7 +173,11 @@ game's normal `i_video.cpp` flow:
 - `NOSOUND` / `NOMUSIC` parameters; persistent volumes (music_adlib,
   music_mhi, music_wave, sfx) and the optional CD32 settings (cd32 and
   cd32_red .. cd32_play) stored in `amiga.cfg`
-  (`src/amiga/amiga_cfg.cpp/h`). Volume saves update the existing file in
+  (`src/amiga/amiga_cfg.cpp/h`). The file is loaded unconditionally at
+  startup, also with NOJOY / JOYSTICK=OFF (only the lowlevel/port/potgo
+  setup is gated), and the `CD32=ON|OFF` session override is resolved right
+  after the load without touching the stored value. Volume saves update the
+  existing file in
   place, preserving unknown keys, comments and CD32 assignments. A legacy
   file that holds only volume keys is migrated once at load time: the
   missing volume keys and the JOYSTICK blocks are appended (original kept as

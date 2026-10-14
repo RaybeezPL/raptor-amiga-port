@@ -15,11 +15,17 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   `cd32_forward` and `cd32_play`. Each accepts one action name:
   `FIRE`, `SPECIAL_SELECT`, `MEGA_BOMB`, `PAUSE`, `CANCEL` or `NONE`.
   The same action may be assigned to several buttons; unknown names keep
-  the built-in default. `CANCEL` is not assigned to any button by
-  default and must be assigned explicitly.
+  the built-in default. `CANCEL` is assigned to the yellow button by
+  default.
 - Built-in CD32 defaults: red = `FIRE`, blue = `SPECIAL_SELECT`,
-  green = `MEGA_BOMB`, yellow / reverse / forward = `NONE`,
+  green = `MEGA_BOMB`, yellow = `CANCEL`, reverse / forward = `NONE`,
   play = `PAUSE`.
+- New `CD32=ON|OFF` startup parameter (CLI `-cd32=ON|OFF` / icon
+  ToolType `CD32=ON|OFF`, recognized case-insensitively; entries in
+  parentheses such as `(CD32=ON)` stay inactive). It overrides the
+  `amiga.cfg` `cd32` value for the current session only and is never
+  written back to the file; an invalid value is ignored and keeps the
+  previous selection.
 - Dedicated shop input context for configurable controllers: in the shop
   `SPECIAL_SELECT` toggles between BUY and SELL (Space), `FIRE` confirms
   (Return) and `CANCEL` backs out (ESC). Outside the shop
@@ -38,6 +44,19 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   carries joystick keys is not rewritten.
 
 ### Changed
+- `amiga.cfg` is now loaded unconditionally at startup, also with
+  `NOJOY` / `JOYSTICK=OFF`: the file also holds the audio volumes and runs
+  the one-time legacy migration. Only the lowlevel.library open, the
+  gameport configuration and the potgo button-3 setup stay gated behind
+  the joystick-disabled state, so `CD32=ON` can never re-enable a disabled
+  gameport.
+- The default CD32 yellow button is now `CANCEL` (ESC). An existing
+  `amiga.cfg` with an explicit `cd32_yellow = NONE` keeps that button
+  disabled and is never migrated to `CANCEL` automatically; the user must
+  remove the line or set it to `CANCEL` to get the new default. In the
+  shop `CANCEL` returns to the hangar, in the hangar it acts as the
+  physical ESC key and in game it asks "Abort Mission ?"; `play = PAUSE`
+  is unchanged.
 - `NOJOY` / `JOYSTICK=OFF` still takes precedence over the `amiga.cfg`
   CD32 and joystick blocks: with the joystick disabled `lowlevel.library`
   is not opened and the gameport is never touched, regardless of `cd32`.
@@ -99,6 +118,14 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   load does not duplicate a block, files with assignments or an unknown key
   stay untouched, and a failed temp write/replace leaves the original intact.
   Real-hardware verification is still expected.
+- The new CD32 default and the `CD32=ON|OFF` override are covered by the
+  same host-side `amiga.cfg` unit tests: `cd32_yellow` defaults to `CANCEL`
+  while an explicit `NONE` is kept, an override ON/OFF wins over the file
+  for the session, a bad override value keeps the previous selection, and
+  the override is never written to `amiga.cfg` (load/save/create). Stub- and
+  hardware-level behaviour (Workbench ToolType parsing, lowlevel.library
+  port mode, the potgo button-3 line) is not exercised by the host tests and
+  still requires real-hardware verification.
 - `cd32 = ON` uses `lowlevel.library` game controller mode and does not
   implement the native Sega gamepad serial protocol.
 
