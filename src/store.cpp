@@ -242,6 +242,13 @@ STORE_Enter(
     SWD_DLG dlg;
     char youhave[50], coststr[50];
 
+#ifdef __AMIGA__
+    /* The store is the only screen where SPECIAL_SELECT toggles BUY/SELL, so
+     * it gets its own CD32 context: the action maps to SPACE here and stays
+     * inert everywhere else. A button already held is dropped by the switch. */
+    Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_STORE);
+#endif
+
     update = 0;
     opt = -1;
     oldopt = -1;
@@ -373,7 +380,16 @@ STORE_Enter(
         I_GetNeedResize(false);
         
         if (KBD_Key(SC_X) && KBD_Key(SC_ALT))
+        {
+#ifdef __AMIGA__
+            /* The exit confirmation is modal: no store SPACE may reach it. */
+            Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_MENU);
+#endif
             WIN_AskExit();
+#ifdef __AMIGA__
+            Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_STORE);
+#endif
+        }
         
         if (dlg.viewactive)
         {
@@ -548,7 +564,15 @@ STORE_Enter(
         case SC_ESC:
             goto store_exit;
         case SC_F1:
+#ifdef __AMIGA__
+            /* Help opens a window of its own: leave the store context so a
+             * held pad button cannot inject SPACE into it. */
+            Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_MENU);
+#endif
             HELP_Win("STORHLP1_TXT");
+#ifdef __AMIGA__
+            Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_STORE);
+#endif
             break;
         
         case SC_SPACE:
@@ -676,6 +700,11 @@ STORE_Enter(
     }
 
 store_exit:
+#ifdef __AMIGA__
+    /* Back to the plain menu context so SPECIAL_SELECT stops emitting SPACE.
+     * This is the single exit path: VEXIT and ESC both jump here. */
+    Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_MENU);
+#endif
     SND_Patch(FX_DOOR, 127);
     while (IMS_IsAck())
     {

@@ -111,8 +111,41 @@ Working:
   input device is a performance/troubleshooting option: with the mouse off
   the window registers no mouse events at all, and with the joystick off
   the game port is never polled.
+- **Optional CD32 gamepad**, disabled by default. With `cd32 = ON` in
+  `amiga.cfg` (or the `CD32=ON` startup parameter) the second physical
+  Amiga gameport (`lowlevel.library` port 1) is switched to game
+  controller mode; the classic joystick path is the default and is
+  unchanged. Each of the seven CD32 buttons (`cd32_red`, `cd32_blue`,
+  `cd32_green`, `cd32_yellow`, `cd32_reverse`, `cd32_forward`,
+  `cd32_play`) can be assigned one action: `FIRE` (primary weapon plus
+  the selected secondary weapon), `SPECIAL_SELECT` (change / cycle the
+  secondary weapon), `MEGA_BOMB`, `PAUSE`, `CANCEL` or `NONE`, and the
+  same action may be assigned to several buttons. Built-in defaults:
+  red = `FIRE`, blue = `SPECIAL_SELECT`, green = `MEGA_BOMB`,
+  yellow = `CANCEL`, play = `PAUSE`, reverse / forward = `NONE`. The
+  yellow button therefore returns from the shop to the hangar, acts as
+  the physical ESC key in the hangar and asks "Abort Mission ?" in the
+  game, exactly like ESC. The `CD32=ON|OFF` startup parameter (CLI
+  `-cd32=on`; icon ToolType `CD32=ON`) overrides the `amiga.cfg` value
+  for that session only and is never written back to the file. An
+  explicit `cd32_yellow = NONE` in an existing `amiga.cfg` still
+  disables the button; to get the new default the old line must be
+  changed to `CANCEL` or removed. `NOJOY` / `JOYSTICK=OFF` takes
+  precedence (the gameport is never touched).
+- **Amiga joystick, 1/2/3-button** on the second physical gameport: the
+  default classic path, active whenever `cd32 = OFF` (the default). The
+  joystick buttons on DB9 pins 6/9/5 are read (`joy_button1`, `joy_button2`,
+  `joy_button3`; same action names as the CD32 pad) and button 3 is read
+  through `potgo.resource`. No separate enable setting is required, and the
+  same path serves 1-, 2- and 3-button sticks. The deprecated
+  `joy3_button1` / `joy3_button2` / `joy3_button3` keys are still accepted
+  as aliases (a valid `joy_buttonN` wins over the alias) and a leftover
+  `joy3 = OFF` is ignored. `cd32 = ON` takes precedence; `NOJOY` /
+  `JOYSTICK=OFF` disables all joystick input. If the button-3 line cannot be
+  allocated, button 3 stays inactive and buttons 1/2 keep working. No native
+  Sega gamepad serial protocol is implemented.
 - Workbench icon ToolTypes (NOSOUND/NOMUSIC/NOJOY/NOMOUSE/GFX/VIDEO/MUSIC/
-  AHIUNIT/MHIDRIVER/MP3PRELOAD/JOYSTICK/MOUSE) via the official WBStartup + icon.library
+  AHIUNIT/MHIDRIVER/MP3PRELOAD/JOYSTICK/MOUSE/CD32) via the official WBStartup + icon.library
   mechanism
 - Clean startup banner and parameter output on Shell/CLI; on Workbench
   launches no console window is opened at all (nothing is left behind
@@ -134,7 +167,15 @@ Working:
 - **Persistent audio volumes** via `amiga.cfg` in the game directory
   (created on first run): separate startup volumes for AdLib/OPL3
   music, MHI/MP3 music, WAVE music and sound effects; the in-game
-  Options sliders write their values back to it
+  Options sliders write their values back to it. Saving updates the
+  existing file in place, so comments, unknown keys, manual edits and
+  CD32 and joystick button assignments are preserved. The same file also
+  holds the optional CD32 and joystick settings (see above). A legacy
+  `amiga.cfg` that contains only volume keys is migrated once at load time:
+  the missing volume keys and the JOYSTICK blocks are appended with the
+  built-in defaults, keeping the original comments, values and line endings,
+  and the original file is retained as `amiga.cfg.bakN`. A file that already
+  holds controller keys or any other active key is left untouched.
 - **Automatic 64 KB main-process stack** on Amiga: Raptor requests a
   minimum 65536-byte main stack through the libnix `__stack` /
   swapstack startup mechanism before `main()`, so CLI users no longer
@@ -279,4 +320,5 @@ Platform-specific notes for Windows, Linux, macOS, and Android from the original
 - The Amiga community, emulator authors, and RTG/AHI toolchain developers
 - The testers from PPA.PL for their invaluable feedback and support during development
 - Special thanks to PPA user [Jacques](https://www.ppa.pl/uzytkownicy/792) for his patience and extensive MHI testing on WARP hardware. His testing made MP3PRELOAD possible.
+- Special thanks to PPA user [Solo Kazuki](https://www.ppa.pl/uzytkownicy/490) for testing on real Amiga hardware and suggesting support for CD32 and compatible gamepads, as well as three-button Amiga joysticks.
 - Special thanks also to PPA users [vojo](https://www.ppa.pl/uzytkownicy/5586), [BULI](https://www.ppa.pl/uzytkownicy/1916), [Mokry](https://www.ppa.pl/uzytkownicy/124) and [AD99](https://www.ppa.pl/uzytkownicy/7236) for their testing, feedback and support during development.

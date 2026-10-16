@@ -2,6 +2,133 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [Unreleased]
+
+### Added
+- Optional CD32 gamepad support, disabled by default (`cd32 = OFF` in
+  `amiga.cfg`). Setting `cd32 = ON` switches gameport 1 (the second
+  physical Amiga DB9 port, `lowlevel.library` port 1) into game
+  controller mode. The classic joystick remains the default and is
+  unchanged.
+- Configurable CD32 button assignments via the `amiga.cfg` keys
+  `cd32_red`, `cd32_blue`, `cd32_green`, `cd32_yellow`, `cd32_reverse`,
+  `cd32_forward` and `cd32_play`. Each accepts one action name:
+  `FIRE`, `SPECIAL_SELECT`, `MEGA_BOMB`, `PAUSE`, `CANCEL` or `NONE`.
+  The same action may be assigned to several buttons; unknown names keep
+  the built-in default. `CANCEL` is assigned to the yellow button by
+  default.
+- Built-in CD32 defaults: red = `FIRE`, blue = `SPECIAL_SELECT`,
+  green = `MEGA_BOMB`, yellow = `CANCEL`, reverse / forward = `NONE`,
+  play = `PAUSE`.
+- New `CD32=ON|OFF` startup parameter (CLI `-cd32=ON|OFF` / icon
+  ToolType `CD32=ON|OFF`, recognized case-insensitively; entries in
+  parentheses such as `(CD32=ON)` stay inactive). It overrides the
+  `amiga.cfg` `cd32` value for the current session only and is never
+  written back to the file; an invalid value is ignored and keeps the
+  previous selection.
+- Dedicated shop input context for configurable controllers: in the shop
+  `SPECIAL_SELECT` toggles between BUY and SELL (Space), `FIRE` confirms
+  (Return) and `CANCEL` backs out (ESC). Outside the shop
+  `SPECIAL_SELECT` stays inert, so it can never leak Space into the
+  hangar, the main menu, the intro, the pause window or a dialog. The
+  mapping is suspended while shop help or the exit confirmation dialog is
+  open.
+- Shared Amiga 1/2/3-button joystick support, active whenever `cd32 = OFF`
+  (the default) with no separate enable key. The buttons on DB9 pins 6/9/5
+  are read (`joy_button1`, `joy_button2`, `joy_button3`, same action names
+  as the CD32 pad). Button 3 is read through `potgo.resource`; if the line
+  cannot be allocated button 3 stays inactive, buttons 1/2 keep working and
+  the startup log notes the limited mode. The deprecated `joy3_button1` /
+  `joy3_button2` / `joy3_button3` keys are still accepted as aliases, a
+  leftover `joy3 = OFF` is ignored, and an existing file that already
+  carries joystick keys is not rewritten.
+
+### Changed
+- `amiga.cfg` is now loaded unconditionally at startup, also with
+  `NOJOY` / `JOYSTICK=OFF`: the file also holds the audio volumes and runs
+  the one-time legacy migration. Only the lowlevel.library open, the
+  gameport configuration and the potgo button-3 setup stay gated behind
+  the joystick-disabled state, so `CD32=ON` can never re-enable a disabled
+  gameport.
+- The default CD32 yellow button is now `CANCEL` (ESC). An existing
+  `amiga.cfg` with an explicit `cd32_yellow = NONE` keeps that button
+  disabled and is never migrated to `CANCEL` automatically; the user must
+  remove the line or set it to `CANCEL` to get the new default. In the
+  shop `CANCEL` returns to the hangar, in the hangar it acts as the
+  physical ESC key and in game it asks "Abort Mission ?"; `play = PAUSE`
+  is unchanged.
+- `NOJOY` / `JOYSTICK=OFF` still takes precedence over the `amiga.cfg`
+  CD32 and joystick blocks: with the joystick disabled `lowlevel.library`
+  is not opened and the gameport is never touched, regardless of `cd32`.
+- `cd32 = ON` selects the CD32 pad; `cd32 = OFF` (the default) uses the
+  shared 1/2/3-button joystick path. The `joy3` key is deprecated and
+  ignored, so an old `joy3 = OFF` no longer disables anything; the new
+  `joy_buttonN` keys take precedence over the `joy3_buttonN` aliases for
+  the same button regardless of line order.
+- Documentation: `FIRE` fires the primary weapon together with the
+  selected secondary weapon and `SPECIAL_SELECT` changes (cycles) the
+  secondary weapon. The earlier "fire the selected special weapon"
+  wording for `SPECIAL_SELECT` was wrong and has been corrected.
+- `amiga.cfg` is now updated in place instead of being rebuilt when the
+  in-game Options volumes are saved: existing comments, unknown keys,
+  manual edits, key order, spacing and line endings are preserved and
+  only the volume values are rewritten.
+- `cd32 = ON` with an unavailable/unsupported game controller mode falls
+  back to the shared joystick handling for the session; if that also fails
+  the joystick is disabled for the session. The saved `cd32` preference is
+  never rewritten.
+
+### Fixed
+- Boss energy scanner percentage on big-endian Amiga: the maximum health
+  field is converted with `LE_LONG`, while the current runtime health
+  stays in native byte order. Scanner ownership, rendering and save data
+  are unchanged.
+- Saving the audio volumes from the in-game Options no longer rewrites
+  `amiga.cfg` from scratch. The previous save rebuilt the whole file and
+  could drop CD32 assignments, comments and unknown content. Missing
+  volume keys (`music_adlib`, `music_mhi`, `music_wave`, `sfx_volume`)
+  are appended and an existing file is otherwise never reordered.
+- One-time migration of a legacy `amiga.cfg` that holds only audio volume
+  keys (comments and blank lines allowed). At load time the missing volume
+  keys and the JOYSTICK / 1-2-3 BUTTONS and JOYSTICK / CD32 blocks are
+  appended in that order with the built-in defaults, keeping the original
+  values, comments, spacing and line endings. The original file is kept as
+  the first free `amiga.cfg.bakN` copy. After the migration the file is
+  complete, so it is never extended again. Files that already contain
+  controller keys (`cd32*` / `joy_button*` / `joy3_button*`) or any other
+  active key are left untouched.
+- A held pad button is ignored while the shop help or the exit
+  confirmation dialog is open, and `SPECIAL_SELECT` no longer confirms a
+  shop choice.
+
+### Testing / status
+- The previous build was tested on real Amiga hardware by PPA user Solo
+  Kazuki, who reported in-game CD32 / CD32-compatible gamepad use, the
+  joystick button handling (including button 3) and the CD32 shop controls
+  / boss energy scanner fix as working. That build still used the separate
+  `joy3 = ON` switch.
+- The simplified mode selection (a shared 1/2/3-button joystick path active
+  with `cd32 = OFF`, no `joy3` switch, no button-count setting or
+  autodetection) is new: the Amiga build and the `amiga.cfg` unit tests
+  pass (`bash tests/run_amiga_cfg_test.sh`), and real-hardware verification
+  of the new behaviour is still expected.
+- The legacy volumes-only migration is covered by the `amiga.cfg` unit tests
+  (`bash tests/run_amiga_cfg_test.sh`): the own volume values are kept, the
+  missing volumes get the defaults, comments/CRLF are preserved, a second
+  load does not duplicate a block, files with assignments or an unknown key
+  stay untouched, and a failed temp write/replace leaves the original intact.
+  Real-hardware verification is still expected.
+- The new CD32 default and the `CD32=ON|OFF` override are covered by the
+  same host-side `amiga.cfg` unit tests: `cd32_yellow` defaults to `CANCEL`
+  while an explicit `NONE` is kept, an override ON/OFF wins over the file
+  for the session, a bad override value keeps the previous selection, and
+  the override is never written to `amiga.cfg` (load/save/create). Stub- and
+  hardware-level behaviour (Workbench ToolType parsing, lowlevel.library
+  port mode, the potgo button-3 line) is not exercised by the host tests and
+  still requires real-hardware verification.
+- `cd32 = ON` uses `lowlevel.library` game controller mode and does not
+  implement the native Sega gamepad serial protocol.
+
 ## [0.9.9-rc.4] - 2026-09-22
 
 ### Added

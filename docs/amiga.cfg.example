@@ -1,0 +1,87 @@
+; Raptor: Call of the Shadows - Amiga port
+; Reference amiga.cfg (every value shown is the built-in default).
+;
+; Raptor creates amiga.cfg automatically on first run in the game directory
+; (the drawer that also holds MP3/ and WAVE/). This file is only a
+; reference/example - copy it to the game drawer as "amiga.cfg" if you want
+; to start from it.
+;
+; Format: "key = value" lines. A line starting with ';' or '#' is a
+; comment; blank lines are allowed; keys are case-insensitive; unknown
+; keys are ignored; whitespace around '=' is optional.
+;
+; Volumes are integers in the range 0..127 (127 = loudest). When the
+; in-game Options volumes are saved, this file is updated in place:
+; comments, unknown keys, manual edits, key order, spacing and line endings
+; are preserved and only the volume values are rewritten. Missing volume
+; keys are appended.
+;
+; A legacy amiga.cfg that holds only audio volume keys is migrated once at
+; load time: the missing volume keys and the JOYSTICK / 1-2-3 BUTTONS and
+; JOYSTICK / CD32 blocks below are appended with the built-in defaults,
+; keeping the original values, comments and line endings; the original is
+; kept as amiga.cfg.bakN. A file that already holds controller keys or any
+; other active key is never migrated automatically - copy the lines you want
+; from this reference file (or from the matching section in README_AMIGA.md).
+;
+; The CD32=ON|OFF startup parameter (CLI "-cd32=on" or icon ToolType
+; "CD32=ON") overrides the "cd32" key for the current session only; it is
+; never written back to this file. An amiga.cfg written by an older build
+; that contains an explicit "cd32_yellow = NONE" keeps that button disabled;
+; remove the line (or set it to CANCEL) to get the new default.
+
+; ==== AUDIO ====
+; Raptor Amiga volumes (0..127, 127 = loud)
+music_adlib = 127
+music_mhi   = 127
+music_wave  = 127
+sfx_volume  = 127
+
+; ==== JOYSTICK / 1-2-3 BUTTONS ====
+; Amiga DB9 joystick on the second physical port.
+; Active when cd32 = OFF. No separate enable setting is required.
+; Buttons: 1 = pin 6, 2 = pin 9, 3 = pin 5.
+; Action names (same set as the CD32 block below):
+;   FIRE           - primary guns + selected secondary weapon
+;   SPECIAL_SELECT - change (cycle) the secondary weapon
+;   MEGA_BOMB      - launch a mega bomb
+;   PAUSE          - pause the game
+;   CANCEL         - cancel / back out
+;   NONE           - button disabled
+; The deprecated keys joy3_button1 / joy3_button2 / joy3_button3 are still
+; accepted as aliases of joy_button1 / joy_button2 / joy_button3, so
+; assignments from earlier builds keep working; a valid joy_buttonN wins over
+; the joy3_buttonN alias for the same button. A leftover "joy3 = OFF" is
+; ignored and no longer disables anything. If the button-3 line cannot be
+; allocated, button 3 stays inactive, buttons 1/2 keep working and the
+; startup log notes the limited mode.
+joy_button1 = FIRE ; Button 1 (DB9 pin 6, fire line)
+joy_button2 = SPECIAL_SELECT ; Button 2 (DB9 pin 9)
+joy_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)
+
+; ==== JOYSTICK / CD32 ====
+; cd32 = OFF : shared joystick handling on port 1 (default)
+; cd32 = ON  : CD32 pad on port 1 (lowlevel.library game controller mode)
+; CD32=ON|OFF (CLI/ToolType) overrides this session only; NOJOY wins.
+; Button assignments, one value per physical pad button:
+;   FIRE           - primary guns + selected secondary weapon
+;   SPECIAL_SELECT - change (cycle) the secondary weapon
+;   MEGA_BOMB      - launch a mega bomb
+;   PAUSE          - pause the game
+;   CANCEL         - cancel / back out (default: yellow button)
+;   NONE           - button disabled
+; CANCEL equals the ESC key: in the shop it returns to the hangar, in the
+; hangar it acts as the physical ESC key, and in game it asks
+; "Abort Mission ?". It is assigned to the yellow button by default; set
+; cd32_yellow = NONE to disable that button. The CD32 pad is selected with
+; cd32 = ON below or, for one launch only, with the CD32=ON startup
+; parameter (CLI -cd32=on / icon ToolType CD32=ON), which is never written
+; back to this file.
+cd32 = OFF
+cd32_red     = FIRE ; Red button
+cd32_blue    = SPECIAL_SELECT ; Blue button
+cd32_green   = MEGA_BOMB ; Green button
+cd32_yellow  = CANCEL ; Yellow button
+cd32_reverse = NONE ; Reverse button (left shoulder)
+cd32_forward = NONE ; Forward button (right shoulder)
+cd32_play    = PAUSE ; Play button (triangle)

@@ -654,6 +654,48 @@ RAP_ParseMouse(
 }
 
 /*
+ * RAP_ParseCd32() - handles the CD32=<on|off> keyword from the CLI
+ * ("-cd32=on") and Workbench icon ToolTypes ("CD32=ON"). ON selects the
+ * CD32 pad on gameport 1, OFF the shared 1/2/3-button joystick path. The
+ * value overrides the amiga.cfg "cd32" setting for this session only and
+ * is never written back to the file. Values are recognized
+ * case-insensitively; an invalid value is reported and ignored, so it
+ * never clears an earlier valid selection and never enables the pad by
+ * accident. Returns 1 when the argument was recognized.
+ */
+static int
+RAP_ParseCd32(
+    const char *arg
+)
+{
+    const char *value;
+
+    if (RAP_StrCaseStartsWith(arg, "-cd32="))
+        value = arg + 6;
+    else if (RAP_StrCaseStartsWith(arg, "cd32="))
+        value = arg + 5;
+    else
+        return 0;
+
+    if (AmigaCfg_SetCd32Override(value))
+    {
+        printf("CD32=%s: selected for this session (amiga.cfg unchanged)\n",
+               value);
+        AmigaLog("[INPUT] CD32 parsed '%s' -> override=%d",
+                 value, amiga_cfg_cd32_override);
+    }
+    else
+    {
+        printf("Unknown CD32 '%s' - valid values: ON, OFF "
+               "(keeping previous selection)\n", value);
+        AmigaLog("[INPUT] CD32 parsed '%s' -> INVALID, keeping previous "
+                 "selection (override=%d)", value, amiga_cfg_cd32_override);
+    }
+
+    return 1;
+}
+
+/*
  * RAP_ParseWorkbenchToolTypes() - parses the icon ToolTypes when the
  * game is started from the Workbench. This is the ONLY way Workbench
  * parameters reach us: in a Workbench launch argc is 0 and argv is
@@ -746,6 +788,25 @@ RAP_ParseWorkbenchToolTypes(
             }
             buf[9 + i] = 0;
             RAP_ParseJoystick(buf);
+        }
+
+        /* CD32=ON|OFF - CD32 pad vs shared 1/2/3-button joystick path for
+         * this session (overrides amiga.cfg; never written back). See
+         * RAP_ParseCd32 above. */
+        s = FindToolType((CONST_STRPTR *)tt, "CD32");
+        if (s && *s)
+        {
+            char buf[64];
+            int i = 0;
+
+            strcpy(buf, "cd32=");
+            while (s[i] && i < (int)sizeof(buf) - 6)
+            {
+                buf[5 + i] = s[i];
+                i++;
+            }
+            buf[5 + i] = 0;
+            RAP_ParseCd32(buf);
         }
 
         /* MOUSE=ON|OFF - explicit mouse selection (wins over the legacy
@@ -1644,14 +1705,25 @@ Do_Game(
             b3_flag = 0;
         }
         
-        if (KBD_IsKey(SC_P) || JOY_IsKeyInGameStart(Start))                                                                  
+        if (KBD_IsKey(SC_P) || JOY_IsKeyInGameStart(Start)
+#ifdef __AMIGA__
+            || Amiga_CD32TakePauseEdge()
+#endif
+           )
         {
             while (IMS_IsAck())
             {
             }
             SWD_SetClearFlag(0);
             RAP_ClearSides();
+#ifdef __AMIGA__
+            /* A held PAUSE must not acknowledge the pause window. */
+            Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_MENU);
+#endif
             WIN_Pause();
+#ifdef __AMIGA__
+            Amiga_CD32SetContext(AMIGA_CD32_CONTEXT_GAME);
+#endif
             g_oldsuper = -1;
             g_oldshield = -1;
             RAP_ClearSides();
@@ -2155,6 +2227,13 @@ main(
          * =value always wins over the legacy NOMOUSE flag. See
          * RAP_ParseMouse() above. */
         else if (RAP_ParseMouse(argv[loop]))
+        {
+        }
+        /* -cd32=ON|OFF selects the CD32 pad or the shared 1/2/3-button
+         * joystick path explicitly for this session, overriding the
+         * amiga.cfg cd32 setting. The selection is never written back.
+         * See RAP_ParseCd32() above. */
+        else if (RAP_ParseCd32(argv[loop]))
         {
         }
         /* -gfx=AUTO|RTG|AGA selects the graphics path (RTG vs classic

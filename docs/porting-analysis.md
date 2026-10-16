@@ -111,14 +111,38 @@ game's normal `i_video.cpp` flow:
   in `SDL_PumpEvents` at most at ~50 Hz; the polled state is shared with
   `joyapi.cpp`/`input.cpp` through the single-instance globals owned by
   `amiga_stubs_impl.cpp`.
+- Optional CD32 gamepad support (`cd32 = ON`, default `cd32 = OFF`; also
+  selectable for one session with the `CD32=ON|OFF` CLI/ToolType parameter,
+  which overrides the file and is never written back) pins gameport 1 to
+  `SJA_TYPE_GAMECTLR`; each of the seven pad buttons gets one configurable
+  action (`cd32_red` .. `cd32_play`, one of FIRE / SPECIAL_SELECT /
+  MEGA_BOMB / PAUSE / CANCEL / NONE). The built-in defaults are
+  red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB, yellow = CANCEL,
+  reverse / forward = NONE, play = PAUSE. FIRE fires the primary weapon
+  plus the selected secondary weapon, SPECIAL_SELECT cycles the secondary
+  weapon, CANCEL is the ESC key (shop -> hangar, hangar -> physical ESC,
+  in game -> "Abort Mission ?"), and the shop has its own input context
+  where SPECIAL_SELECT toggles BUY/SELL.
+- Shared Amiga 1/2/3-button joystick handling is the default classic path:
+  with `cd32 = OFF` gameport 1 stays in `SJA_TYPE_JOYSTK` and reads the
+  third button from the second gameport's pin 5 through `potgo.resource`
+  (`AllocPotBits` / `WritePotgo`), falling back to a two-button limited
+  mode when the line cannot be allocated. There is no enable key and no
+  button-count detection. The keys `joy_button1/2/3` configure the three
+  actions; the deprecated `joy3_button1/2/3` are still accepted as aliases
+  (a valid `joy_buttonN` wins) and a leftover `joy3 = OFF` is ignored. A
+  failed `cd32 = ON` game controller request falls back to this shared path.
 - `MOUSE=ON|OFF` / `NOMOUSE` and `JOYSTICK=ON|OFF` / `NOJOY` parameters
   disable per-device processing (performance/troubleshooting aids); an
   explicit `KEYWORD=value` wins over the legacy bare flag.
 - The middle mouse button is ignored by design (phantom-button filtering on
-  some machines, e.g. PiStorm/Emu68); special-weapon cycling is on SPACE.
-- Keyboard and mouse are exercised on real hardware and emulator; joystick
-  behavior beyond the standard DB9/CD32 polling code: **requires
-  validation** on the specific device set used by players.
+  some machines, e.g. PiStorm/Emu68); changing the secondary weapon is on
+  Left ALT.
+- In-game CD32 / CD32-compatible gamepad use and the joystick button
+  handling (including button 3) are reported working on real Amiga
+  hardware on the previous build; the simplified mode selection (shared
+  1/2/3-button joystick, no `joy3` switch) **requires validation** on the
+  specific device set used by players.
 
 ### 1.5 Audio and music
 
@@ -147,8 +171,17 @@ game's normal `i_video.cpp` flow:
   is classified by its library path (case-insensitive substring match,
   never `MHIQ_DECODER_NAME`) and reported in the startup log.
 - `NOSOUND` / `NOMUSIC` parameters; persistent volumes (music_adlib,
-  music_mhi, music_wave, sfx) stored in `amiga.cfg`
-  (`src/amiga/amiga_cfg.cpp/h`).
+  music_mhi, music_wave, sfx) and the optional CD32 settings (cd32 and
+  cd32_red .. cd32_play) stored in `amiga.cfg`
+  (`src/amiga/amiga_cfg.cpp/h`). The file is loaded unconditionally at
+  startup, also with NOJOY / JOYSTICK=OFF (only the lowlevel/port/potgo
+  setup is gated), and the `CD32=ON|OFF` session override is resolved right
+  after the load without touching the stored value. Volume saves update the
+  existing file in
+  place, preserving unknown keys, comments and CD32 assignments. A legacy
+  file that holds only volume keys is migrated once at load time: the
+  missing volume keys and the JOYSTICK blocks are appended (original kept as
+  amiga.cfg.bakN); a file with any other active key is left untouched.
 - AHI sound effects and AdLib music were tested on real hardware (0.9.0);
   CAMD and MHI paths are implemented and documented but depend on external
   MIDI/MHI hardware: **requires validation** on those setups.
@@ -193,7 +226,7 @@ game's normal `i_video.cpp` flow:
 | Video CGX fallback | Implemented | Requires validation |
 | Video AGA + C2P | Implemented (C2P bit-exact verified host-side) | Requires validation |
 | Keyboard / mouse | Implemented | Tested |
-| Joystick / CD32 pad | Implemented | Requires validation across devices |
+| Joystick / CD32 pad | Implemented (configurable `cd32`) | Joystick tested; CD32 pad real-hardware validation pending |
 | AHI SFX + AdLib/dbopl music | Implemented | Tested |
 | CAMD MIDI | Implemented | Requires validation (needs MIDI driver/synth) |
 | MHI MP3 | Implemented | Prisma MegaMix tested on real hardware; other driver families (Amiblaster, ArmedWarp, etc.) require validation |
@@ -242,7 +275,8 @@ src/amiga/
 │                          # timer, byte order); active with USE_SDL_STUBS
 ├── amiga_stubs_impl.cpp   # Single TU that owns all shared stub globals
 │                          # (AMIGA_STUBS_OWNER pattern)
-├── amiga_cfg.cpp/.h       # Persistent audio volumes in amiga.cfg
+├── amiga_cfg.cpp/.h       # Persistent settings in amiga.cfg (audio volumes
+│                          # + optional CD32 pad configuration)
 ├── SDL.h                  # Redirect -> amiga_sdl_stubs.h
 ├── SDL_endian.h           # Redirect -> amiga_sdl_stubs.h
 ├── SDL_filesystem.h       # Redirect header (no filesystem stubs needed)
