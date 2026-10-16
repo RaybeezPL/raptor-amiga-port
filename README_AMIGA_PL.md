@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Wersja: 0.9.9-rc.4 — wersja kandydująca do wydania.
+Wersja: 0.9.9-rc.5 — wersja kandydująca do wydania.
 
 =====================================================
 
@@ -1031,6 +1031,34 @@ znajduje się w pliku docs/amiga.cfg.example w repozytorium źródeł):
    cd32_play    = PAUSE ; Play button (triangle)
 
 
+Aktualizacja z 0.9.9-rc.4 lub starszej
+--------------------------------------
+
+- Twój własny amiga.cfg zostaje zachowany: plik jest wczytywany i
+  aktualizowany w miejscu, więc komentarze, nieznane klucze i ręczne
+  zmiany przetrwają. Jeśli pliku brakuje, przy pierwszym uruchomieniu
+  powstaje aktualny, kompletny szablon.
+- Jawne cd32_yellow = NONE zapisane przez starszy build pozostawia ten
+  przycisk wyłączony. Usuń ten wiersz (albo ustaw CANCEL), aby uzyskać
+  nową domyślną wartość dla żółtego przycisku.
+- cd32 zachowuje zapisaną wartość, a domyślna wartość to nadal OFF. Pad
+  CD32 jest używany tylko wtedy, gdy plik mówi cd32 = ON, albo na czas
+  jednego uruchomienia, gdy podano parametr uruchomienia CD32=ON (CLI
+  -cd32=on; ToolType ikony CD32=ON); ten parametr nie zmienia zapisanej
+  preferencji.
+- Plik zawierający wyłącznie klucze głośności jest jednorazowo
+  uzupełniany przy wczytaniu o bieżące bloki szablonu, z zachowaniem
+  oryginalnych wartości, komentarzy i końców wierszy; oryginał zostaje
+  zachowany jako amiga.cfg.bakN. Plik z kluczami kontrolera (cd32* /
+  joy_button* / joy3_button*) albo innym aktywnym kluczem pozostaje
+  nienaruszony i korzysta z wbudowanych domyślnych przypisań przycisków,
+  dopóki nie dodasz przypisań ręcznie.
+- Osobny przełącznik joy3 = ON zniknął: wspólna ścieżka joysticka
+  1/2/3-przyciskowego jest aktywna zawsze przy cd32 = OFF, pozostawione
+  joy3 = OFF jest ignorowane, a stare klucze joy3_button1..3 są nadal
+  czytane jako aliasy joy_button1..3.
+
+
 Znane ograniczenia
 ------------------
 
@@ -1118,15 +1146,18 @@ kompatybilnym z CD32 oraz obsługa przycisków joysticka (łącznie z
 przyciskiem 3) zostały zgłoszone jako działające na prawdziwym sprzęcie
 Amiga przez testera; tester potwierdził także dedykowaną obsługę sklepu dla
 CD32 (SPECIAL_SELECT przełącza BUY/SELL) oraz poprawkę endianowości
-procentu maksymalnej energii bossa w skanerze. To zgłoszenie dotyczy
-poprzedniego builda, który wciąż miał osobny przełącznik joy3 = ON.
+procentu maksymalnej energii bossa w skanerze. Tester zgłosił również, że
+bieżące zachowanie działa po ostatnich poprawkach sterowania: domyślne
+CANCEL na żółtym przycisku, wspólna ścieżka joysticka 1/2/3-przyciskowego
+aktywna przy cd32 = OFF (bez przełącznika joy3 i bez ustawienia liczby
+przycisków ani autodetekcji) oraz parametr uruchomienia CD32=ON|OFF.
 
-Uproszczenie wyboru trybu (wspólna ścieżka joysticka 1/2/3-przyciskowego
-aktywna przy cd32 = OFF, bez przełącznika joy3 i bez ustawienia liczby
-przycisków ani autodetekcji) jest nowe w bieżącym drzewie źródeł: build
-przechodzi, a testy jednostkowe amiga.cfg przechodzą; weryfikacja na
-prawdziwym sprzęcie jest wciąż oczekiwana. Udany build sam w sobie nie
-potwierdza nowego zachowania joysticka.
+To zgłoszenie dotyczy wyłącznie testowanej konfiguracji; nie jest
+stwierdzeniem o wszystkich kombinacjach CPU, grafiki i kontrolerów. Testy
+jednostkowe amiga.cfg (bash tests/run_amiga_cfg_test.sh) obejmują obsługę
+pliku konfiguracji na hoście; parsowanie ToolType'ów Workbencha oraz tryb
+game controller lowlevel.library są sprawdzane na sprzęcie, a nie przez
+testy hostowe.
 
 cd32 = ON korzysta z trybu game controller lowlevel.library i nie
 implementuje natywnego protokołu szeregowego pada Sega.
@@ -1136,7 +1167,7 @@ Plany / pozostałe prace
 -----------------------
 
 - Dostrajanie i szlifowanie wydajności na prawdziwym sprzęcie 68k.
-- Wersja 0.9.9-rc.4 jest wersją kandydującą do wydania.
+- Wersja 0.9.9-rc.5 jest wersją kandydującą do wydania.
 
 
 Autorzy i kontakt
@@ -1216,8 +1247,8 @@ Zgodność z GNU License / informacja o kodzie źródłowym:
 
 Pełny odpowiadający kod źródłowy dla każdego binarnego wydania jest
 dostępny w tym repozytorium oraz pod odpowiadającym mu tagiem.
-Dla wersji 0.9.9-rc.1 zobacz:
-https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.1
+Dla wersji 0.9.9-rc.5 zobacz:
+https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.5
 
 Kod źródłowy jest dostępny już teraz w tym repozytorium. Finalne
 archiwum Aminet będzie również zawierało właściwe informacje o

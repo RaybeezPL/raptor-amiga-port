@@ -1,6 +1,6 @@
 Raptor: Call of the Shadows - Amiga Port (68030/68060 & EC/LC, RTG/AGA, AHI/MHI/CAMD)
 
-Version: 0.9.9-rc.4 - release candidate.
+Version: 0.9.9-rc.5 - release candidate.
 
 =====================================================
 
@@ -1010,6 +1010,31 @@ provided as docs/amiga.cfg.example in the source repository):
    cd32_play    = PAUSE ; Play button (triangle)
 
 
+Updating from 0.9.9-rc.4 or earlier
+-----------------------------------
+
+- Your own amiga.cfg is kept: it is loaded and updated in place, so
+  comments, unknown keys and manual edits survive. If the file is
+  missing, the current complete template is created on first run.
+- An explicit cd32_yellow = NONE written by an older build keeps that
+  button disabled. Remove the line (or set it to CANCEL) to get the new
+  yellow-button default.
+- cd32 keeps its saved value and the default is still OFF. The CD32 pad is
+  used only when the file says cd32 = ON, or for one launch when the
+  CD32=ON startup parameter (CLI -cd32=on; icon ToolType CD32=ON) is
+  given; that parameter never changes the saved preference.
+- A file that holds only the audio volume keys is completed once at load
+  time with the current template blocks, keeping the original values,
+  comments and line endings; the original is kept as amiga.cfg.bakN. A
+  file with controller keys (cd32* / joy_button* / joy3_button*) or any
+  other active key is left untouched and simply keeps the built-in button
+  defaults until assignments are added by hand.
+- The separate joy3 = ON switch is gone: the shared 1/2/3-button joystick
+  path is active whenever cd32 = OFF, a leftover joy3 = OFF is ignored and
+  the old joy3_button1..3 keys are still read as aliases of
+  joy_button1..3.
+
+
 Known Limitations
 -----------------
 
@@ -1096,15 +1121,17 @@ CD32-compatible gamepad and the joystick button handling (including
 button 3) were reported working on real Amiga hardware by a tester, and
 the tester confirmed the CD32 shop controls (SPECIAL_SELECT toggling
 BUY/SELL) and the big-endian fix for the boss maximum-energy percentage
-in the scanner. That report covers the previous build, which still had
-the separate joy3 = ON switch.
+in the scanner. The tester also reported the current behaviour working
+after the final control fixes: the CANCEL default on the yellow button,
+the shared 1/2/3-button joystick path active with cd32 = OFF (no joy3
+switch, no button-count setting or autodetection) and the CD32=ON|OFF
+startup parameter.
 
-The simplified mode selection (a shared 1/2/3-button joystick path active
-with cd32 = OFF, with no joy3 switch and no button-count setting or
-autodetection) is new in the current source tree: the build passes and
-the amiga.cfg unit tests pass, and real-hardware verification is still
-expected. A successful build does not by itself confirm the new joystick
-behaviour.
+That report covers the tested setup only; it is not a statement about
+every CPU, graphics or controller combination. The amiga.cfg unit tests
+(bash tests/run_amiga_cfg_test.sh) cover the configuration-file handling
+on the host; the Workbench ToolType parsing and the lowlevel.library game
+controller mode are exercised on hardware, not by the host tests.
 
 cd32 = ON uses lowlevel.library game controller mode and does not
 implement the native Sega gamepad serial protocol.
@@ -1114,7 +1141,7 @@ Roadmap / Remaining Work
 ------------------------
 
 - Fine-tuning and performance polish on real 68k hardware.
-- Version 0.9.9-rc.4 is a release candidate.
+- Version 0.9.9-rc.5 is a release candidate.
 
 
 Credits & Contact
@@ -1193,8 +1220,8 @@ GNU License Compliance / Source Code Notice:
 
 Complete corresponding source code for each binary release is
 available from this repository and its matching release tag. For
-0.9.9-rc.1, see:
-https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.1
+0.9.9-rc.5, see:
+https://github.com/RaybeezPL/raptor-amiga-port/tree/0.9.9-rc.5
 
 Source code is available now in this repository. The final Aminet
 archive will also include the applicable source and license

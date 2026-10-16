@@ -2,7 +2,7 @@ Short:        Raptor: Call of the Shadows
 Author:       Marcin Bednarczyk "Raybeez"
 Uploader: cichy@cichy.com.pl
 Type:         game/shoot
-Version:      0.9.9-rc.4
+Version:      0.9.9-rc.5
 Requires:     ahi.device, RTG (Picasso96 or CyberGraphX) or AGA
 Architecture: m68k-amigaos >= 3.1
 Distribution: Aminet
@@ -13,18 +13,45 @@ scrolling shooter. This port is based on the open-source reverse-engineered
 codebase by skynettx/raptor and targets 68030/68060-class Amiga systems
 with RTG graphics (Picasso96 / CyberGraphX) or native AGA.
 
-This release replaces 0.9.9-rc.3. The archive is distributed as
+This release replaces 0.9.9-rc.4. The archive is distributed as
 raptor.lha so future Aminet updates can replace the same archive name.
 
-What's new in 0.9.9-rc.4:
+What's new in 0.9.9-rc.5:
 
-- Added MP3PRELOAD=ON|OFF for MUSIC=MHI. OFF is the default generic
-  streaming path; ON loads the complete selected MP3 into memory and
-  plays it from resident data with no MP3 file disk I/O during playback.
-- Preload works with any selected MHI driver. WARP is no longer routed
-  to preload automatically.
-- Reduced the generic MHI stop/status and buffer-reclaim maximum waits
-  to 2 ticks each; no other MHI timing loops changed.
+- Optional CD32 gamepad support on gameport 1, disabled by default
+  (cd32 = OFF in amiga.cfg). Each of the seven pad buttons takes one
+  configurable action (cd32_red .. cd32_play): FIRE (primary guns plus
+  the selected secondary weapon), SPECIAL_SELECT (change/cycle the
+  secondary weapon), MEGA_BOMB, PAUSE, CANCEL or NONE. Defaults:
+  red = FIRE, blue = SPECIAL_SELECT, green = MEGA_BOMB, yellow = CANCEL,
+  play = PAUSE, reverse/forward = NONE.
+- The yellow button now defaults to CANCEL (the ESC key: the shop returns
+  to the hangar, the hangar behaves like the physical ESC key, in game it
+  asks "Abort Mission ?"). An amiga.cfg written by an older build that
+  contains an explicit "cd32_yellow = NONE" keeps that button disabled;
+  remove the line (or set it to CANCEL) to get the new default.
+- New CD32=ON|OFF startup parameter (CLI -cd32=on; icon ToolType CD32=ON).
+  It selects the CD32 pad or the joystick path for that launch only,
+  overriding amiga.cfg, and is never written back.
+- Shared Amiga 1/2/3-button joystick support, active whenever cd32 = OFF
+  (the default, with no separate enable setting): joy_button1/2/3 (DB9
+  pins 6/9/5) each take one action name and button 3 is read through
+  potgo.resource. The deprecated joy3_button1..3 keys are still read as
+  aliases and a leftover joy3 = OFF is ignored.
+- amiga.cfg is now updated in place when the in-game Options volumes are
+  saved, so comments, unknown keys and the CD32 / joystick assignments are
+  preserved. A missing file is created as a complete template, and a
+  legacy file that holds only the audio volume keys is completed once at
+  load time (the original is kept as amiga.cfg.bakN).
+- Boss energy scanner percentage fixed on big-endian Amiga (the maximum
+  health field is converted with LE_LONG).
+
+Upgrading from 0.9.9-rc.4 or earlier: your own amiga.cfg is kept and
+updated in place; if it does not exist, the current template is created on
+first run. An explicit cd32_yellow = NONE from an older build must be
+removed (or changed to CANCEL) to get the new default. The default cd32
+value is still OFF, and the CD32=ON ToolType/CLI parameter enables the pad
+for that session only without changing the saved preference.
 
 The game renders in a fixed 320x200, 8-bit paletted mode on a dedicated
 screen. Four native m68k binaries are provided:
@@ -97,7 +124,7 @@ Persistent audio volumes are stored in amiga.cfg in the game directory;
 saving updates the file in place and preserves manual edits, comments and
 CD32 / joystick button assignments.
 
-This is release candidate 0.9.9-rc.4. MP3PRELOAD=ON was confirmed on
+This is release candidate 0.9.9-rc.5. MP3PRELOAD=ON was confirmed on
 real WARP hardware. On the tested Amiga IDE + WARP setup, preload
 eliminated the track-change clicks produced by normal streaming.
 MP3PRELOAD=OFF with the 2/2 wait limits removed the previously observed
@@ -108,7 +135,10 @@ CyberVision 64/3D, A1200 with PiStorm/Emu68 and A4000 with Picasso IV, as
 well as in WinUAE. MHI MP3 playback was verified on an A4000 with ZZ9000
 and ZZ9000AX using the MHI driver for the ZZ9000AX card. MUSIC=WAVE was
 verified on an A1200 with Blizzard 1260 at 56 MHz, Mediator, Voodoo3 and
-AmigaOS 3.2.3.
+AmigaOS 3.2.3. The CD32 / joystick control changes - including the
+yellow-button CANCEL default and the shared 1/2/3-button joystick path -
+were reported working on real Amiga hardware by a tester after the final
+fixes; that report covers the tested setup only.
 
 This project is an AI collaboration: development and documentation were
 assisted by AI tools, with final decisions, testing and integration done

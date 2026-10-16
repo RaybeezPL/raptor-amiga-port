@@ -42,7 +42,7 @@ The goals of this port are:
 
 ## Current status
 
-Current version: **0.9.9-rc.4** — release candidate.
+Current version: **0.9.9-rc.5** — release candidate.
 
 Working:
 

@@ -2,7 +2,7 @@
 
 > **Status notice.** This document originated in July 2026 as a pre-porting
 > analysis for an AmigaOS 3.x / m68k port of Raptor. The Amiga build path is
-> now **implemented** (port version 0.9.9-rc.2 at the time of writing). The
+> now **implemented** (port version 0.9.9-rc.5 at the time of writing). The
 > text has been revised to separate current facts from remaining work and
 > from historical design notes. For actual build behavior, the following are
 > authoritative and take precedence over anything written here:
@@ -140,9 +140,12 @@ game's normal `i_video.cpp` flow:
   Left ALT.
 - In-game CD32 / CD32-compatible gamepad use and the joystick button
   handling (including button 3) are reported working on real Amiga
-  hardware on the previous build; the simplified mode selection (shared
-  1/2/3-button joystick, no `joy3` switch) **requires validation** on the
-  specific device set used by players.
+  hardware; the tester also reported the current simplified mode selection
+  (shared 1/2/3-button joystick path active with `cd32 = OFF`, no `joy3`
+  switch, no button-count setting or autodetection, `CD32=ON|OFF` startup
+  parameter) working after the final control fixes. That report covers the
+  tested setup only - it is not a statement about every CPU, graphics or
+  controller combination.
 
 ### 1.5 Audio and music
 
@@ -226,7 +229,7 @@ game's normal `i_video.cpp` flow:
 | Video CGX fallback | Implemented | Requires validation |
 | Video AGA + C2P | Implemented (C2P bit-exact verified host-side) | Requires validation |
 | Keyboard / mouse | Implemented | Tested |
-| Joystick / CD32 pad | Implemented (configurable `cd32`) | Joystick tested; CD32 pad real-hardware validation pending |
+| Joystick / CD32 pad | Implemented (configurable `cd32`, `CD32=ON|OFF`) | Reported working on real hardware by a tester (tested setup only) |
 | AHI SFX + AdLib/dbopl music | Implemented | Tested |
 | CAMD MIDI | Implemented | Requires validation (needs MIDI driver/synth) |
 | MHI MP3 | Implemented | Prisma MegaMix tested on real hardware; other driver families (Amiblaster, ArmedWarp, etc.) require validation |

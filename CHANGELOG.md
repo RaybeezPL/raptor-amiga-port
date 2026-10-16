@@ -2,7 +2,7 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
-## [Unreleased]
+## [0.9.9-rc.5] - 2026-10-16
 
 ### Added
 - Optional CD32 gamepad support, disabled by default (`cd32 = OFF` in
@@ -102,30 +102,31 @@ All notable changes to this Amiga 68k port of Raptor are documented here.
   shop choice.
 
 ### Testing / status
-- The previous build was tested on real Amiga hardware by PPA user Solo
-  Kazuki, who reported in-game CD32 / CD32-compatible gamepad use, the
-  joystick button handling (including button 3) and the CD32 shop controls
-  / boss energy scanner fix as working. That build still used the separate
-  `joy3 = ON` switch.
-- The simplified mode selection (a shared 1/2/3-button joystick path active
-  with `cd32 = OFF`, no `joy3` switch, no button-count setting or
-  autodetection) is new: the Amiga build and the `amiga.cfg` unit tests
-  pass (`bash tests/run_amiga_cfg_test.sh`), and real-hardware verification
-  of the new behaviour is still expected.
+- Tested on real Amiga hardware by PPA user Solo Kazuki, who reported
+  in-game CD32 / CD32-compatible gamepad use, the joystick button handling
+  (including button 3) and the CD32 shop controls / boss energy scanner fix
+  as working, and who reported the current behaviour working after the
+  final control fixes too: the `CANCEL` default on the yellow button, the
+  shared 1/2/3-button joystick path active with `cd32 = OFF` (no `joy3`
+  switch, no button-count setting or autodetection) and the `CD32=ON|OFF`
+  startup parameter.
+- That report covers the tested setup; it is not a statement about every
+  CPU, graphics or controller combination.
 - The legacy volumes-only migration is covered by the `amiga.cfg` unit tests
   (`bash tests/run_amiga_cfg_test.sh`): the own volume values are kept, the
   missing volumes get the defaults, comments/CRLF are preserved, a second
   load does not duplicate a block, files with assignments or an unknown key
   stay untouched, and a failed temp write/replace leaves the original intact.
-  Real-hardware verification is still expected.
+  The migration is a plain file operation on `amiga.cfg` and does not depend
+  on the CPU, graphics or controller hardware.
 - The new CD32 default and the `CD32=ON|OFF` override are covered by the
   same host-side `amiga.cfg` unit tests: `cd32_yellow` defaults to `CANCEL`
   while an explicit `NONE` is kept, an override ON/OFF wins over the file
   for the session, a bad override value keeps the previous selection, and
   the override is never written to `amiga.cfg` (load/save/create). Stub- and
   hardware-level behaviour (Workbench ToolType parsing, lowlevel.library
-  port mode, the potgo button-3 line) is not exercised by the host tests and
-  still requires real-hardware verification.
+  port mode, the potgo button-3 line) is not exercised by the host tests;
+  the tester reported it working on real Amiga hardware (tested setup only).
 - `cd32 = ON` uses `lowlevel.library` game controller mode and does not
   implement the native Sega gamepad serial protocol.
 

@@ -2122,7 +2122,7 @@ main(
 
     printf("--------------------------------------------------------\n");
     printf("           R A P T O R   A M I G A   P O R T\n");
-    printf("                    0.9.9-rc.4\n\n");
+    printf("                    0.9.9-rc.5\n\n");
 
     printf(" Port Author: Raybeez | AI Collaboration\n");
     printf(" Contact: cichy@cichy.com.pl\n");
