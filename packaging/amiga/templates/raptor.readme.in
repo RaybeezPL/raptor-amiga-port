@@ -1,0 +1,116 @@
+Short:        Raptor: Call of the Shadows
+Author:       Marcin Bednarczyk "Raybeez"
+Uploader: {{UPLOADER}}
+Type:         game/shoot
+Version:      {{VERSION}}
+Requires:     ahi.device, RTG (Picasso96 or CyberGraphX) or AGA
+Architecture: m68k-amigaos >= 3.1
+Distribution: Aminet
+Replaces:     game/shoot/raptor.lha
+
+AmigaOS 3.x port of Raptor: Call of the Shadows, a classic 2D vertical
+scrolling shooter. This port is based on the open-source reverse-engineered
+codebase by skynettx/raptor and targets 68030/68060-class Amiga systems
+with RTG graphics (Picasso96 / CyberGraphX) or native AGA.
+
+{{SUMMARY}}
+
+What's new in {{VERSION}}:
+
+{{WHATS_NEW}}
+
+{{UPGRADE_NOTES}}
+
+Workbench icons in this archive:
+
+All four program icons (raptor.info, raptor_nofpu.info, raptor_030.info
+and raptor_030_fpu.info) contain two further inactive ToolTypes next to
+the existing launch options:
+
+    (CD32 options: ON | OFF)
+    (CD32=OFF)
+
+Both are enclosed in parentheses, so the game ignores them and the cd32
+value from amiga.cfg is used (OFF by default). They document the option
+and do not change saved settings.
+
+To enable a CD32 pad from an icon:
+
+1. Open the icon information window (Icons / Information...).
+2. Replace "(CD32=OFF)" with the active line CD32=ON, without
+   parentheses. Keep exactly one CD32 entry - do not add a second one.
+3. Joystick input must be enabled. The shipped icons already contain
+   JOYSTICK=ON. If an icon contains JOYSTICK=OFF, replace it with
+   JOYSTICK=ON, and remove an active NOJOY entry or put it in
+   parentheses: (NOJOY).
+4. Save the icon and start the game again.
+
+The CD32 ToolType overrides amiga.cfg for that launch only and is never
+written back. CD32=OFF selects the ordinary 1/2/3-button joystick path
+and does not disable controller input.
+
+The game renders in a fixed 320x200, 8-bit paletted mode on a dedicated
+screen. Four native m68k binaries are provided:
+
+- raptor         : 68060 with FPU (recommended)
+- raptor_nofpu   : 68060/68EC060/68LC060 soft-float
+- raptor_030_fpu : 68030 with external 68881/68882 FPU
+- raptor_030     : 68030 soft-float
+
+Sound effects are played through AHI (ahi.device) at the native 11025 Hz
+16-bit stereo rate. Music can be played via several backends:
+
+- ADLIB  : lightweight OPL3 emulation (mixed into the AHI stream)
+- CAMD   : General MIDI via camd.library (external synth / software synth)
+- MHI    : MP3 music via hardware decoder
+- WAVE   : pre-decoded WAV files mixed into the AHI stream
+- OFF    : no music (the default)
+
+Select from CLI with -music=mhi or from a Workbench icon with the MUSIC=MHI
+ToolType. For MHI, MP3 files are read from MP3/. Raptor first tries its
+explicit driver candidates while preserving the optional MHIDRIVER=<driver>
+override and fallback scan of LIBS:MHI/#?.library.
+
+MP3PRELOAD=OFF is the default and keeps the original MHI path, streaming
+the MP3 during playback. MP3PRELOAD=ON loads the complete MP3 into memory
+before playback; playback then uses resident MP3 data with no MP3 disk
+I/O. This option only affects MHI.
+
+Joystick input is enabled by default on port 1 (DB9, the second physical
+Amiga port) and requires lowlevel.library v40+. The optional CD32 gamepad
+can be enabled with "cd32 = ON" in amiga.cfg or with the CD32=ON startup
+parameter (CLI -cd32=on or icon ToolType CD32=ON), which overrides the
+file for that launch only and is never written back (disabled by default).
+Each of the seven pad buttons has its own assignment (FIRE,
+SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL or NONE); the yellow button
+defaults to CANCEL and the play button is PAUSE. In the shop
+SPECIAL_SELECT toggles BUY/SELL, FIRE confirms and CANCEL backs out.
+Workbench icon ToolTypes are supported (GFX, VIDEO, MUSIC, MOUSE, JOYSTICK,
+CD32, etc.). Persistent audio volumes are stored in amiga.cfg in the game
+directory; saving updates the file in place and preserves manual edits,
+comments and CD32 / joystick button assignments.
+
+Testing status:
+{{TESTING_STATUS}}
+
+This project is an AI collaboration: development and documentation were
+assisted by AI tools, with final decisions, testing and integration done
+by the author.
+
+Original game data files (full v1.2) are required and not included.
+See Raptor/ReadMe (English) and Raptor/ReadMePL.txt (Polish) inside the
+archive for detailed setup, controls, parameters and troubleshooting.
+
+Project homepage and sources:
+https://github.com/RaybeezPL/raptor-amiga-port
+
+Upstream project (reverse-engineered Raptor engine):
+https://github.com/skynettx/raptor
+
+License (GPL v2):
+https://github.com/RaybeezPL/raptor-amiga-port/blob/main/LICENSE
+
+Special thanks to PPA user Solo Kazuki
+https://www.ppa.pl/uzytkownicy/490
+for testing on real Amiga hardware and suggesting support for CD32 and
+compatible gamepads, as well as three-button Amiga joysticks.

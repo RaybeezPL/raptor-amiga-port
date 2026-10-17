@@ -1,0 +1,14 @@
+{
+  "_comment": [
+    "Per-release input for tools/package_amiga_release.py.",
+    "Copy this file outside the repository, fill it in and pass it with --release-info.",
+    "Only 'uploader' is mandatory. 'whats_new_md' defaults to the CHANGELOG",
+    "section of the packaged version. Do not claim tests that were not done."
+  ],
+  "uploader": "your-aminet-uploader@example.com",
+  "previous_version": "0.9.9-rc.5",
+  "summary": "This release replaces 0.9.9-rc.5. The archive is distributed as raptor.lha so future Aminet updates can replace the same archive name.",
+  "whats_new_md": "### Changed\n\n- Describe the user-visible changes of this release.\n- Keep the text factual; it is rendered into both the Aminet readme and the GitHub release notes.",
+  "upgrade_notes_md": "Describe required manual steps when upgrading from the previous release. Leave empty when there are none.",
+  "testing_status_md": "State exactly what was tested, on which hardware, and by whom. Do not claim tests that were not performed."
+}

@@ -1,0 +1,275 @@
+{
+  "schema": 1,
+  "source": {
+    "release": "0.9.9-rc.5",
+    "tag": "0.9.9-rc.5",
+    "commit": "4ea64f49d863d6f04a5765d36d442359f57a9a66",
+    "archive": "releases/0.9.9-rc.5/raptor.lha",
+    "archive_sha256": "204f6a1f39a76dd53bc014e766e4c2b14f1f671b2053275f5eb479607ed569f3",
+    "note": "Icons are copied byte-for-byte from the verified 0.9.9-rc.5 Aminet archive. Templates use a neutral game/ directory that maps to Raptor/ inside the release archive; this keeps Raptor.info and Raptor/raptor.info distinct and avoids the raptor pattern in .gitignore on case-insensitive filesystems."
+  },
+  "verification": {
+    "tool": "amigainfo",
+    "tool_version": "0.6.1",
+    "tool_source": "PyPI wheel amigainfo-0.6.1-py3-none-any.whl (run from PYTHONPATH, no installation)",
+    "render_dependency": "Pillow 13.0.0",
+    "python": "3.14.4",
+    "date": "2026-10-17",
+    "what_was_checked": "Full structural parse: DiskObject header, Gadget, icon type, StackSize, DefaultTool, DrawerData, classic/NewIcon/ColorIcon/ARGB/PNG layers, complete ToolTypes table and both rendered icon states."
+  },
+  "icons": [
+    {
+      "file": "Raptor.info",
+      "archive_path": "Raptor.info",
+      "size": 1484,
+      "sha256": "f3d7a03864a452d0b38360e3a2ff05bc3f8b2129aad964c29f212ae6372cf587",
+      "type": "drawer",
+      "type_id": 2,
+      "version": 1,
+      "stack_size": 4096,
+      "default_tool": null,
+      "drawer_data": true,
+      "tooltypes": [],
+      "layers": [
+        "classic",
+        "coloricon"
+      ],
+      "renders": {
+        "normal": {
+          "size": [
+            46,
+            46
+          ],
+          "rgba_sha256": "21c39d94a46f7180b9ee7d32af395977bd4bec4decf0e5079003b4c50bc0a8d3"
+        },
+        "selected": {
+          "size": [
+            46,
+            46
+          ],
+          "rgba_sha256": "a7ce4882083ed9a8912faf8413b44e85f8c8b7bd42ef3147fb9e4bcab20398e4"
+        }
+      }
+    },
+    {
+      "file": "game/ReadMe.info",
+      "archive_path": "Raptor/ReadMe.info",
+      "size": 1392,
+      "sha256": "dd3054fc65c593e91fcc0ba942b3c10e452a76b503429a8c23c6241eed9eed33",
+      "type": "project",
+      "type_id": 4,
+      "version": 1,
+      "stack_size": 8192,
+      "default_tool": "MultiView",
+      "drawer_data": false,
+      "tooltypes": [],
+      "layers": [
+        "classic"
+      ],
+      "renders": {
+        "normal": {
+          "size": [
+            39,
+            35
+          ],
+          "rgba_sha256": "a2fa9081dd89e99200ac172a29ea92153b37f31a043a3555fd7499d8662adf16"
+        },
+        "selected": {
+          "size": [
+            39,
+            35
+          ],
+          "rgba_sha256": "0b2ecac0209511a517ea2c0a31c18bbcfc7c3be4dc424c0330347fb5cb95e2fb"
+        }
+      }
+    },
+    {
+      "file": "game/raptor.info",
+      "archive_path": "Raptor/raptor.info",
+      "size": 15108,
+      "sha256": "88585dbfa1cdeec7aecce17361f9db6e0b5cb15e34d5493be11ba4d9f0891812",
+      "type": "tool",
+      "type_id": 3,
+      "version": 1,
+      "stack_size": 65536,
+      "default_tool": null,
+      "drawer_data": false,
+      "tooltypes": [
+        "(NOSOUND)",
+        "(MUSIC options: OFF/ADLIB/MHI/WAVE/CAMD)",
+        "MUSIC=WAVE",
+        "(MP3PRELOAD=ON)",
+        "(AHIUNIT options: 0,1,2,3)",
+        "(AHIUNIT=0)",
+        "JOYSTICK=ON",
+        "MOUSE=OFF",
+        "(CD32 options: ON | OFF)",
+        "(CD32=OFF)",
+        "(GFX options: AUTO/RTG/AGA)",
+        "GFX=AUTO",
+        "VIDEO=AUTO"
+      ],
+      "layers": [
+        "classic",
+        "coloricon"
+      ],
+      "renders": {
+        "normal": {
+          "size": [
+            96,
+            96
+          ],
+          "rgba_sha256": "6a127ebce699ffef3b10f2c7abaf0c73fd94675b24ef50d1b842cc26e8db746a"
+        },
+        "selected": {
+          "size": [
+            96,
+            96
+          ],
+          "rgba_sha256": "6ac65be7c323a1b5e70e49a27294d962a6a88ea9bcc96871cc9991589b3326e7"
+        }
+      }
+    },
+    {
+      "file": "game/raptor_nofpu.info",
+      "archive_path": "Raptor/raptor_nofpu.info",
+      "size": 15102,
+      "sha256": "611cde034135603fe4fe6beab5b7565aee992afd0921e6523a411da4aa74c011",
+      "type": "tool",
+      "type_id": 3,
+      "version": 1,
+      "stack_size": 65536,
+      "default_tool": null,
+      "drawer_data": false,
+      "tooltypes": [
+        "(NOSOUND)",
+        "(MUSIC options: OFF/ADLIB/MHI/WAVE/CAMD)",
+        "MUSIC=WAVE",
+        "(MP3PRELOAD=ON)",
+        "(AHIUNIT options: 0,1,2,3)",
+        "(AHIUNIT=0)",
+        "JOYSTICK=ON",
+        "MOUSE=OFF",
+        "(CD32 options: ON | OFF)",
+        "(CD32=OFF)",
+        "(GFX options: AUTO/RTG/AGA)",
+        "GFX=AGA",
+        "VIDEO=NTSC"
+      ],
+      "layers": [
+        "classic",
+        "coloricon"
+      ],
+      "renders": {
+        "normal": {
+          "size": [
+            96,
+            96
+          ],
+          "rgba_sha256": "6a127ebce699ffef3b10f2c7abaf0c73fd94675b24ef50d1b842cc26e8db746a"
+        },
+        "selected": {
+          "size": [
+            96,
+            96
+          ],
+          "rgba_sha256": "6ac65be7c323a1b5e70e49a27294d962a6a88ea9bcc96871cc9991589b3326e7"
+        }
+      }
+    },
+    {
+      "file": "game/raptor_030.info",
+      "archive_path": "Raptor/raptor_030.info",
+      "size": 15101,
+      "sha256": "90aaede4e6b6dff237eff25f83e613df9aebe84970bd4d0ff51c89db642af132",
+      "type": "tool",
+      "type_id": 3,
+      "version": 1,
+      "stack_size": 65536,
+      "default_tool": null,
+      "drawer_data": false,
+      "tooltypes": [
+        "(NOSOUND)",
+        "(MUSIC options: OFF/ADLIB/MHI/WAVE/CAMD)",
+        "MUSIC=WAVE",
+        "(MP3PRELOAD=ON)",
+        "(AHIUNIT options: 0,1,2,3)",
+        "(AHIUNIT=0)",
+        "JOYSTICK=ON",
+        "MOUSE=OFF",
+        "(CD32 options: ON | OFF)",
+        "(CD32=OFF)",
+        "(GFX options: AUTO/RTG/AGA)",
+        "GFX=AGA",
+        "VIDEO=PAL"
+      ],
+      "layers": [
+        "classic",
+        "coloricon"
+      ],
+      "renders": {
+        "normal": {
+          "size": [
+            96,
+            96
+          ],
+          "rgba_sha256": "6a127ebce699ffef3b10f2c7abaf0c73fd94675b24ef50d1b842cc26e8db746a"
+        },
+        "selected": {
+          "size": [
+            96,
+            96
+          ],
+          "rgba_sha256": "6ac65be7c323a1b5e70e49a27294d962a6a88ea9bcc96871cc9991589b3326e7"
+        }
+      }
+    },
+    {
+      "file": "game/raptor_030_fpu.info",
+      "archive_path": "Raptor/raptor_030_fpu.info",
+      "size": 15101,
+      "sha256": "9ed3119d24c145aaf93e713bcec134801fa504cb608843b4cb0a915c7ddb8b4e",
+      "type": "tool",
+      "type_id": 3,
+      "version": 1,
+      "stack_size": 65536,
+      "default_tool": null,
+      "drawer_data": false,
+      "tooltypes": [
+        "(NOSOUND)",
+        "(MUSIC options: OFF/ADLIB/MHI/WAVE/CAMD)",
+        "MUSIC=WAVE",
+        "(MP3PRELOAD=ON)",
+        "(AHIUNIT options: 0,1,2,3)",
+        "(AHIUNIT=0)",
+        "JOYSTICK=ON",
+        "MOUSE=OFF",
+        "(CD32 options: ON | OFF)",
+        "(CD32=OFF)",
+        "(GFX options: AUTO/RTG/AGA)",
+        "GFX=AGA",
+        "VIDEO=PAL"
+      ],
+      "layers": [
+        "classic",
+        "coloricon"
+      ],
+      "renders": {
+        "normal": {
+          "size": [
+            96,
+            96
+          ],
+          "rgba_sha256": "6a127ebce699ffef3b10f2c7abaf0c73fd94675b24ef50d1b842cc26e8db746a"
+        },
+        "selected": {
+          "size": [
+            96,
+            96
+          ],
+          "rgba_sha256": "6ac65be7c323a1b5e70e49a27294d962a6a88ea9bcc96871cc9991589b3326e7"
+        }
+      }
+    }
+  ]
+}

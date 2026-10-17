@@ -1,0 +1,46 @@
+# Raptor Amiga Port {{VERSION}}
+
+{{SUMMARY}}
+
+## What's new in {{VERSION}}
+
+{{WHATS_NEW_MD}}
+
+{{UPGRADE_SECTION_MD}}
+
+{{TESTING_SECTION_MD}}
+
+## Binaries in the archive
+
+| Binary | Target |
+| --- | --- |
+| `raptor` | 68060 with FPU (recommended) |
+| `raptor_nofpu` | 68060 / 68EC060 / 68LC060 soft-float |
+| `raptor_030_fpu` | 68030 with an external 68881/68882 FPU |
+| `raptor_030` | 68030 soft-float |
+
+All four are native m68k AmigaOS executables. See `MANIFEST.txt` for the
+exact source commit and SHA-256 values of the binaries in this package.
+
+## Required game data
+
+The archive does **not** contain the original game data. Copy
+`FILE0000.GLB` through `FILE0004.GLB` from a legally owned copy of the
+**full PC v1.2** release into the game drawer. The port does not run
+without them. Music files (`MP3/` or `WAVE/`) and the savegame drawer are
+provided by the player; see `Raptor/ReadMe` inside the archive.
+
+## Documentation in the archive
+
+- `Raptor/ReadMe` - English manual
+- `Raptor/ReadMePL.txt` - Polish manual
+- `Raptor/CHANGELOG.md` - full changelog
+- `Raptor/amiga.cfg.example` - configuration template
+- `Raptor/SOURCE.txt` - source code information
+- `Raptor/LICENSE` - GPL v2
+
+## Links
+
+- Sources for this release: {{SOURCE_URL}}
+- Full documentation in the repository: `README_AMIGA.md` (English) and
+  `README_AMIGA_PL.md` (Polish).

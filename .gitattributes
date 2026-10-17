@@ -12,3 +12,4 @@
 *.lha -text
 *.zip -text
 *.exe -text
+*.info -text

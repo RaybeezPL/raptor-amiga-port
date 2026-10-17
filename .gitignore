@@ -28,3 +28,10 @@ build.amiga.*/
 
 # Local Cline rules (not versioned)
 .clinerules/raptor-local.md
+
+# Python caches from release tooling and tests
+__pycache__/
+*.pyc
+
+# Release artifacts (not versioned)
+/releases/
