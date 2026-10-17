@@ -60,7 +60,9 @@ Joystick:   Optional - port 1 (DB9, the second physical Amiga port);
             requires lowlevel.library v40+ (included in AmigaOS 3.2).
             1/2/3-button Amiga joysticks work by default (cd32 = OFF); a
             CD32 pad can be enabled with cd32 = ON in amiga.cfg (see
-            "amiga.cfg - configuration file" below).
+            "amiga.cfg - configuration file" below) or from a Workbench
+            icon with the active ToolTypes JOYSTICK=ON and CD32=ON (see
+            "Running from a Workbench Icon" below).
 Sound:      AHI (ahi.device v4+) for sound effects; no music backend
             is enabled by default (MUSIC=OFF). Music can be selected
             explicitly with MUSIC=ADLIB (built-in OPL3 emulation),
@@ -629,7 +631,8 @@ Running from a Workbench Icon
 The game can be started by double-clicking its icon on the
 Workbench. Parameters are passed via icon ToolTypes:
 
-1. Click the raptor icon once, then select
+1. Select the icon of the Raptor executable you use (raptor,
+   raptor_nofpu, raptor_030 or raptor_030_fpu), then choose
    "Icons / Information..." from the Workbench menu (or press
    Right Amiga + I).
 
@@ -642,7 +645,7 @@ Workbench. Parameters are passed via icon ToolTypes:
       GFX=AGA
       MOUSE=OFF
       (NOMOUSE)
-      JOYSTICK=OFF
+      JOYSTICK=ON
       (NOJOY)
       (CD32=ON)
       AHIUNIT=1
@@ -650,10 +653,49 @@ Workbench. Parameters are passed via icon ToolTypes:
    A ToolType enclosed in parentheses is INACTIVE (ignored by the
    game) - this is a convenient way to keep an option in the icon
    without enabling it. Only the active, non-parenthesized forms
-   are honored.
+   are honored. In the example above JOYSTICK=ON is active, while
+   (NOJOY) and (CD32=ON) are inactive, commented-out options.
 
 
 3. Click "Save" and double-click the icon to start the game.
+
+Enabling a CD32 gamepad:
+
+A CD32 pad is enabled with these two active ToolTypes, each on
+its own line, without parentheses:
+
+      JOYSTICK=ON
+      CD32=ON
+
+1. Select the icon of the Raptor executable you use.
+2. Open "Icons / Information..." (or press Right Amiga + I).
+3. In ToolTypes enter the two entries above, one per line, without
+   parentheses.
+4. Replace an existing JOYSTICK=OFF and CD32=OFF (or (CD32=ON))
+   instead of adding conflicting duplicate entries.
+5. Remove an active NOJOY entry, or disable it with parentheses:
+   (NOJOY).
+6. Click "Save" and start the game again.
+
+What these entries mean:
+
+- CD32=ON selects the CD32 pad mode (game controller mode on
+  gameport 1).
+- CD32=OFF selects the ordinary 1/2/3-button joystick path; it
+  does not disable controller input.
+- JOYSTICK=OFF disables controller polling completely.
+- (CD32=ON) is inactive - the parentheses make the ToolType
+  ignored by the game.
+- A ToolType overrides the cd32 value in amiga.cfg for that launch
+  only and does not change the saved value.
+- The button assignments still come from amiga.cfg. By default the
+  yellow button is CANCEL and play is PAUSE; FIRE fires the
+  primary weapon and the selected secondary weapon, and
+  SPECIAL_SELECT changes the secondary weapon in game (in the
+  shop it toggles BUY/SELL).
+- An explicit cd32_yellow = NONE written by an older build must be
+  changed to CANCEL or removed, otherwise the yellow button stays
+  disabled.
 
 Note: to run without audio from the Workbench, add the NOSOUND
 ToolType to the icon (NOMUSIC - or MUSIC=OFF - keeps sound effects
@@ -665,17 +707,20 @@ For the shown MHI example, the equivalent CLI options are
 "-music=mhi -mp3preload=on".
 
 Note: MOUSE=OFF / NOMOUSE disables the mouse and JOYSTICK=OFF / NOJOY
-disables the joystick (both default to ON). An explicit =value wins
-over the legacy bare flag. Disabling an input device is a
-performance/troubleshooting option: with the mouse off the window
+disables the joystick (both default to ON). This is a deliberate
+performance/troubleshooting choice, not the way to enable a pad or
+joystick - see "Enabling a CD32 gamepad" above. An explicit =value
+wins over the legacy bare flag. With the mouse off the window
 registers no mouse events at all, and with the joystick off the game
 port is never polled.
 
 Note: CD32=ON selects the CD32 pad on gameport 1 and CD32=OFF selects
-the shared 1/2/3-button joystick path (the default). Either value
-overrides the cd32 setting in amiga.cfg for that launch only and is
-never written back to the file. JOYSTICK=OFF / NOJOY still wins: with
-the joystick disabled the game port is never touched.
+the shared 1/2/3-button joystick path (the default). CD32=OFF does not
+disable joystick input. Either value overrides the cd32 setting in
+amiga.cfg for that launch only and is never written back to the file.
+JOYSTICK=OFF / NOJOY still wins: with the joystick disabled the game
+port is never touched. See "Enabling a CD32 gamepad" above for the
+icon procedure.
 
 Note: when started from the Workbench icon the game produces no
 console output (no console window is opened at all). To see the
@@ -799,7 +844,9 @@ CD32 gamepad (optional, port 1):
 A CD32 pad can be enabled with cd32 = ON in amiga.cfg (see "amiga.cfg -
 configuration file" below) or with the CD32=ON startup parameter (CLI
 -cd32=on / icon ToolType CD32=ON), which overrides the file for that
-launch only. With the default cd32 = OFF the port stays in plain joystick
+launch only. From a Workbench icon set the two active ToolTypes
+JOYSTICK=ON and CD32=ON - see "Running from a Workbench Icon" above.
+With the default cd32 = OFF the port stays in plain joystick
 mode and a CD32 pad behaves like a normal 2-button stick. NOJOY /
 JOYSTICK=OFF takes precedence: with the joystick disabled lowlevel.library
 is not opened and the port is never touched, whatever cd32 says.
@@ -1022,7 +1069,9 @@ Updating from 0.9.9-rc.4 or earlier
 - cd32 keeps its saved value and the default is still OFF. The CD32 pad is
   used only when the file says cd32 = ON, or for one launch when the
   CD32=ON startup parameter (CLI -cd32=on; icon ToolType CD32=ON) is
-  given; that parameter never changes the saved preference.
+  given; that parameter never changes the saved preference. On a Workbench
+  icon both active ToolTypes JOYSTICK=ON and CD32=ON are required (see
+  "Running from a Workbench Icon" above).
 - A file that holds only the audio volume keys is completed once at load
   time with the current template blocks, keeping the original values,
   comments and line endings; the original is kept as amiga.cfg.bakN. A

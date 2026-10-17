@@ -113,7 +113,9 @@ game's normal `i_video.cpp` flow:
   `amiga_stubs_impl.cpp`.
 - Optional CD32 gamepad support (`cd32 = ON`, default `cd32 = OFF`; also
   selectable for one session with the `CD32=ON|OFF` CLI/ToolType parameter,
-  which overrides the file and is never written back) pins gameport 1 to
+  which overrides the file and is never written back; from a Workbench icon
+  both active ToolTypes `JOYSTICK=ON` and `CD32=ON` are required, see
+  `README_AMIGA.md`) pins gameport 1 to
   `SJA_TYPE_GAMECTLR`; each of the seven pad buttons gets one configurable
   action (`cd32_red` .. `cd32_play`, one of FIRE / SPECIAL_SELECT /
   MEGA_BOMB / PAUSE / CANCEL / NONE). The built-in defaults are

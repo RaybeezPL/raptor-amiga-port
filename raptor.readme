@@ -109,7 +109,12 @@ joysticks work by default (cd32 = OFF) with per-button assignments
 CD32 gamepad can be enabled with "cd32 = ON" in amiga.cfg or with the
 CD32=ON startup parameter (CLI -cd32=on or icon ToolType CD32=ON), which
 overrides the file for that launch only and is never written back (disabled
-by default). Each of the seven pad buttons has its own assignment (FIRE,
+by default). From a Workbench icon use both active ToolTypes, one per line
+and without parentheses: JOYSTICK=ON and CD32=ON. "(CD32=ON)" is inactive,
+JOYSTICK=OFF disables controller polling, and CD32=OFF only selects the
+joystick path (it does not disable input). Full instructions are in
+README_AMIGA.md, section "Running from a Workbench Icon". Each of the seven
+pad buttons has its own assignment (FIRE,
 SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL or NONE); the yellow button
 defaults to CANCEL (the ESC key: the shop returns to the hangar, the hangar
 acts like physical ESC, in game it asks "Abort Mission ?") and the play

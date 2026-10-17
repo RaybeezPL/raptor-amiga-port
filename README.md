@@ -127,8 +127,13 @@ Working:
   the physical ESC key in the hangar and asks "Abort Mission ?" in the
   game, exactly like ESC. The `CD32=ON|OFF` startup parameter (CLI
   `-cd32=on`; icon ToolType `CD32=ON`) overrides the `amiga.cfg` value
-  for that session only and is never written back to the file. An
-  explicit `cd32_yellow = NONE` in an existing `amiga.cfg` still
+  for that session only and is never written back to the file. To use
+  a CD32 pad from a Workbench icon, set both active ToolTypes
+  `JOYSTICK=ON` and `CD32=ON`, one per line and without parentheses;
+  `(CD32=ON)` in parentheses is inactive and `JOYSTICK=OFF` disables
+  controller polling. The step-by-step procedure is in
+  [README_AMIGA.md](README_AMIGA.md#running-from-a-workbench-icon).
+  An explicit `cd32_yellow = NONE` in an existing `amiga.cfg` still
   disables the button; to get the new default the old line must be
   changed to `CANCEL` or removed. `NOJOY` / `JOYSTICK=OFF` takes
   precedence (the gameport is never touched).

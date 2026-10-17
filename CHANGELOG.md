@@ -2,6 +2,15 @@
 
 All notable changes to this Amiga 68k port of Raptor are documented here.
 
+## [Unreleased]
+
+### Documentation
+- Clarified CD32 activation from a Workbench icon: the general ToolTypes
+  example now keeps `JOYSTICK=ON`, and a dedicated `JOYSTICK=ON` /
+  `CD32=ON` example with a step-by-step procedure was added to
+  `README_AMIGA.md` and `README_AMIGA_PL.md`. `CD32=OFF` is documented as
+  selecting the ordinary joystick path rather than disabling input.
+
 ## [0.9.9-rc.5] - 2026-10-16
 
 ### Added
