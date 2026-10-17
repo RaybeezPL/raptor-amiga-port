@@ -65,8 +65,9 @@ Joystick:   Opcjonalny — port 1 (DB9, drugi fizyczny port Amigi); wymaga
             Amiga 1/2/3-przyciskowe działają domyślnie (cd32 = OFF); pad
             CD32 można włączyć wpisem cd32 = ON w amiga.cfg (patrz sekcja
             „amiga.cfg — plik konfiguracyjny” poniżej) albo z ikony
-            Workbench aktywnymi ToolTypes JOYSTICK=ON i CD32=ON (patrz
-            „Uruchamianie z ikony Workbench” poniżej).
+            Workbench aktywnym ToolType CD32=ON przy włączonym wejściu
+            joysticka (zalecana jednoznaczna para to JOYSTICK=ON i
+            CD32=ON; patrz „Uruchamianie z ikony Workbench” poniżej).
 Dźwięk:     AHI (ahi.device v4+) dla efektów dźwiękowych; domyślnie
             żaden backend muzyki nie jest włączony (MUSIC=OFF). Muzykę
             można wybrać jawnie przez MUSIC=ADLIB (wbudowana emulacja
@@ -555,9 +556,9 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                 wydajnościowa/diagnostyczna — przy wyłączonej myszy
                 przetwarzanie zdarzeń myszy w każdej klatce jest całkowicie
                 pomijane. Domyślnie ON. Działa również forma bez myślnika:
-                "MOUSE=OFF". Jawna forma =wartość ma zawsze pierwszeństwo
-                przed starszą flagą NOMOUSE, niezależnie od kolejności
-                parametrów.
+                "MOUSE=OFF". W ToolTypes ikony jawna forma =wartość ma
+                pierwszeństwo przed starszą flagą NOMOUSE; w CLI wygrywa
+                ostatni pasujący parametr.
 
     -nomouse    Starsza forma MOUSE=OFF (patrz wyżej).
 
@@ -569,8 +570,9 @@ i "nosound" są równoważne. Parametry można łączyć w dowolnej kolejności.
                 diagnostyczna — przydatna do namierzania fantomowych
                 wejść na prawdziwym sprzęcie bez rekompilacji. Domyślnie
                 ON. Działa również forma bez myślnika: "JOYSTICK=OFF".
-                Jawna forma =wartość ma zawsze pierwszeństwo przed starszą
-                flagą NOJOY, niezależnie od kolejności parametrów.
+                W ToolTypes ikony jawna forma =wartość ma pierwszeństwo
+                przed starszą flagą NOJOY; w CLI wygrywa ostatni pasujący
+                parametr.
 
     -nojoy      Starsza forma JOYSTICK=OFF (patrz wyżej).
 
@@ -674,8 +676,10 @@ Parametry są przekazywane za pomocą ToolTypes ikony:
 
 Włączenie pada CD32:
 
-Pad CD32 włącza się dwoma aktywnymi ToolTypes, każdy w osobnym
-wierszu, bez nawiasów:
+Wejście joysticka jest domyślnie włączone, więc aktywny ToolType
+CD32=ON wystarcza, jeśli wejście joysticka nie zostało wyłączone.
+Zalecaną, jednoznaczną konfiguracją ikony jest poniższa aktywna para,
+każdy wpis w osobnym wierszu, bez nawiasów:
 
       JOYSTICK=ON
       CD32=ON
@@ -684,17 +688,25 @@ wierszu, bez nawiasów:
 2. Otwórz „Icons / Information...” (albo naciśnij Right Amiga + I).
 3. W ToolTypes wpisz powyższe dwie pozycje, każdą w osobnym wierszu,
    bez nawiasów.
-4. Zastąp istniejące JOYSTICK=OFF i CD32=OFF (lub (CD32=ON)),
-   zamiast dodawać sprzeczne, powtórzone wpisy.
-5. Usuń aktywny wpis NOJOY albo wyłącz go nawiasami: (NOJOY).
+4. Zastąp istniejące JOYSTICK=OFF wpisem JOYSTICK=ON, a istniejące
+   CD32=OFF (lub nieaktywne (CD32=ON)) wpisem CD32=ON, zamiast dodawać
+   sprzeczne, powtórzone wpisy.
+5. Usuń aktywny wpis NOJOY albo wyłącz go nawiasami: (NOJOY). Nie
+   pozostawiaj jednocześnie aktywnych NOJOY i JOYSTICK=ON — pojedynczy
+   JOYSTICK=ON zastępuje starą flagę.
 6. Kliknij „Save” i uruchom grę ponownie.
 
 Co oznaczają te wpisy:
 
+- JOYSTICK=ON jawnie włącza wejście joysticka (jest to również wartość
+  domyślna). W ToolTypes ikony jawne JOYSTICK=ON|OFF ma pierwszeństwo
+  przed starszą flagą NOJOY; JOYSTICK=OFF całkowicie wyłącza
+  odpytywanie kontrolera.
 - CD32=ON wybiera tryb pada CD32 (tryb game controller na gameporcie 1).
+  Działa tylko przy włączonym wejściu joysticka; samo CD32=ON nie
+  włącza wejścia wyłączonego przez JOYSTICK=OFF / NOJOY.
 - CD32=OFF wybiera zwykły joystick 1/2/3-przyciskowy; nie wyłącza
   wejścia kontrolera.
-- JOYSTICK=OFF całkowicie wyłącza odpytywanie kontrolera.
 - (CD32=ON) jest nieaktywne — nawiasy powodują zignorowanie ToolType
   przez grę.
 - ToolType ma pierwszeństwo przed wartością cd32 w amiga.cfg tylko dla
@@ -718,10 +730,10 @@ Dla pokazanego przykładu MHI równoważne opcje CLI to
 Uwaga: MOUSE=OFF / NOMOUSE wyłącza mysz, a JOYSTICK=OFF / NOJOY wyłącza
 joystick (obie opcje domyślnie ON). To świadomy wybór wydajnościowy/
 diagnostyczny, a nie sposób włączania pada lub joysticka — patrz
-„Włączenie pada CD32” powyżej. Jawna forma =wartość ma pierwszeństwo
-przed starszą flagą. Przy wyłączonej myszy okno nie rejestruje żadnych
-zdarzeń myszy, a przy wyłączonym joysticku port gier nie jest w ogóle
-odpytywany.
+„Włączenie pada CD32” powyżej. W ToolTypes ikony jawna forma =wartość
+ma pierwszeństwo przed starszą flagą. Przy wyłączonej myszy okno nie
+rejestruje żadnych zdarzeń myszy, a przy wyłączonym joysticku port gier
+nie jest w ogóle odpytywany.
 
 Uwaga: CD32=ON wybiera pad CD32 na gameporcie 1, a CD32=OFF wspólną
 obsługę joysticka 1/2/3-przyciskowego (domyślnie). CD32=OFF nie wyłącza
@@ -851,8 +863,9 @@ Pad CD32 (opcjonalnie, port 1):
 Pad CD32 można włączyć wpisem cd32 = ON w amiga.cfg (patrz sekcja
 „amiga.cfg — plik konfiguracyjny” poniżej) albo parametrem uruchomienia
 CD32=ON (CLI -cd32=on / ToolType ikony CD32=ON), który nadpisuje plik
-tylko na czas tego uruchomienia. Z ikony Workbench ustaw oba aktywne
-ToolTypes JOYSTICK=ON i CD32=ON — patrz „Uruchamianie z ikony Workbench”
+tylko na czas tego uruchomienia. Z ikony Workbench aktywny CD32=ON
+wystarcza przy włączonym wejściu joysticka; zalecaną jednoznaczną parą
+jest JOYSTICK=ON i CD32=ON — patrz „Uruchamianie z ikony Workbench”
 powyżej. Przy domyślnym cd32 = OFF port pozostaje
 w zwykłym trybie joysticka, a pad CD32 zachowuje się jak zwykły
 2-button joystick. NOJOY / JOYSTICK=OFF ma pierwszeństwo: gdy joystick
@@ -1089,8 +1102,9 @@ Aktualizacja z 0.9.9-rc.4 lub starszej
   CD32 jest używany tylko wtedy, gdy plik mówi cd32 = ON, albo na czas
   jednego uruchomienia, gdy podano parametr uruchomienia CD32=ON (CLI
   -cd32=on; ToolType ikony CD32=ON); ten parametr nie zmienia zapisanej
-  preferencji. Z ikony Workbench potrzebne są oba aktywne ToolTypes
-  JOYSTICK=ON i CD32=ON (patrz „Uruchamianie z ikony Workbench” powyżej).
+  preferencji. Z ikony Workbench aktywny CD32=ON wystarcza, jeśli
+  wejście joysticka nie zostało wyłączone; zalecana jednoznaczna para
+  to JOYSTICK=ON i CD32=ON (patrz „Uruchamianie z ikony Workbench”).
 - Plik zawierający wyłącznie klucze głośności jest jednorazowo
   uzupełniany przy wczytaniu o bieżące bloki szablonu, z zachowaniem
   oryginalnych wartości, komentarzy i końców wierszy; oryginał zostaje

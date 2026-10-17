@@ -107,7 +107,8 @@ Working:
   parameters — enable/disable the mouse and joystick input devices (CLI:
   `-mouse=off`, `-nomouse`, `-joystick=off`, `-nojoy`; icon ToolTypes:
   `MOUSE=OFF`, `NOMOUSE`, `JOYSTICK=OFF`, `NOJOY`). Both default to ON.
-  An explicit `KEYWORD=value` wins over the legacy bare flag. Disabling an
+  In the icon ToolTypes an explicit `KEYWORD=value` wins over the legacy
+  bare flag; on the CLI the last matching parameter wins. Disabling an
   input device is a performance/troubleshooting option: with the mouse off
   the window registers no mouse events at all, and with the joystick off
   the game port is never polled.
@@ -127,11 +128,16 @@ Working:
   the physical ESC key in the hangar and asks "Abort Mission ?" in the
   game, exactly like ESC. The `CD32=ON|OFF` startup parameter (CLI
   `-cd32=on`; icon ToolType `CD32=ON`) overrides the `amiga.cfg` value
-  for that session only and is never written back to the file. To use
-  a CD32 pad from a Workbench icon, set both active ToolTypes
-  `JOYSTICK=ON` and `CD32=ON`, one per line and without parentheses;
-  `(CD32=ON)` in parentheses is inactive and `JOYSTICK=OFF` disables
-  controller polling. The step-by-step procedure is in
+  for that session only and is never written back to the file. Joystick
+  input is enabled by default, so an active `CD32=ON` ToolType alone is
+  enough unless joystick input was disabled. The recommended, unambiguous
+  icon configuration is the active pair `JOYSTICK=ON` and `CD32=ON`, one
+  per line and without parentheses: replace an existing `JOYSTICK=OFF`
+  with `JOYSTICK=ON` and remove an active `NOJOY` (or disable it as
+  `(NOJOY)`) instead of adding duplicate entries. `(CD32=ON)` in
+  parentheses is inactive; `JOYSTICK=OFF` / `NOJOY` disables controller
+  polling, and `CD32=ON` alone does not re-enable it. The step-by-step
+  procedure is in
   [README_AMIGA.md](README_AMIGA.md#running-from-a-workbench-icon).
   An explicit `cd32_yellow = NONE` in an existing `amiga.cfg` still
   disables the button; to get the new default the old line must be

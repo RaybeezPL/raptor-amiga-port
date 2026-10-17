@@ -76,10 +76,14 @@ joy_button3 = MEGA_BOMB ; Button 3 (DB9 pin 5)
 ; cd32_yellow = NONE to disable that button. The CD32 pad is selected with
 ; cd32 = ON below or, for one launch only, with the CD32=ON startup
 ; parameter (CLI -cd32=on / icon ToolType CD32=ON), which is never written
-; back to this file. A Workbench icon needs both active ToolTypes, one per
-; line and without parentheses: JOYSTICK=ON and CD32=ON. "(CD32=ON)" is
-; inactive, JOYSTICK=OFF disables controller polling and CD32=OFF only
-; selects the joystick path (it does not disable input).
+; back to this file. Joystick input is enabled by default, so an active
+; CD32=ON ToolType is enough unless joystick input was disabled. A
+; recommended, unambiguous icon configuration is the active pair, one per
+; line and without parentheses: JOYSTICK=ON and CD32=ON; replace
+; JOYSTICK=OFF with JOYSTICK=ON and remove (or parenthesize) an active
+; NOJOY. "(CD32=ON)" is inactive, JOYSTICK=OFF / NOJOY disables controller
+; polling, CD32=OFF only selects the joystick path (it does not disable
+; input), and CD32=ON alone does not re-enable disabled input.
 cd32 = OFF
 cd32_red     = FIRE ; Red button
 cd32_blue    = SPECIAL_SELECT ; Blue button

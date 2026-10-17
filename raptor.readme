@@ -109,11 +109,15 @@ joysticks work by default (cd32 = OFF) with per-button assignments
 CD32 gamepad can be enabled with "cd32 = ON" in amiga.cfg or with the
 CD32=ON startup parameter (CLI -cd32=on or icon ToolType CD32=ON), which
 overrides the file for that launch only and is never written back (disabled
-by default). From a Workbench icon use both active ToolTypes, one per line
-and without parentheses: JOYSTICK=ON and CD32=ON. "(CD32=ON)" is inactive,
-JOYSTICK=OFF disables controller polling, and CD32=OFF only selects the
-joystick path (it does not disable input). Full instructions are in
-README_AMIGA.md, section "Running from a Workbench Icon". Each of the seven
+by default). Joystick input is enabled by default, so an active CD32=ON
+ToolType is enough unless joystick input was disabled. The recommended,
+unambiguous icon configuration is the active pair, one per line and
+without parentheses: JOYSTICK=ON and CD32=ON; replace JOYSTICK=OFF with
+JOYSTICK=ON and remove (or parenthesize) an active NOJOY. "(CD32=ON)" is
+inactive, JOYSTICK=OFF / NOJOY disables controller polling, and CD32=OFF
+only selects the joystick path (it does not disable input); CD32=ON alone
+does not re-enable disabled input. Full instructions are in
+Raptor/ReadMe, section "Running from a Workbench Icon". Each of the seven
 pad buttons has its own assignment (FIRE,
 SPECIAL_SELECT, MEGA_BOMB, PAUSE, CANCEL or NONE); the yellow button
 defaults to CANCEL (the ESC key: the shop returns to the hangar, the hangar
@@ -150,8 +154,8 @@ assisted by AI tools, with final decisions, testing and integration done
 by the author.
 
 Original game data files (full v1.2) are required and not included.
-See README_AMIGA.md inside the archive for detailed setup, controls,
-parameters and troubleshooting.
+See Raptor/ReadMe (English) and Raptor/ReadMePL.txt (Polish) inside the
+archive for detailed setup, controls, parameters and troubleshooting.
 
 Project homepage and sources:
 https://github.com/RaybeezPL/raptor-amiga-port
